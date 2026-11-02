@@ -10,7 +10,12 @@ public interface RepositorioCampania {
 
     Optional<Campania> buscarPorId(UUID id);
 
+    /** Las campañas devueltas no traen sus costos y no deben volver a guardarse. */
     Pagina<Campania> listar(FiltrosCampania filtros, int pagina, int tamanio);
 
     boolean existeEnCursoEnParcela(UUID idParcela);
+
+    /** Costos vigentes de la campaña, del más reciente al más antiguo. */
+    Pagina<CostoCampania> listarCostos(
+            UUID idCampania, CategoriaCosto categoria, OrigenCosto origen, int pagina, int tamanio);
 }

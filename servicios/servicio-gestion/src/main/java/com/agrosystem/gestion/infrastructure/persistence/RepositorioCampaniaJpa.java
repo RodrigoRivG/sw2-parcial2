@@ -1,12 +1,16 @@
 package com.agrosystem.gestion.infrastructure.persistence;
 
 import com.agrosystem.gestion.domain.campaign.Campania;
+import com.agrosystem.gestion.domain.campaign.CategoriaCosto;
+import com.agrosystem.gestion.domain.campaign.CostoCampania;
 import com.agrosystem.gestion.domain.campaign.EstadoCampania;
 import com.agrosystem.gestion.domain.campaign.FiltrosCampania;
+import com.agrosystem.gestion.domain.campaign.OrigenCosto;
 import com.agrosystem.gestion.domain.campaign.RepositorioCampania;
 import com.agrosystem.gestion.domain.shared.ExcepcionDominio;
 import com.agrosystem.gestion.domain.shared.Pagina;
 import com.agrosystem.gestion.infrastructure.persistence.entity.CampaniaEntidad;
+import com.agrosystem.gestion.infrastructure.persistence.entity.CostoCampaniaEntidad;
 import com.agrosystem.gestion.infrastructure.persistence.mapper.MapeadorCampania;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -27,9 +31,11 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
     private static final String INDICE_EN_CURSO = "ux_campania_parcela_en_curso";
 
     private final CampaniaSpringData springData;
+    private final CostoCampaniaSpringData costos;
 
-    public RepositorioCampaniaJpa(CampaniaSpringData springData) {
+    public RepositorioCampaniaJpa(CampaniaSpringData springData, CostoCampaniaSpringData costos) {
         this.springData = springData;
+        this.costos = costos;
     }
 
     @Override
@@ -67,7 +73,7 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
                 pagina, tamanio, Sort.by(Sort.Order.desc("fechaInicio"), Sort.Order.asc("id")));
         Page<CampaniaEntidad> resultado = springData.findAll(condiciones(filtros), paginacion);
         return new Pagina<>(
-                resultado.getContent().stream().map(MapeadorCampania::aDominio).toList(),
+                resultado.getContent().stream().map(MapeadorCampania::aDominioSinCostos).toList(),
                 resultado.getTotalElements());
     }
 
@@ -100,5 +106,28 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
     @Override
     public boolean existeEnCursoEnParcela(UUID idParcela) {
         return springData.existsByIdParcelaAndEstado(idParcela, EstadoCampania.EN_CURSO.name());
+    }
+
+    @Override
+    public Pagina<CostoCampania> listarCostos(
+            UUID idCampania, CategoriaCosto categoria, OrigenCosto origen, int pagina, int tamanio) {
+        Specification<CostoCampaniaEntidad> condiciones = (raiz, consulta, criterio) -> {
+            List<Predicate> lista = new ArrayList<>();
+            lista.add(criterio.equal(raiz.get("idCampania"), idCampania));
+            lista.add(criterio.isFalse(raiz.get("anulado")));
+            if (categoria != null) {
+                lista.add(criterio.equal(raiz.get("categoria"), categoria.name()));
+            }
+            if (origen != null) {
+                lista.add(criterio.equal(raiz.get("origen"), origen.name()));
+            }
+            return criterio.and(lista.toArray(Predicate[]::new));
+        };
+        PageRequest paginacion = PageRequest.of(pagina, tamanio, Sort.by(
+                Sort.Order.desc("fecha"), Sort.Order.desc("fechaRegistro"), Sort.Order.asc("id")));
+        Page<CostoCampaniaEntidad> resultado = costos.findAll(condiciones, paginacion);
+        return new Pagina<>(
+                resultado.getContent().stream().map(MapeadorCampania::costoADominio).toList(),
+                resultado.getTotalElements());
     }
 }

@@ -6,8 +6,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.agrosystem.gestion.application.port.AccionAuditoria;
 import com.agrosystem.gestion.application.port.RegistroAuditoria;
 import com.agrosystem.gestion.domain.campaign.Campania;
+import com.agrosystem.gestion.domain.campaign.CategoriaCosto;
+import com.agrosystem.gestion.domain.campaign.CostoCampania;
 import com.agrosystem.gestion.domain.campaign.EstadoCampania;
 import com.agrosystem.gestion.domain.campaign.FiltrosCampania;
+import com.agrosystem.gestion.domain.campaign.OrigenCosto;
 import com.agrosystem.gestion.domain.campaign.RepositorioCampania;
 import com.agrosystem.gestion.domain.shared.ExcepcionDominio;
 import com.agrosystem.gestion.domain.shared.Hectareas;
@@ -46,7 +49,8 @@ class CambiarEstadoCampaniaCasoUsoTest {
                 null,
                 3L,
                 AHORA.minusSeconds(60),
-                AHORA.minusSeconds(60));
+                AHORA.minusSeconds(60),
+                List.of());
         repositorio.campania = campania;
         return campania;
     }
@@ -120,6 +124,12 @@ class CambiarEstadoCampaniaCasoUsoTest {
         @Override
         public boolean existeEnCursoEnParcela(UUID idParcela) {
             return hayOtraEnCurso;
+        }
+
+        @Override
+        public Pagina<CostoCampania> listarCostos(
+                UUID idCampania, CategoriaCosto categoria, OrigenCosto origen, int pagina, int tamanio) {
+            throw new UnsupportedOperationException();
         }
     }
 

@@ -9,6 +9,7 @@ import com.agrosystem.gestion.domain.campaign.EstadoCampania;
 import com.agrosystem.gestion.domain.campaign.RepositorioCampania;
 import com.agrosystem.gestion.domain.shared.Hectareas;
 import com.agrosystem.gestion.infrastructure.persistence.CampaniaSpringData;
+import com.agrosystem.gestion.infrastructure.persistence.CostoCampaniaSpringData;
 import com.agrosystem.gestion.infrastructure.persistence.CultivoSpringData;
 import com.agrosystem.gestion.infrastructure.persistence.ParcelaSpringData;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,9 @@ abstract class CampaniaPruebaBase extends PruebaIntegracionBase {
 
     @Autowired
     protected CampaniaSpringData campanias;
+
+    @Autowired
+    protected CostoCampaniaSpringData costos;
 
     @Autowired
     protected RepositorioCampania repositorioCampania;
@@ -56,6 +61,7 @@ abstract class CampaniaPruebaBase extends PruebaIntegracionBase {
 
     @AfterEach
     void vaciarDatos() {
+        costos.deleteAllInBatch();
         campanias.deleteAllInBatch();
         parcelas.deleteAllInBatch();
         cultivos.deleteAllInBatch();
@@ -125,7 +131,8 @@ abstract class CampaniaPruebaBase extends PruebaIntegracionBase {
                 ahora,
                 null,
                 ahora,
-                ahora);
+                ahora,
+                List.of());
         return repositorioCampania.guardar(campania).getId().toString();
     }
 }

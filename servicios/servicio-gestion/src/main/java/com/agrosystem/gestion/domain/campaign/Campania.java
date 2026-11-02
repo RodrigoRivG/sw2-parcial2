@@ -1,9 +1,15 @@
 package com.agrosystem.gestion.domain.campaign;
 
+import com.agrosystem.gestion.domain.shared.Dinero;
 import com.agrosystem.gestion.domain.shared.ExcepcionDominio;
 import com.agrosystem.gestion.domain.shared.Hectareas;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class Campania {
@@ -21,6 +27,7 @@ public class Campania {
     private final Long version;
     private final Instant fechaCreacion;
     private Instant fechaActualizacion;
+    private final List<CostoCampania> costos;
 
     private Campania(
             UUID id,
@@ -35,7 +42,8 @@ public class Campania {
             Instant fechaFinalizacion,
             Long version,
             Instant fechaCreacion,
-            Instant fechaActualizacion) {
+            Instant fechaActualizacion,
+            List<CostoCampania> costos) {
         this.id = id;
         this.nombre = nombre;
         this.idParcela = idParcela;
@@ -49,6 +57,7 @@ public class Campania {
         this.version = version;
         this.fechaCreacion = fechaCreacion;
         this.fechaActualizacion = fechaActualizacion;
+        this.costos = new ArrayList<>(costos);
     }
 
     public static Campania crear(
@@ -73,7 +82,8 @@ public class Campania {
                 null,
                 null,
                 ahora,
-                ahora);
+                ahora,
+                List.of());
     }
 
     /** Reconstruye una campaña ya guardada; no vuelve a aplicar reglas de creación. */
@@ -90,7 +100,8 @@ public class Campania {
             Instant fechaFinalizacion,
             Long version,
             Instant fechaCreacion,
-            Instant fechaActualizacion) {
+            Instant fechaActualizacion,
+            List<CostoCampania> costos) {
         return new Campania(
                 id,
                 nombre,
@@ -104,7 +115,8 @@ public class Campania {
                 fechaFinalizacion,
                 version,
                 fechaCreacion,
-                fechaActualizacion);
+                fechaActualizacion,
+                costos);
     }
 
     /** Aplica la tabla de campos modificables por estado (RQ-CAM-08). */
@@ -116,12 +128,7 @@ public class Campania {
             LocalDate fechaFin,
             Hectareas superficie,
             Instant ahora) {
-        if (estado == EstadoCampania.FINALIZADA) {
-            throw new ExcepcionDominio(
-                    "CAMPANIA_FINALIZADA",
-                    "La campaña está finalizada y no admite cambios.",
-                    ExcepcionDominio.Tipo.REGLA_NEGOCIO);
-        }
+        rechazarSiFinalizada();
         if (estado == EstadoCampania.EN_CURSO
                 && (!idParcela.equals(this.idParcela)
                         || !idCultivo.equals(this.idCultivo)
@@ -161,6 +168,85 @@ public class Campania {
         }
         estado = destino;
         fechaActualizacion = ahora;
+    }
+
+    public CostoCampania registrarCostoManual(
+            CategoriaCosto categoria,
+            Dinero monto,
+            LocalDate fecha,
+            String descripcion,
+            LocalDate hoy,
+            Instant ahora) {
+        rechazarSiFinalizada();
+        CostoCampania costo = CostoCampania.crearManual(categoria, monto, fecha, descripcion, hoy, ahora);
+        costos.add(costo);
+        fechaActualizacion = ahora;
+        return costo;
+    }
+
+    public CostoCampania modificarCostoManual(
+            UUID idCosto,
+            CategoriaCosto categoria,
+            Dinero monto,
+            LocalDate fecha,
+            String descripcion,
+            LocalDate hoy,
+            Instant ahora) {
+        CostoCampania costo = costoEditable(idCosto);
+        costo.modificar(categoria, monto, fecha, descripcion, hoy);
+        fechaActualizacion = ahora;
+        return costo;
+    }
+
+    public void eliminarCostoManual(UUID idCosto, Instant ahora) {
+        costos.remove(costoEditable(idCosto));
+        fechaActualizacion = ahora;
+    }
+
+    private CostoCampania costoEditable(UUID idCosto) {
+        CostoCampania costo = costos.stream()
+                .filter(candidato -> candidato.getId().equals(idCosto))
+                .findFirst()
+                .orElseThrow(() -> new ExcepcionDominio(
+                        "COSTO_NO_ENCONTRADO", "El costo no existe en esta campaña.", ExcepcionDominio.Tipo.NO_ENCONTRADO));
+        rechazarSiFinalizada();
+        if (!costo.esManual()) {
+            throw new ExcepcionDominio(
+                    "COSTO_NO_EDITABLE",
+                    "Un costo originado por una labor no se modifica ni se elimina.",
+                    ExcepcionDominio.Tipo.REGLA_NEGOCIO);
+        }
+        return costo;
+    }
+
+    private void rechazarSiFinalizada() {
+        if (estado == EstadoCampania.FINALIZADA) {
+            throw new ExcepcionDominio(
+                    "CAMPANIA_FINALIZADA",
+                    "La campaña está finalizada y no admite cambios.",
+                    ExcepcionDominio.Tipo.REGLA_NEGOCIO);
+        }
+    }
+
+    public Dinero costoTotal() {
+        return costosVigentes().stream().map(CostoCampania::getMonto).reduce(Dinero.CERO, Dinero::sumar);
+    }
+
+    public int cantidadCostos() {
+        return costosVigentes().size();
+    }
+
+    public Map<CategoriaCosto, Dinero> subtotalesPorCategoria() {
+        Map<CategoriaCosto, Dinero> subtotales = new EnumMap<>(CategoriaCosto.class);
+        for (CategoriaCosto categoria : CategoriaCosto.values()) {
+            subtotales.put(categoria, Dinero.CERO);
+        }
+        costosVigentes().forEach(costo -> subtotales.merge(costo.getCategoria(), costo.getMonto(), Dinero::sumar));
+        return subtotales;
+    }
+
+    private List<CostoCampania> costosVigentes() {
+        return costos.stream().filter(costo -> !costo.isAnulado()).toList();
     }
 
     /** La producción se agrega con spec-produccion.md; hasta entonces ninguna campaña la tiene. */
@@ -227,5 +313,9 @@ public class Campania {
 
     public Instant getFechaActualizacion() {
         return fechaActualizacion;
+    }
+
+    public List<CostoCampania> getCostos() {
+        return Collections.unmodifiableList(costos);
     }
 }

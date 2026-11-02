@@ -8,6 +8,7 @@ import com.agrosystem.gestion.domain.shared.Hectareas;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,7 +26,7 @@ class CampaniaTest {
     private Campania enEstado(EstadoCampania estado) {
         return Campania.reconstruir(
                 UUID.randomUUID(), "Soya", PARCELA, CULTIVO, INICIO, FIN, SUPERFICIE,
-                estado, null, null, 1L, AHORA, AHORA);
+                estado, null, null, 1L, AHORA, AHORA, List.of());
     }
 
     private void esperarError(Runnable accion, String codigo) {

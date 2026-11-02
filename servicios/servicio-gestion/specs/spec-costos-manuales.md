@@ -249,11 +249,11 @@ Para probar `COSTO_NO_EDITABLE` antes de tener la Saga, el test inserta un costo
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `CostoCampania`, `CategoriaCosto`, `OrigenCosto` y `Dinero`; ampliar `Campania`; con `CostoCampaniaTest` y `CampaniaCostosTest`.
-- [ ] **T02** — Crear `V5__crear_costo_campania.sql` y ampliar la persistencia del agregado.
-- [ ] **T03** — Implementar `POST /campanias/{id}/costos`. *Hecho cuando:* pasan los escenarios de la historia 1.
-- [ ] **T04** — Implementar `GET /campanias/{id}/costos` con totales. *Hecho cuando:* pasan los escenarios de la historia 2.
-- [ ] **T05** — Implementar `PUT` y `DELETE` de costos. *Hecho cuando:* pasan los escenarios de la historia 3.
-- [ ] **T06** — Completar `costoTotal` y `cantidadCostos` en el detalle de campaña.
-- [ ] **T07** — Escribir `CostoCampaniaRendimientoIT` y documentar los errores en OpenAPI.
-- [ ] **T08** — Verificación final: `mvn verify` en verde y criterios CE-COS-01 a CE-COS-03 cubiertos.
+- [x] **T01** — Crear `CostoCampania`, `CategoriaCosto`, `OrigenCosto` y `Dinero`; ampliar `Campania`; con `CostoCampaniaTest` y `CampaniaCostosTest`.
+- [x] **T02** — Crear `V5__crear_costo_campania.sql` y ampliar la persistencia del agregado.
+- [x] **T03** — Implementar `POST /campanias/{id}/costos`. *Hecho cuando:* pasan los escenarios de la historia 1.
+- [x] **T04** — Implementar `GET /campanias/{id}/costos` con totales. *Hecho cuando:* pasan los escenarios de la historia 2.
+- [x] **T05** — Implementar `PUT` y `DELETE` de costos. *Hecho cuando:* pasan los escenarios de la historia 3.
+- [x] **T06** — Completar `costoTotal` y `cantidadCostos` en el detalle de campaña.
+- [x] **T07** — Escribir `CostoCampaniaRendimientoIT` y documentar los errores en OpenAPI.
+- [x] **T08** — Verificación final: `mvn verify` en verde y criterios CE-COS-01 a CE-COS-03 cubiertos.

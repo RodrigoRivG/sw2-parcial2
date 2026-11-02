@@ -36,7 +36,7 @@ public record CampaniaRespuesta(
                 campania.getEstado(),
                 campania.getFechaInicioEjecucion(),
                 campania.getFechaFinalizacion(),
-                ResumenCampaniaRespuesta.vacio(),
+                ResumenCampaniaRespuesta.de(campania),
                 campania.getVersion(),
                 campania.getFechaCreacion(),
                 campania.getFechaActualizacion());

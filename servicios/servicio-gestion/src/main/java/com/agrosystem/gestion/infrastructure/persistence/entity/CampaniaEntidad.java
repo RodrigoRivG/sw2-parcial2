@@ -1,13 +1,19 @@
 package com.agrosystem.gestion.infrastructure.persistence.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -52,6 +58,10 @@ public class CampaniaEntidad {
 
     @Column(name = "fecha_actualizacion", nullable = false)
     private Instant fechaActualizacion;
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_campania", nullable = false, updatable = false)
+    private List<CostoCampaniaEntidad> costos = new ArrayList<>();
 
     protected CampaniaEntidad() {
     }
@@ -134,5 +144,9 @@ public class CampaniaEntidad {
 
     public Instant getFechaActualizacion() {
         return fechaActualizacion;
+    }
+
+    public List<CostoCampaniaEntidad> getCostos() {
+        return costos;
     }
 }
