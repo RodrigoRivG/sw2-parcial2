@@ -12,7 +12,11 @@ on:
 
 jobs:
   construir:
-    runs-on: ubuntu-latest
+    # No ubuntu-latest: su kernel Ubuntu 7.0.0-*-azure hace que MongoDB 8.x se niegue a arrancar
+    # (SERVER-121912, y SERVER-136848 abierto: el chequeo lee "7.0.0" y no el parche de Ubuntu).
+    # Los tests usan mongo:8.0, la imagen de Docker Compose, así que se usa un runner con kernel 6.x.
+    # Volver a ubuntu-latest cuando se cierre SERVER-136848.
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: servicios/servicio-inventario
@@ -35,8 +39,7 @@ jobs:
         if: failure()
         run: |
           uname -a
+          cat /proc/version_signature || true
           docker version
-          docker info --format 'cgroup={{.CgroupVersion}} ulimits={{json .DefaultUlimits}}'
-          ulimit -a
       - name: Construir la imagen Docker
         run: docker build -t servicio-inventario:${{ github.sha }} .

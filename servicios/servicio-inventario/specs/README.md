@@ -152,4 +152,5 @@ Donde difieren, prevalece la constitución.
 - Constitución v2.8.0 (solo inventario): lectura de movimientos para `administrador` y `gerencia`, y glosario ampliado (AP-02, AP-03).
 - Alerta de stock bajo con reserva temporal antes de publicar, para cumplir a la vez "un evento cada 24 h" y "la fecha se guarda solo después de publicar" ante movimientos concurrentes.
 - Trazabilidad corregida con el PDF: RF-09 es el evento de stock bajo y RF-10 el descuento de la Saga (estaban intercambiados); CU-24 incluye RF-27; CU-08 y CU-09 tienen prioridad media.
+- Pipeline en `ubuntu-22.04` y no en `ubuntu-latest`: el kernel Ubuntu `7.0.0-*-azure` de `ubuntu-latest` hace que MongoDB 8.x termine al arrancar (SERVER-121912; el chequeo lee `7.0.0` y no el parche de Ubuntu, SERVER-136848, abierto). Así los tests siguen usando `mongo:8.0`, la imagen de Docker Compose. Volver a `ubuntu-latest` cuando se cierre SERVER-136848. El `globalSetup` muestra el log de `mongod` si no arranca.
 - Migraciones con un ejecutor propio de ~50 líneas en lugar de `migrate-mongo`, por la regla de simplicidad.
