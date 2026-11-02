@@ -1,0 +1,3 @@
+KEYCLOAK_ISSUER: http://keycloak-ficticio/realms/agro
+KEYCLOAK_JWKS_URI: http://keycloak-ficticio/realms/agro/protocol/openid-connect/certs
+KEYCLOAK_AUDIENCE: servicio-gestion

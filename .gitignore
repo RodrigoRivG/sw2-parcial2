@@ -1,0 +1,48 @@
+# Secretos y configuración local (RNF-03)
+.env
+.env.*
+!.env.example
+
+# Java / Maven
+target/
+*.class
+
+# Node.js / NestJS / Apollo
+node_modules/
+dist/
+coverage/
+
+# PHP / Laravel
+vendor/
+bootstrap/cache/*.php
+.phpunit.cache/
+.phpunit.result.cache
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Modelos de IA: se versionan en Cloud Storage, no en el repositorio
+*.joblib
+*.h5
+*.keras
+*.tflite
+
+# Logs
+*.log
+
+# Editores y sistema operativo
+.idea/
+.vscode/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+Zone.Identifier
+*:Zone.Identifier

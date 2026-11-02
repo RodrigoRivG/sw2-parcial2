@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: servicio-gestion
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  jackson:
+    default-leniency: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI}
+          issuer-uri: ${KEYCLOAK_ISSUER}
+          audiences: ${KEYCLOAK_AUDIENCE:servicio-gestion}
+
+logging:
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      discovery:
+        enabled: false
+      path-mapping:
+        health: salud
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

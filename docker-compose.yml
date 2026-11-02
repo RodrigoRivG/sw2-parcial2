@@ -1,0 +1,405 @@
+# =====================================================================
+#  SW2 Parcial 2 — Entorno de desarrollo local (RNF-19)
+#
+#  Infraestructura base (siempre se levanta):
+#    postgres, mongo (replica set), dynamodb, rabbitmq
+#
+#  Perfiles (se activan con --profile <nombre>; puedes combinar varios):
+#    gestion       servicio-gestion      Spring Boot  + PostgreSQL
+#    inventario    servicio-inventario   NestJS       + MongoDB
+#    operaciones   servicio-operaciones  Laravel      + DynamoDB + S3 (LocalStack)
+#    ia            servicio-ia           FastAPI      + Firestore y Cloud Storage (emuladores)
+#    gateway       api-gateway           Spring Cloud Gateway
+#    graphql       graphql-server        Apollo Server
+#    auth          keycloak
+#    n8n           n8n
+#    herramientas  interfaz web para DynamoDB
+#    saga          gestion + inventario + operaciones
+#    backend       los 3 servicios de negocio + gateway + keycloak
+#    todo          absolutamente todo (pesado para 16 GB)
+#
+#  Regla de las constituciones: los servicios se llaman entre sí solo a
+#  través del API Gateway (API_GATEWAY_URL). Solo el gateway conoce las
+#  URL internas de cada servicio.
+# =====================================================================
+
+name: sw2
+
+x-keycloak-env: &keycloak-env
+  KEYCLOAK_ISSUER: http://localhost:8180/realms/${KEYCLOAK_REALM}
+  KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+  KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+
+services:
+  # ------------------------------------------------------------------
+  #  INFRAESTRUCTURA BASE
+  # ------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 256m
+
+  # Replica set de un nodo: servicio-inventario usa transacciones de MongoDB.
+  # El healthcheck inicializa el replica set la primera vez y espera a que sea PRIMARY.
+  mongo:
+    image: mongo:8.0
+    command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.25"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }) }; quit(db.hello().isWritablePrimary ? 0 : 1)"
+      interval: 5s
+      timeout: 10s
+      start_period: 10s
+      retries: 20
+    mem_limit: 512m
+
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    working_dir: /home/dynamodblocal
+    user: root                  # necesario para escribir en el volumen
+    ports:
+      - "8002:8000"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx256m"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    mem_limit: 384m
+
+  # En la nube se usa AMQPS (Amazon MQ); en local, AMQP sin TLS
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports:
+      - "5672:5672"             # AMQP
+      - "15672:15672"           # panel web
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+
+  # ------------------------------------------------------------------
+  #  EMULADORES DE NUBE
+  # ------------------------------------------------------------------
+
+  # S3 local para servicio-operaciones (requiere token gratuito de LocalStack, plan Hobby)
+  localstack:
+    profiles: ["operaciones", "saga", "backend", "todo"]
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
+      SERVICES: s3
+      S3_BUCKET: ${S3_BUCKET}
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - ./docker/localstack/init:/etc/localstack/init/ready.d:ro   # crea el bucket al arrancar
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:4566/_localstack/health | grep -Eq '\"s3\": \"(available|running)\"'"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+    mem_limit: 768m
+
+  # Firestore local para servicio-ia (los datos viven en memoria)
+  firestore:
+    profiles: ["ia", "todo"]
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080", "--project=${GCP_PROJECT_ID}"]
+    ports:
+      - "8085:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx384m"
+    mem_limit: 512m
+
+  # Cloud Storage local para servicio-ia
+  gcs:
+    profiles: ["ia", "todo"]
+    image: fsouza/fake-gcs-server:latest
+    command: ["-scheme", "http", "-port", "4443", "-backend", "filesystem", "-filesystem-root", "/storage", "-external-url", "http://gcs:4443"]
+    ports:
+      - "4443:4443"
+    volumes:
+      - gcs-data:/storage
+    mem_limit: 128m
+
+  # Crea el bucket de servicio-ia una sola vez y termina
+  gcs-init:
+    profiles: ["ia", "todo"]
+    image: curlimages/curl:latest
+    depends_on:
+      - gcs
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 3
+        curl -s -X POST "http://gcs:4443/storage/v1/b?project=${GCP_PROJECT_ID}" \
+          -H "Content-Type: application/json" -d '{"name": "${GCS_BUCKET}"}' > /dev/null || true
+    restart: "no"
+
+  # ------------------------------------------------------------------
+  #  MICROSERVICIOS
+  #  Cada carpeta servicios/<servicio> empieza solo con su Constitucion.md;
+  #  el código lo genera el agente siguiendo spec → plan → tareas.
+  # ------------------------------------------------------------------
+
+  servicio-gestion:
+    profiles: ["gestion", "saga", "backend", "todo"]
+    image: sw2/spring-dev
+    build: ./docker/spring
+    ports:
+      - "8081:8081"
+      - "5005:5005"             # depurador remoto
+    volumes:
+      - ./servicios/servicio-gestion:/app
+      - maven-cache:/cache
+    environment:
+      <<: *keycloak-env
+      SERVER_PORT: 8081
+      JAVA_TOOL_OPTIONS: "-Xmx384m -XX:+UseSerialGC"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gestion_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      KEYCLOAK_AUDIENCE: servicio-gestion
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 1g
+
+  servicio-inventario:
+    profiles: ["inventario", "saga", "backend", "todo"]
+    image: sw2/node-dev
+    build: ./docker/node
+    command: sh -c "npm install && npm run start:dev"
+    ports:
+      - "3000:3000"
+      - "9229:9229"             # depurador de Node
+    volumes:
+      - ./servicios/servicio-inventario:/app
+    environment:
+      <<: *keycloak-env
+      PORT: 3000
+      MONGODB_URI: mongodb://mongo:27017/inventario_db?replicaSet=rs0
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      KEYCLOAK_AUDIENCE: servicio-inventario
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 512m
+
+  servicio-operaciones:
+    profiles: ["operaciones", "saga", "backend", "todo"]
+    image: sw2/laravel-dev
+    build: ./docker/laravel
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./servicios/servicio-operaciones:/app
+    environment:
+      <<: *keycloak-env
+      # Laravel sin base relacional (la constitución prohíbe Eloquent)
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: sync
+      # AWS apuntando a los emuladores locales
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_USE_PATH_STYLE_ENDPOINT: "true"
+      AWS_BUCKET: ${S3_BUCKET}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # Consulta de campaña a servicio-gestion, a través del gateway con cuenta de servicio
+      API_GATEWAY_URL: http://api-gateway:8080
+      KEYCLOAK_AUDIENCE: servicio-operaciones
+      KEYCLOAK_CLIENT_ID: servicio-operaciones
+      KEYCLOAK_CLIENT_SECRET: ${OPERACIONES_CLIENT_SECRET:-}
+    depends_on:
+      dynamodb:
+        condition: service_started
+      localstack:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 384m
+
+  servicio-ia:
+    profiles: ["ia", "todo"]
+    image: sw2/python-dev
+    build: ./docker/fastapi
+    command: sh -c "pip install -q -e . && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./servicios/servicio-ia:/app
+      - ia-venv:/venv           # dependencias de Python (no se reinstalan en cada arranque)
+      - ia-cache:/cache         # modelos descargados (Whisper, etc.)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      <<: *keycloak-env
+      OLLAMA_BASE_URL: http://host.docker.internal:11434   # Ollama nativo en Windows
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      WHISPER_MODEL: small
+      WHISPER_DEVICE: cpu
+      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT_ID}
+      FIRESTORE_EMULATOR_HOST: firestore:8080
+      STORAGE_EMULATOR_HOST: http://gcs:4443
+      GCS_BUCKET: ${GCS_BUCKET}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      # Consultas a los microservicios, a través del gateway con cuenta de servicio de solo lectura
+      API_GATEWAY_URL: http://api-gateway:8080
+      KEYCLOAK_AUDIENCE: servicio-ia
+      KEYCLOAK_CLIENT_ID: servicio-ia
+      KEYCLOAK_CLIENT_SECRET: ${IA_CLIENT_SECRET:-}
+    depends_on:
+      firestore:
+        condition: service_started
+      gcs:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 3g
+
+  # ------------------------------------------------------------------
+  #  INTEGRACIÓN
+  # ------------------------------------------------------------------
+
+  api-gateway:
+    profiles: ["gateway", "backend", "todo"]
+    image: sw2/spring-dev
+    build: ./docker/spring
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./servicios/api-gateway:/app
+      - maven-cache:/cache
+    environment:
+      <<: *keycloak-env
+      SERVER_PORT: 8080
+      JAVA_TOOL_OPTIONS: "-Xmx384m -XX:+UseSerialGC"
+      GESTION_URL: http://servicio-gestion:8081
+      INVENTARIO_URL: http://servicio-inventario:3000
+      OPERACIONES_URL: http://servicio-operaciones:8000
+      IA_URL: http://servicio-ia:8000
+    mem_limit: 1g
+
+  graphql-server:
+    profiles: ["graphql", "todo"]
+    image: sw2/node-dev
+    build: ./docker/node
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./servicios/graphql-server:/app
+    environment:
+      <<: *keycloak-env
+      API_GATEWAY_URL: http://api-gateway:8080
+      KEYCLOAK_CLIENT_ID: graphql-server
+      KEYCLOAK_CLIENT_SECRET: ${GRAPHQL_CLIENT_SECRET:-}
+    mem_limit: 384m
+
+  keycloak:
+    profiles: ["auth", "backend", "todo"]
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "8180:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Los tokens siempre llevan este emisor, sin importar desde dónde se pidan
+      KC_HOSTNAME: http://localhost:8180
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx512m"
+    volumes:
+      - ./docker/keycloak/realms:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 900m
+
+  # Consume eventos de RabbitMQ (inventario.stock.bajo, operaciones.incidencia.registrada,
+  # ia.reporte.completado) y llama a los servicios a través del gateway.
+  n8n:
+    profiles: ["n8n", "todo"]
+    image: docker.n8n.io/n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      GENERIC_TIMEZONE: America/La_Paz
+      TZ: America/La_Paz
+    volumes:
+      - n8n-data:/home/node/.n8n
+    mem_limit: 512m
+
+  dynamodb-admin:
+    profiles: ["herramientas"]
+    image: aaronshaf/dynamodb-admin:latest
+    ports:
+      - "8003:8001"
+    environment:
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      AWS_REGION: ${AWS_DEFAULT_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    depends_on:
+      - dynamodb
+    mem_limit: 128m
+
+volumes:
+  postgres-data:
+  mongo-data:
+  dynamodb-data:
+  rabbitmq-data:
+  localstack-data:
+  gcs-data:
+  n8n-data:
+  maven-cache:
+  ia-venv:
+  ia-cache:

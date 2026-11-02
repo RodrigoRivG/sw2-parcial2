@@ -1,0 +1,12 @@
+# Finales de línea LF en todo el texto: el código corre en contenedores Linux,
+# aunque el repositorio también se abra desde Windows.
+* text=auto eol=lf
+
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.wav binary
+*.mp3 binary
+*.mp4 binary
+*.pdf binary
+*.xlsx binary
