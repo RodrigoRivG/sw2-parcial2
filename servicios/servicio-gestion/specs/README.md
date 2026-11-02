@@ -37,6 +37,7 @@ Quien implemente (persona o agente) necesita tres cosas en el repositorio: la co
 | `V5__crear_costo_campania.sql` | `costo_campania` | spec-costos-manuales.md |
 | `V6__crear_produccion_campania.sql` | `produccion_campania` | spec-produccion.md |
 | `V7__crear_tablas_saga.sql` | `saga_procesada`, `mensaje_procesado` | spec-costo-saga.md |
+| `V8__crear_indice_historicos.sql` | índice sobre `campania` | spec-consultas-integracion.md |
 
 ## Mapa de endpoints
 
@@ -165,3 +166,4 @@ Donde difieren, prevalece la constitución.
 - Ante tiempo límite, la anulación del costo va antes que la restauración de insumos (constitución de operaciones v2.4.0).
 - Revisión de specs: errores 403, 404 y 405 explícitos; audiencia con la propiedad `audiences`; fechas estrictas en Jackson; indicadores calculados con valores, también en históricos; `motivosNoDisponible` en históricos; listado de campañas sin `resumen`.
 - Regla de una campaña `EN_CURSO` por parcela en el caso de uso y en el índice único (constitución de gestión v2.4.0).
+- La fecha de cosecha se valida contra `fechaInicioEjecucion`, no contra `fechaInicio`: una campaña puede iniciarse antes de lo planificado.

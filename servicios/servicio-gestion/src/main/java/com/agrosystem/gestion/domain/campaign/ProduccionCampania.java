@@ -23,7 +23,7 @@ public record ProduccionCampania(
             UnidadProduccion unidad,
             LocalDate fechaCosecha,
             String observaciones,
-            LocalDate fechaInicioCampania,
+            LocalDate diaInicioEjecucion,
             LocalDate hoy,
             String usuario,
             Instant ahora) {
@@ -31,10 +31,10 @@ public record ProduccionCampania(
             throw new ExcepcionDominio(
                     "PRODUCCION_INVALIDA", "La cantidad no puede ser negativa.", ExcepcionDominio.Tipo.REGLA_NEGOCIO);
         }
-        if (fechaCosecha.isBefore(fechaInicioCampania) || fechaCosecha.isAfter(hoy)) {
+        if (fechaCosecha.isBefore(diaInicioEjecucion) || fechaCosecha.isAfter(hoy)) {
             throw new ExcepcionDominio(
                     "FECHA_COSECHA_INVALIDA",
-                    "La fecha de cosecha debe estar entre el inicio de la campaña y hoy.",
+                    "La fecha de cosecha debe estar entre el inicio real de la campaña y hoy.",
                     ExcepcionDominio.Tipo.REGLA_NEGOCIO);
         }
         String textoObservaciones = observaciones == null || observaciones.isBlank() ? null : observaciones.trim();

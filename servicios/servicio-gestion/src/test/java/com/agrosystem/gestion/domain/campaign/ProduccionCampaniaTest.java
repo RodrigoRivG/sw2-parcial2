@@ -12,13 +12,13 @@ import org.junit.jupiter.api.Test;
 
 class ProduccionCampaniaTest {
 
-    private static final LocalDate INICIO = LocalDate.parse("2026-01-01");
+    private static final LocalDate INICIO_EJECUCION = LocalDate.parse("2026-01-01");
     private static final LocalDate HOY = LocalDate.parse("2026-11-02");
     private static final Instant AHORA = Instant.parse("2026-11-02T14:00:00Z");
 
     private ProduccionCampania crear(String cantidad, LocalDate fecha, String observaciones) {
         return ProduccionCampania.crear(
-                new BigDecimal(cantidad), UnidadProduccion.KILOGRAMO, fecha, observaciones, INICIO, HOY, "usuario-1", AHORA);
+                new BigDecimal(cantidad), UnidadProduccion.KILOGRAMO, fecha, observaciones, INICIO_EJECUCION, HOY, "usuario-1", AHORA);
     }
 
     private void esperarError(Runnable accion, String codigo) {
@@ -39,13 +39,13 @@ class ProduccionCampaniaTest {
 
     @Test
     void fechaFueraDeRangoSeRechaza() {
-        esperarError(() -> crear("1", INICIO.minusDays(1), null), "FECHA_COSECHA_INVALIDA");
+        esperarError(() -> crear("1", INICIO_EJECUCION.minusDays(1), null), "FECHA_COSECHA_INVALIDA");
         esperarError(() -> crear("1", HOY.plusDays(1), null), "FECHA_COSECHA_INVALIDA");
     }
 
     @Test
     void losExtremosDelRangoSonValidos() {
-        assertThat(crear("1", INICIO, null).fechaCosecha()).isEqualTo(INICIO);
+        assertThat(crear("1", INICIO_EJECUCION, null).fechaCosecha()).isEqualTo(INICIO_EJECUCION);
         assertThat(crear("1", HOY, null).fechaCosecha()).isEqualTo(HOY);
     }
 

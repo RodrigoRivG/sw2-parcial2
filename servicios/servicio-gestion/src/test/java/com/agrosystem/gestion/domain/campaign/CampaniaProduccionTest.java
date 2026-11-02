@@ -18,8 +18,13 @@ class CampaniaProduccionTest {
     private static final Instant AHORA = Instant.parse("2026-11-02T14:00:00Z");
     private static final LocalDate INICIO = LocalDate.parse("2026-01-01");
     private static final LocalDate HOY = LocalDate.parse("2026-11-02");
+    private static final Instant EJECUCION = Instant.parse("2026-02-01T12:00:00Z");
 
     private Campania campania(EstadoCampania estado) {
+        return campania(estado, EJECUCION);
+    }
+
+    private Campania campania(EstadoCampania estado, Instant inicioEjecucion) {
         return Campania.reconstruir(
                 UUID.randomUUID(),
                 "Soya",
@@ -29,7 +34,7 @@ class CampaniaProduccionTest {
                 LocalDate.parse("2027-03-30"),
                 new Hectareas(new BigDecimal("25.5")),
                 estado,
-                null,
+                inicioEjecucion,
                 null,
                 1L,
                 AHORA.minusSeconds(60),
@@ -90,6 +95,23 @@ class CampaniaProduccionTest {
 
         assertThat(campania.getEstado()).isEqualTo(EstadoCampania.FINALIZADA);
         assertThat(campania.getFechaFinalizacion()).isEqualTo(AHORA);
+    }
+
+    @Test
+    void laCosechaSeValidaContraElInicioRealNoContraElPlanificado() {
+        Instant inicioReal = Instant.parse("2025-12-20T12:00:00Z");
+        Campania adelantada = campania(EstadoCampania.EN_CURSO, inicioReal);
+        Campania atrasada = campania(EstadoCampania.EN_CURSO, EJECUCION);
+        LocalDate antesDelPlan = INICIO.minusDays(5);
+
+        adelantada.registrarProduccion(
+                BigDecimal.TEN, UnidadProduccion.KILOGRAMO, antesDelPlan, null, HOY, "usuario-1", AHORA);
+        assertThat(adelantada.getProduccion().fechaCosecha()).isEqualTo(antesDelPlan);
+
+        esperarError(
+                () -> atrasada.registrarProduccion(
+                        BigDecimal.TEN, UnidadProduccion.KILOGRAMO, LocalDate.parse("2026-01-31"), null, HOY, "usuario-1", AHORA),
+                "FECHA_COSECHA_INVALIDA");
     }
 
     @Test

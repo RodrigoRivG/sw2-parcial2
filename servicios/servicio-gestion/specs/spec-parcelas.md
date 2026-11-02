@@ -198,6 +198,7 @@ Valores fijos:
   - Rutas públicas: `/salud/**`, `/v3/api-docs/**`, `/swagger-ui/**` y `/swagger-ui.html`.
   - Cualquier otra ruta exige un JWT válido.
   - Permisos por endpoint con `@PreAuthorize`, activados con `@EnableMethodSecurity`.
+  - Las escrituras en `parcelas`, `cultivos` y `campanias` exigen además `administrador` en la cadena, para responder 403 antes de validar el cuerpo.
 - **Validación del token:** con `jwk-set-uri` e `issuer-uri` configurados, las claves se descargan de `jwk-set-uri` (red interna) y el emisor solo se compara con `iss`, sin conectarse a él. También se validan firma y vigencia. La audiencia se valida con la propiedad `audiences`. Spring Boot arma el decodificador con estas tres propiedades, sin un `JwtDecoder` propio.
 - **`ConversorRolesKeycloak`**: lee los roles de realm en `realm_access.roles` y los convierte en autoridades `ROLE_<rol>`.
 - **Roles:**

@@ -2,6 +2,7 @@ package com.agrosystem.gestion.infrastructure.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -14,6 +15,12 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 @Configuration
 @EnableMethodSecurity
 public class ConfiguracionSeguridad {
+
+    /** Sin permiso se responde 403 antes de validar el cuerpo, que en @PreAuthorize ya se habría validado. */
+    private static final String[] RUTAS_DE_NEGOCIO = {
+        "/api/gestion/v1/parcelas/**", "/api/gestion/v1/cultivos/**", "/api/gestion/v1/campanias/**"
+    };
+    private static final String ROL_ESCRITURA = "administrador";
 
     @Bean
     public SecurityFilterChain cadenaSeguridad(
@@ -29,6 +36,12 @@ public class ConfiguracionSeguridad {
                 .authorizeHttpRequests(rutas -> rutas
                         .requestMatchers("/salud/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, RUTAS_DE_NEGOCIO)
+                        .hasRole(ROL_ESCRITURA)
+                        .requestMatchers(HttpMethod.PUT, RUTAS_DE_NEGOCIO)
+                        .hasRole(ROL_ESCRITURA)
+                        .requestMatchers(HttpMethod.DELETE, RUTAS_DE_NEGOCIO)
+                        .hasRole(ROL_ESCRITURA)
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(servidor -> servidor

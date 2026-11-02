@@ -74,10 +74,21 @@ class ProduccionControladorIT extends ProduccionPruebaBase {
     void fechaDeCosechaFueraDeRangoSeRechaza() throws Exception {
         String campania = crearCampaniaEnCurso("Soya");
 
-        esperarError(registrarProduccion(campania, cuerpoProduccion("1", DIA_ACTUAL.minusDays(31).toString()), "administrador"),
+        esperarError(registrarProduccion(campania, cuerpoProduccion("1", DIA_ACTUAL.minusDays(1).toString()), "administrador"),
                 422, "FECHA_COSECHA_INVALIDA");
         esperarError(registrarProduccion(campania, cuerpoProduccion("1", DIA_ACTUAL.plusDays(2).toString()), "administrador"),
                 422, "FECHA_COSECHA_INVALIDA");
+    }
+
+    @Test
+    void campaniaIniciadaAntesDeLoPlanificadoPuedeRegistrarYFinalizar() throws Exception {
+        String planificadaAFuturo = DIA_ACTUAL.plusDays(10).toString();
+        String campania = crearEn(RUTA, cuerpo("Adelantada", idParcela, idCultivo, planificadaAFuturo, FIN_FUTURO));
+        iniciar(campania);
+
+        registrarProduccion(campania, cuerpoProduccion("100", HOY), "administrador").andExpect(status().isOk());
+
+        finalizar(campania).andExpect(status().isOk());
     }
 
     @Test

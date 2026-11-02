@@ -10,7 +10,6 @@ import org.springframework.test.web.servlet.ResultActions;
 
 abstract class ProduccionPruebaBase extends CostoCampaniaPruebaBase {
 
-    /** La fecha de cosecha debe estar entre el inicio de la campaña y hoy: el inicio queda en el pasado. */
     static final LocalDate DIA_ACTUAL = LocalDate.now(ZoneOffset.UTC);
     static final String INICIO_PASADO = DIA_ACTUAL.minusDays(30).toString();
     static final String FIN_FUTURO = DIA_ACTUAL.plusDays(30).toString();

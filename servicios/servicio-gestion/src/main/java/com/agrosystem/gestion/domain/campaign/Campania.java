@@ -7,6 +7,7 @@ import com.agrosystem.gestion.domain.shared.Hectareas;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -291,8 +292,9 @@ public class Campania {
                     "La producción solo se registra en una campaña en curso.",
                     ExcepcionDominio.Tipo.REGLA_NEGOCIO);
         }
+        LocalDate diaInicioEjecucion = fechaInicioEjecucion.atOffset(ZoneOffset.UTC).toLocalDate();
         produccion = ProduccionCampania.crear(
-                cantidad, unidad, fechaCosecha, observaciones, fechaInicio, hoy, usuario, ahora);
+                cantidad, unidad, fechaCosecha, observaciones, diaInicioEjecucion, hoy, usuario, ahora);
         fechaActualizacion = ahora;
         return produccion;
     }

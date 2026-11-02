@@ -68,7 +68,7 @@ Como administrador o gerente, quiero ver la producción de una campaña.
 
 ### Casos borde
 
-- Fecha de cosecha anterior a `fechaInicio` de la campaña o posterior a hoy: `422 FECHA_COSECHA_INVALIDA`.
+- Fecha de cosecha anterior al día de inicio real de la campaña (`fechaInicioEjecucion`, en UTC) o posterior a hoy: `422 FECHA_COSECHA_INVALIDA`.
 - Cantidad con más de 2 decimales: `400 DATOS_INVALIDOS`.
 - Registro de producción simultáneo con la finalización: o se registra antes, o se rechaza con `CAMPANIA_FINALIZADA`.
 
@@ -78,7 +78,7 @@ Como administrador o gerente, quiero ver la producción de una campaña.
 
 - **RQ-PRO-01**: El sistema debe permitir registrar la producción de una campaña `EN_CURSO` con:
   - `cantidad`: obligatoria, mayor o igual a 0, hasta 2 decimales, en kilogramos, la unidad del cultivo de la campaña (README, D-03; `spec-cultivos.md`).
-  - `fechaCosecha`: obligatoria, fecha sin hora, entre `fechaInicio` de la campaña y la fecha actual.
+  - `fechaCosecha`: obligatoria, fecha sin hora, entre el día de `fechaInicioEjecucion` de la campaña (en UTC) y la fecha actual.
   - `observaciones`: opcional, hasta 500 caracteres.
 - **RQ-PRO-02**: Una campaña tiene como máximo una producción. Registrar de nuevo reemplaza la anterior (corrección), solo mientras la campaña esté `EN_CURSO`.
 - **RQ-PRO-03**: La producción es parte del agregado `Campania`; las reglas de estado se validan en él.
@@ -182,7 +182,7 @@ La clave primaria `id_campania` garantiza una sola producción por campaña.
 
 | Capa | Clase | Responsabilidad |
 |---|---|---|
-| `domain/campaign` | `ProduccionCampania` | Valida cantidad ≥ 0 y fecha de cosecha entre `fechaInicio` de la campaña y hoy |
+| `domain/campaign` | `ProduccionCampania` | Valida cantidad ≥ 0 y fecha de cosecha entre el inicio real de la campaña (`fechaInicioEjecucion`) y hoy |
 | `domain/campaign` | `Campania` (se amplía) | `registrarProduccion(...)`: solo en `EN_CURSO`; reemplaza la anterior; actualiza `fechaActualizacion`. `tieneProduccion()` habilita la finalización |
 | `application/campaign` | `RegistrarProduccionCasoUso` | Carga la campaña (404) y la unidad de su cultivo, toma el `sub` del token como usuario, delega, guarda y audita `CREAR` o `MODIFICAR` sobre `PRODUCCION_CAMPANIA` |
 | `application/campaign` | `ConsultarProduccionCasoUso` | Devuelve la producción o `PRODUCCION_NO_REGISTRADA` |

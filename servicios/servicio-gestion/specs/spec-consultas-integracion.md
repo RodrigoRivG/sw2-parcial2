@@ -149,7 +149,7 @@ No introduce entidades nuevas. Usa proyecciones de lectura de `Campania`, `Parce
 
 # 2. Plan
 
-Reutiliza la base del servicio (Fase 0 de `spec-parcelas.md`), el agregado `Campania` e `IndicadoresCampania`. No crea tablas. Criterio: lo mínimo que cumple la spec.
+Reutiliza la base del servicio (Fase 0 de `spec-parcelas.md`), el agregado `Campania` e `IndicadoresCampania`. No crea tablas; agrega el índice de históricos. Criterio: lo mínimo que cumple la spec.
 
 ## 2.1 Endpoints
 
@@ -201,7 +201,7 @@ GraphQL usa además las consultas de `spec-parcelas.md`, `spec-cultivos.md`, `sp
 }
 ```
 
-`duracionDias` se calcula entre `fechaInicio` y la fecha de finalización. El orden es `fechaFinalizacion` descendente y, como desempate, `id`.
+`duracionDias` se calcula entre `fechaInicio` y la fecha de finalización en UTC. `motivosNoDisponible` sigue las reglas de `spec-indicadores.md`. Los filtros de `fechaFinalizacion` son fechas sin hora y cubren días completos en UTC. El orden es `fechaFinalizacion` descendente y, como desempate, `id`.
 
 **Validación de parámetros** (`400 DATOS_INVALIDOS`): `tamanio` hasta 500 en históricos; `fechaFinalizacionDesde` posterior a `fechaFinalizacionHasta`.
 
@@ -209,10 +209,10 @@ GraphQL usa además las consultas de `spec-parcelas.md`, `spec-cultivos.md`, `sp
 
 | Capa | Clase | Responsabilidad |
 |---|---|---|
-| `application/campaign` | `ConsultarEstadoCampaniaCasoUso` | Lee solo los campos del estado resumido (proyección, sin cargar costos) |
+| `application/campaign` | `ConsultarEstadoCampaniaCasoUso`, `ConsultaEstadoCampania` | Lee solo los campos del estado resumido mediante un puerto de lectura (proyección, sin cargar costos) |
 | `application/campaign` | `ListarHistoricosCasoUso` | Obtiene las filas y calcula los indicadores con `IndicadoresCampania` (RN-03) |
 | `application/campaign` | `ConsultaHistoricos` | Puerto de lectura que devuelve filas planas (no es un repositorio de agregado) |
-| `infrastructure/persistence` | `ConsultaHistoricosJpa` | Una consulta SQL que une `campania`, `parcela`, `cultivo` y `produccion_campania`, y suma por categoría los costos no anulados (`SUM ... FILTER (WHERE categoria = ...)`) |
+| `infrastructure/persistence` | `ConsultaEstadoCampaniaJdbc`, `ConsultaHistoricosJdbc` | Usan JDBC, sin JPA. Históricos: una consulta SQL que elige primero la página de campañas (índice `ix_campania_historicos`, `V8__crear_indice_historicos.sql`), la une con `parcela`, `cultivo` y `produccion_campania`, y suma solo para esas campañas los costos no anulados por categoría (`SUM ... FILTER (WHERE categoria = ...)`) |
 | `interfaces/rest` | `IntegracionControlador` + DTO | Traduce HTTP |
 
 Las lecturas no generan auditoría (RQ-INT-05).
@@ -228,8 +228,8 @@ Las lecturas no generan auditoría (RQ-INT-05).
 
 # 3. Tareas
 
-- [ ] **T01** — Implementar `GET /campanias/{id}/estado`. *Hecho cuando:* pasa `EstadoCampaniaIT`.
-- [ ] **T02** — Implementar `ConsultaHistoricos` con la consulta SQL agregada.
-- [ ] **T03** — Implementar `GET /campanias/historicos`. *Hecho cuando:* pasa `HistoricosIT`.
-- [ ] **T04** — Escribir `PermisosIntegracionIT` e `IntegracionRendimientoIT`; documentar los errores en OpenAPI.
-- [ ] **T05** — Verificación final: `mvn verify` en verde y criterios CE-INT-01 a CE-INT-03 cubiertos.
+- [x] **T01** — Implementar `GET /campanias/{id}/estado`. *Hecho cuando:* pasa `EstadoCampaniaIT`.
+- [x] **T02** — Implementar `ConsultaHistoricos` con la consulta SQL agregada.
+- [x] **T03** — Implementar `GET /campanias/historicos`. *Hecho cuando:* pasa `HistoricosIT`.
+- [x] **T04** — Escribir `PermisosIntegracionIT` e `IntegracionRendimientoIT`; documentar los errores en OpenAPI.
+- [x] **T05** — Verificación final: `mvn verify` en verde y criterios CE-INT-01 a CE-INT-03 cubiertos.
