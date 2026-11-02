@@ -35,6 +35,7 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
             case NO_ENCONTRADO -> HttpStatus.NOT_FOUND;
             case CONFLICTO -> HttpStatus.CONFLICT;
             case REGLA_NEGOCIO -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case PROHIBIDO -> HttpStatus.FORBIDDEN;
         };
         return responder(estado, RespuestaError.de(error.getCodigo(), error.getMessage()));
     }

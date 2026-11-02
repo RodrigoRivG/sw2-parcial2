@@ -5,7 +5,8 @@ public class ExcepcionDominio extends RuntimeException {
     public enum Tipo {
         NO_ENCONTRADO,
         CONFLICTO,
-        REGLA_NEGOCIO
+        REGLA_NEGOCIO,
+        PROHIBIDO
     }
 
     private final String codigo;

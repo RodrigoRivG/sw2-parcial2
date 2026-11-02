@@ -250,7 +250,7 @@ Prefijo: `/api/gestion/v1`.
 }
 ```
 
-**Vista reducida para `tecnico_campo`** (`CampaniaTecnicoRespuesta`): igual pero sin `resumen`. Reglas:
+**Elementos del listado y vista reducida para `tecnico_campo`** (`CampaniaSinResumenRespuesta`): igual pero sin `resumen`. Reglas:
 
 - Si el usuario solo tiene `tecnico_campo`, el listado agrega siempre el filtro `estado IN (PLANIFICADA, EN_CURSO)` (combinado con `estado = FINALIZADA` da una lista vacía) y el detalle de una campaña `FINALIZADA` responde `403 SIN_PERMISO`.
 - Si además tiene `administrador` o `gerencia`, recibe la vista completa.
@@ -296,7 +296,7 @@ CREATE INDEX ix_campania_filtros ON campania (estado, id_parcela, id_cultivo);
 | `application/campaign` | `ActualizarCampaniaCasoUso` | Compara `version`; si cambia la parcela, toma su superficie; audita `MODIFICAR` |
 | `application/campaign` | `CambiarEstadoCampaniaCasoUso` | Compara `version`; si el destino es `EN_CURSO`, rechaza con `PARCELA_CON_CAMPANIA_EN_CURSO` cuando la parcela ya tiene otra en curso; cambia el estado, guarda y audita `CAMBIAR_ESTADO` |
 | `application/campaign` | `ConsultarCampaniaCasoUso`, `ListarCampaniasCasoUso` | Lectura; reciben si el usuario es solo técnico para aplicar el filtro y el 403 |
-| `infrastructure/persistence` | `CampaniaEntidad`, `CampaniaSpringData`, `MapeadorCampania`, `RepositorioCampaniaJpa` | Entidad con `@Version`; filtros con una consulta JPQL con parámetros opcionales; traduce `ux_campania_parcela_en_curso` a `PARCELA_CON_CAMPANIA_EN_CURSO` |
+| `infrastructure/persistence` | `CampaniaEntidad`, `CampaniaSpringData`, `MapeadorCampania`, `RepositorioCampaniaJpa` | Entidad con `@Version`; filtros con `Specification`, que solo agrega las condiciones presentes (PostgreSQL rechaza parámetros nulos sin tipo en JPQL); traduce `ux_campania_parcela_en_curso` a `PARCELA_CON_CAMPANIA_EN_CURSO` |
 | `interfaces/rest` | `CampaniaControlador` + DTO | Elige la vista completa o reducida según los roles del token |
 
 **Concurrencia con costos y producción:** toda operación sobre el agregado (registrar un costo, anularlo, registrar producción) actualiza `fechaActualizacion` de la campaña, lo que incrementa su `version`. Así, una finalización concurrente con un costo de la Saga termina en `409` o en `CAMPANIA_FINALIZADA`, nunca en un costo agregado a una campaña finalizada.
@@ -318,11 +318,11 @@ La finalización exitosa y el escenario 2 de la historia 2 se prueban en `spec-p
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `Campania` y `EstadoCampania`, con `CampaniaTest` (sin producción todavía: finalizar siempre responde `FINALIZACION_SIN_PRODUCCION`).
-- [ ] **T02** — Crear `V4__crear_campania.sql` y la persistencia, con la traducción del índice parcial.
-- [ ] **T03** — Implementar `POST /campanias`. *Hecho cuando:* pasan los escenarios de la historia 1.
-- [ ] **T04** — Implementar los dos `GET` con la vista completa y la reducida. *Hecho cuando:* pasan la historia 3 y `CampaniaTecnicoIT`.
-- [ ] **T05** — Implementar `PUT /campanias/{id}/estado`. *Hecho cuando:* pasan los escenarios 1 y 3 a 7 de la historia 2.
-- [ ] **T06** — Implementar `PUT /campanias/{id}`. *Hecho cuando:* pasan los escenarios de la historia 4 y el test de CE-CAM-04.
-- [ ] **T07** — Escribir `CampaniaConcurrenciaIT` y `CampaniaRendimientoIT`; documentar los errores en OpenAPI.
-- [ ] **T08** — Verificación final: `mvn verify` en verde y criterios CE-CAM-01 a CE-CAM-05 cubiertos (CE-CAM-02 se completa en `spec-costo-saga.md`).
+- [x] **T01** — Crear `Campania` y `EstadoCampania`, con `CampaniaTest` (sin producción todavía: finalizar siempre responde `FINALIZACION_SIN_PRODUCCION`).
+- [x] **T02** — Crear `V4__crear_campania.sql` y la persistencia, con la traducción del índice parcial.
+- [x] **T03** — Implementar `POST /campanias`. *Hecho cuando:* pasan los escenarios de la historia 1.
+- [x] **T04** — Implementar los dos `GET` con la vista completa y la reducida. *Hecho cuando:* pasan la historia 3 y `CampaniaTecnicoIT`.
+- [x] **T05** — Implementar `PUT /campanias/{id}/estado`. *Hecho cuando:* pasan los escenarios 1 y 3 a 7 de la historia 2.
+- [x] **T06** — Implementar `PUT /campanias/{id}`. *Hecho cuando:* pasan los escenarios de la historia 4 y el test de CE-CAM-04.
+- [x] **T07** — Escribir `CampaniaConcurrenciaIT` y `CampaniaRendimientoIT`; documentar los errores en OpenAPI.
+- [x] **T08** — Verificación final: `mvn verify` en verde y criterios CE-CAM-01 a CE-CAM-05 cubiertos (CE-CAM-02 se completa en `spec-costo-saga.md`).

@@ -212,7 +212,7 @@ Valores fijos:
 
 ### Errores
 
-- **`ExcepcionDominio`** (en `domain/shared`) lleva `codigo`, `mensaje` y un `tipo` (`NO_ENCONTRADO`, `CONFLICTO` o `REGLA_NEGOCIO`). El dominio no conoce HTTP.
+- **`ExcepcionDominio`** (en `domain/shared`) lleva `codigo`, `mensaje` y un `tipo` (`NO_ENCONTRADO`, `CONFLICTO`, `REGLA_NEGOCIO` o `PROHIBIDO`). El dominio no conoce HTTP.
 - **`ManejadorGlobalExcepciones`** traduce a `RespuestaError` (`codigo`, `mensaje`, `detalles`, `idCorrelacion`):
 
   | Origen | HTTP | Código |
@@ -222,6 +222,7 @@ Valores fijos:
   | `ExcepcionDominio` tipo `CONFLICTO` | 409 | El de la excepción |
   | `ObjectOptimisticLockingFailureException` | 409 | `CONFLICTO_CONCURRENCIA` |
   | `ExcepcionDominio` tipo `REGLA_NEGOCIO` | 422 | El de la excepción |
+  | `ExcepcionDominio` tipo `PROHIBIDO` (el permiso depende del dato, como en `spec-campanias.md`) | 403 | El de la excepción |
   | `AccessDeniedException` lanzada por `@PreAuthorize` | 403 | `SIN_PERMISO` |
   | `NoResourceFoundException` (ruta inexistente) | 404 | `RECURSO_NO_ENCONTRADO` |
   | `HttpRequestMethodNotSupportedException` | 405 | `METODO_NO_PERMITIDO` |
