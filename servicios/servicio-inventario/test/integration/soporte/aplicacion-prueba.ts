@@ -5,6 +5,7 @@ import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { createLocalJWKSet } from 'jose';
 import { Connection } from 'mongoose';
 import { App } from 'supertest/types';
+import { EvaluacionStockBajo } from '../../../src/adapters/inbound/evaluacion-stock-bajo';
 import { CONJUNTO_CLAVES } from '../../../src/adapters/inbound/http/auth/jwt.guardia';
 import { configurarAplicacion } from '../../../src/adapters/inbound/http/configurar-aplicacion';
 import { CONEXION_MONGO } from '../../../src/adapters/outbound/persistence/conexion-mongo';
@@ -28,17 +29,21 @@ export interface AplicacionPrueba {
  */
 export async function crearAplicacionPrueba(
   sobrescribir: (constructor: TestingModuleBuilder) => TestingModuleBuilder = (c) => c,
+  cambiosConfiguracion: Partial<Configuracion> = {},
 ): Promise<AplicacionPrueba> {
   const base = process.env.MONGODB_PRUEBAS_URI;
-  if (!base) {
-    throw new Error('MONGODB_PRUEBAS_URI no está definida: falta el globalSetup de Jest.');
+  const rabbitmqUrl = process.env.RABBITMQ_PRUEBAS_URL;
+  if (!base || !rabbitmqUrl) {
+    throw new Error('Faltan MONGODB_PRUEBAS_URI o RABBITMQ_PRUEBAS_URL: falta el globalSetup de Jest.');
   }
   const configuracion: Configuracion = {
     puerto: 0,
     mongodbUri: `${base}/inventario_${randomUUID().slice(0, 8)}?directConnection=true`,
+    rabbitmqUrl,
     keycloakIssuer: EMISOR_PRUEBA,
     keycloakJwksUri: 'http://keycloak-ficticio/realms/agro/protocol/openid-connect/certs',
     keycloakAudience: AUDIENCIA_PRUEBA,
+    ...cambiosConfiguracion,
   };
   const tokens = await FabricaTokens.crear();
   const modulo = await sobrescribir(
@@ -64,12 +69,26 @@ export async function crearAplicacionPrueba(
     conexion,
     tokens,
     async cerrar() {
+      await app.get(EvaluacionStockBajo).esperarPendientes();
       if (conexion.readyState === 1) {
         await conexion.dropDatabase();
       }
       await app.close();
     },
   };
+}
+
+/** Reloj que el test mueve a mano (regla de 24 h). Reemplaza a `RelojSistema`. */
+export class RelojPrueba {
+  constructor(public instante = new Date('2026-11-02T10:00:00Z')) {}
+
+  ahora(): Date {
+    return new Date(this.instante);
+  }
+
+  avanzar(milisegundos: number): void {
+    this.instante = new Date(this.instante.getTime() + milisegundos);
+  }
 }
 
 /** Cuerpo válido para crear un insumo, con los campos que se quieran cambiar. */

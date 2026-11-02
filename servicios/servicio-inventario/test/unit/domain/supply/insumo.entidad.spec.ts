@@ -86,6 +86,7 @@ describe('Insumo', () => {
       descripcion: null,
       tieneMovimientos: true,
       fechaUltimaAlerta: null,
+      reservaAlertaHasta: null,
       version: 3,
       fechaCreacion: AHORA,
       fechaActualizacion: AHORA,

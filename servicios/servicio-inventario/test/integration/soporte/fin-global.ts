@@ -1,3 +1,6 @@
 export default async function finGlobal(): Promise<void> {
-  await globalThis.contenedorMongoPruebas?.stop();
+  await Promise.allSettled([
+    globalThis.contenedorMongoPruebas?.stop(),
+    globalThis.contenedorRabbitmqPruebas?.stop(),
+  ]);
 }

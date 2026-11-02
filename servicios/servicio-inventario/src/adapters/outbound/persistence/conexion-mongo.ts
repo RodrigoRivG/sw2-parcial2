@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
 import mongoose, { Connection } from 'mongoose';
 import { ejecutarMigraciones } from '../../../../migrations/ejecutor';
 
@@ -16,11 +16,12 @@ export async function crearConexionMongo(uri: string): Promise<Connection> {
   return conexion;
 }
 
+/** Cierra al final del apagado, después de que terminen las evaluaciones de stock bajo pendientes. */
 @Injectable()
-export class CierreConexionMongo implements OnModuleDestroy {
+export class CierreConexionMongo implements OnApplicationShutdown {
   constructor(@Inject(CONEXION_MONGO) private readonly conexion: Connection) {}
 
-  async onModuleDestroy(): Promise<void> {
+  async onApplicationShutdown(): Promise<void> {
     await this.conexion.close();
   }
 }

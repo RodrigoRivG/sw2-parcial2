@@ -1,5 +1,9 @@
 import { Pagina, Paginacion } from '../../../src/application/ports/pagina';
 import {
+  EventoDominio,
+  PublicadorEventos,
+} from '../../../src/application/ports/publicador-eventos.puerto';
+import {
   EntradaAuditoria,
   RegistroAuditoria,
 } from '../../../src/application/ports/registro-auditoria.puerto';
@@ -70,6 +74,39 @@ export class RepositorioInsumoEnMemoria implements RepositorioInsumo {
     return { ...paginacion, items, total: items.length };
   }
 
+  async reservarAlerta(
+    id: string,
+    fechaUltimaAlertaLeida: Date | null,
+    ahora: Date,
+    reservaHasta: Date,
+  ): Promise<boolean> {
+    const actual = this.insumos.get(id);
+    if (!actual) {
+      return false;
+    }
+    const mismaFecha = actual.fechaUltimaAlerta?.getTime() === fechaUltimaAlertaLeida?.getTime();
+    const libre = actual.reservaAlertaHasta === null || actual.reservaAlertaHasta <= ahora;
+    if (!mismaFecha || !libre) {
+      return false;
+    }
+    this.insumos.set(id, copiarInsumo(actual, { reservaAlertaHasta: reservaHasta }));
+    return true;
+  }
+
+  async confirmarAlerta(id: string, fecha: Date): Promise<void> {
+    const actual = this.insumos.get(id);
+    if (actual) {
+      this.insumos.set(id, copiarInsumo(actual, { fechaUltimaAlerta: fecha, reservaAlertaHasta: null }));
+    }
+  }
+
+  async liberarReserva(id: string): Promise<void> {
+    const actual = this.insumos.get(id);
+    if (actual) {
+      this.insumos.set(id, copiarInsumo(actual, { reservaAlertaHasta: null }));
+    }
+  }
+
   async consultarEstado(
     filtros: FiltrosEstadoInventario,
     paginacion: Paginacion,
@@ -99,6 +136,7 @@ export function copiarInsumo(insumo: Insumo, cambios: Partial<PropiedadesInsumo>
     descripcion: insumo.descripcion,
     tieneMovimientos: insumo.tieneMovimientos,
     fechaUltimaAlerta: insumo.fechaUltimaAlerta,
+    reservaAlertaHasta: insumo.reservaAlertaHasta,
     version: insumo.version,
     fechaCreacion: insumo.fechaCreacion,
     fechaActualizacion: insumo.fechaActualizacion,
@@ -122,6 +160,18 @@ export class RepositorioMovimientoEnMemoria implements RepositorioMovimiento {
     paginacion: Paginacion,
   ): Promise<Pagina<MovimientoInventario>> {
     return { ...paginacion, items: [...this.movimientos], total: this.movimientos.length };
+  }
+}
+
+export class PublicadorEnMemoria implements PublicadorEventos {
+  readonly publicados: EventoDominio[] = [];
+  fallar = false;
+
+  async publicarEvento(evento: EventoDominio): Promise<void> {
+    if (this.fallar) {
+      throw new Error('Broker no disponible');
+    }
+    this.publicados.push(evento);
   }
 }
 

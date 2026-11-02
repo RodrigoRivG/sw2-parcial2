@@ -40,6 +40,20 @@ export interface RepositorioInsumo {
     ahora: Date,
   ): Promise<Cantidad | null>;
   listar(filtros: FiltrosInsumos, paginacion: Paginacion): Promise<Pagina<Insumo>>;
+  /**
+   * Reserva la alerta de stock bajo de forma atómica: solo si `fechaUltimaAlerta` sigue siendo la leída
+   * y no hay otra reserva vigente. Devuelve false si otro proceso la reservó o la publicó antes.
+   */
+  reservarAlerta(
+    id: string,
+    fechaUltimaAlertaLeida: Date | null,
+    ahora: Date,
+    reservaHasta: Date,
+  ): Promise<boolean>;
+  /** La alerta se publicó: guarda la fecha y libera la reserva. */
+  confirmarAlerta(id: string, fecha: Date): Promise<void>;
+  /** La publicación falló: libera la reserva sin tocar `fechaUltimaAlerta`. */
+  liberarReserva(id: string): Promise<void>;
   /** Orden: stock bajo primero, luego por nombre y, para desempatar, por id. */
   consultarEstado(
     filtros: FiltrosEstadoInventario,

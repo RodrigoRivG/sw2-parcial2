@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nest
 import { Response } from 'express';
 import { ConsultarMovimientosCasoUso } from '../../../application/use-cases/consultar-movimientos.caso-uso';
 import { RegistrarMovimientoCasoUso } from '../../../application/use-cases/registrar-movimiento.caso-uso';
+import { EvaluacionStockBajo } from '../evaluacion-stock-bajo';
 import { Roles, UsuarioActual, UsuarioAutenticado } from './auth/decoradores';
 import { PREFIJO_API } from './configurar-aplicacion';
 import { ApiErrores } from './documentacion-errores';
@@ -32,6 +33,7 @@ export class MovimientosControlador {
     private readonly registrarMovimiento: RegistrarMovimientoCasoUso,
     @Inject(ConsultarMovimientosCasoUso)
     private readonly consultarMovimientos: ConsultarMovimientosCasoUso,
+    private readonly evaluacionStockBajo: EvaluacionStockBajo,
   ) {}
 
   @Post()
@@ -52,6 +54,7 @@ export class MovimientosControlador {
     @Res({ passthrough: true }) respuesta: Response,
   ): Promise<MovimientoRespuesta> {
     const movimiento = await this.registrarMovimiento.ejecutar(cuerpo, usuario.sub);
+    this.evaluacionStockBajo.programar([movimiento.idInsumo]);
     respuesta.setHeader('Location', `/${PREFIJO_API}/movimientos/${movimiento.id}`);
     return aRespuesta(movimiento);
   }

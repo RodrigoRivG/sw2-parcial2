@@ -27,6 +27,8 @@ export interface PropiedadesInsumo {
   descripcion: string | null;
   tieneMovimientos: boolean;
   fechaUltimaAlerta: Date | null;
+  /** Reserva temporal de la alerta de stock bajo mientras se publica (`spec-stock-bajo.md`). */
+  reservaAlertaHasta: Date | null;
   version: number;
   fechaCreacion: Date;
   fechaActualizacion: Date;
@@ -43,6 +45,7 @@ export class Insumo {
       stock: Cantidad.cero(),
       tieneMovimientos: false,
       fechaUltimaAlerta: null,
+      reservaAlertaHasta: null,
       version: 0,
       fechaCreacion: ahora,
       fechaActualizacion: ahora,
@@ -103,6 +106,9 @@ export class Insumo {
   }
   get fechaUltimaAlerta(): Date | null {
     return this.props.fechaUltimaAlerta;
+  }
+  get reservaAlertaHasta(): Date | null {
+    return this.props.reservaAlertaHasta;
   }
   get version(): number {
     return this.props.version;

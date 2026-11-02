@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-inventario` |
 | Archivo | `specs/spec-stock-bajo.md` |
-| Estado | Spec en borrador (2026-11-02) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-02) · Implementada (2026-11-02) |
 | Constitución | v2.8.0 (secciones 5 y 8) |
 | Trazabilidad | CU-09 (prioridad media; incluye CU-20 de n8n) · RF-09 (y RF-29, proceso 3, del lado de n8n) · RN-05 · RNF-08, RNF-22 |
 | Depende de | `spec-movimientos.md`, `spec-estado-inventario.md` (`politica-stock-bajo.ts`) |
@@ -161,12 +161,14 @@ EvaluarStockBajoCasoUso.ejecutar(idsInsumo, idCorrelacion)     ← después del 
 
 - La actualización condicionada del paso 3 es atómica: de dos movimientos simultáneos, solo uno reserva.
 - Si el proceso se cae entre 3 y 4, la reserva vence en 60 s y el siguiente movimiento reintenta.
-- Los fallos de este caso de uso nunca se propagan al movimiento: el controlador y el consumidor de la Saga lo llaman después de responder o de confirmar, y solo registran el error.
+- Los fallos de este caso de uso nunca se propagan al movimiento. El caso de uso no lanza: devuelve el resultado por insumo (`PUBLICADA`, `NO_CORRESPONDE`, `RESERVADA_POR_OTRO` o `FALLIDA` con el error), porque `application` no conoce el logger; quien lo llama registra los `FALLIDA`.
+- La reserva vive en la entidad `Insumo` (`reservaAlertaHasta`), y `debeAlertar` recibe solo los cuatro campos que usa, para no crear una dependencia circular con la entidad.
 
 ## 2.4 Integración con los movimientos
 
-- `RegistrarMovimientoCasoUso` ya devuelve los insumos afectados (`spec-movimientos.md`, 2.2). El controlador REST, después del commit, llama a `EvaluarStockBajoCasoUso` sin esperarlo para responder (`void`, con `catch` que registra el error).
-- `CrearInsumoCasoUso` hace lo mismo con el stock inicial.
+- `EvaluacionStockBajo` (`adapters/inbound/evaluacion-stock-bajo.ts`) lanza el caso de uso después del commit sin hacer esperar la respuesta, conserva el `idCorrelacion` de la solicitud y registra en el log las alertas `FALLIDA`. La usan los controladores y la usará el consumidor de la Saga.
+- `POST /movimientos` la llama con el insumo del movimiento; `POST /insumos`, solo si se registró stock inicial (sin movimiento no se evalúa la regla).
+- Lleva la cuenta de las evaluaciones en curso: al apagar, las espera en `onModuleDestroy`, y las conexiones a MongoDB y RabbitMQ se cierran después, en `onApplicationShutdown`. Los tests usan `esperarPendientes()` para verificar sin esperas arbitrarias.
 - La Saga lo llama después de publicar su respuesta (`spec-descuento-saga.md`).
 
 ## 2.5 Diseño por capas
@@ -184,19 +186,19 @@ EvaluarStockBajoCasoUso.ejecutar(idsInsumo, idCorrelacion)     ← después del 
 |---|---|---|
 | Unitario | `politica-stock-bajo.spec.ts` (se amplía) | Sin alerta previa; 23 h 59 min; 24 h exactas; reserva vigente y vencida |
 | Unitario | `evaluar-stock-bajo.caso-uso.spec.ts` | Reserva perdida → no publica; publicación fallida → libera la reserva y no confirma; éxito → confirma (publicador y repositorio dobles, reloj fijo) |
-| Integración | `stock-bajo.int-spec.ts` | Historias 1 y 2 con RabbitMQ real y una cola de prueba enlazada a `eventos` con `inventario.stock.bajo`; reloj fijo inyectado en el módulo de prueba (CE-SBJ-01) |
+| Integración | `stock-bajo.int-spec.ts` | Historias 1 y 2 y casos borde con RabbitMQ real y una cola exclusiva enlazada a `eventos` con `inventario.stock.bajo` (`OyenteEventos`); `RelojPrueba` reemplaza a `RelojSistema` (CE-SBJ-01). El escenario 3 de la Historia 1 entrega dos insumos juntos a `EvaluacionStockBajo`, como lo hará la Saga |
 | Integración | `stock-bajo-concurrencia.int-spec.ts` | CE-SBJ-02 |
-| Integración | `stock-bajo-fallos.int-spec.ts` | Historia 3 con el publicador reemplazado por uno que falla; con el broker detenido, los movimientos responden `201` (CE-SBJ-03) |
+| Integración | `stock-bajo-fallos.int-spec.ts` | Historia 3 con el publicador real envuelto en uno que falla a pedido; con un RabbitMQ inalcanzable, los movimientos responden `201` en menos de 2 s y readiness informa `rabbitmq: DOWN` (CE-SBJ-03, CE-SBJ-04). No se detiene el broker compartido, para no afectar a los demás tests |
 
 ---
 
 # 3. Tareas
 
-- [ ] **T01** — Agregar las dependencias de RabbitMQ, `RABBITMQ_URL`, la conexión, RabbitMQ en `/salud/readiness` y el contenedor de RabbitMQ en la base de los tests de integración.
-- [ ] **T02** — Implementar `PublicadorEventosRabbitmq` con confirmaciones. *Hecho cuando:* un test de integración publica y lee un evento de una cola enlazada.
-- [ ] **T03** — Ampliar `politica-stock-bajo.ts` con `debeAlertar`, con sus tests unitarios.
-- [ ] **T04** — Implementar `reservarAlerta`, `confirmarAlerta`, `liberarReserva` y `EvaluarStockBajoCasoUso`, con sus tests unitarios.
-- [ ] **T05** — Llamar al caso de uso después del commit en `POST /movimientos` y en `POST /insumos`. *Hecho cuando:* pasa `stock-bajo.int-spec.ts`.
-- [ ] **T06** — Escribir `stock-bajo-concurrencia.int-spec.ts` y `stock-bajo-fallos.int-spec.ts`.
-- [ ] **T07** — Revisar con el equipo de n8n el contrato del evento (RQ-SBJ-02 y el mapa de mensajería de `specs/README.md`): exchange, routing key, sobre y `datos`.
-- [ ] **T08** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-SBJ-01 a CE-SBJ-04 cubiertos.
+- [x] **T01** — Agregar las dependencias de RabbitMQ, `RABBITMQ_URL`, la conexión, RabbitMQ en `/salud/readiness` y el contenedor de RabbitMQ en la base de los tests de integración.
+- [x] **T02** — Implementar `PublicadorEventosRabbitmq` con confirmaciones. *Hecho cuando:* un test de integración publica y lee un evento de una cola enlazada.
+- [x] **T03** — Ampliar `politica-stock-bajo.ts` con `debeAlertar`, con sus tests unitarios.
+- [x] **T04** — Implementar `reservarAlerta`, `confirmarAlerta`, `liberarReserva` y `EvaluarStockBajoCasoUso`, con sus tests unitarios.
+- [x] **T05** — Llamar al caso de uso después del commit en `POST /movimientos` y en `POST /insumos`. *Hecho cuando:* pasa `stock-bajo.int-spec.ts`.
+- [x] **T06** — Escribir `stock-bajo-concurrencia.int-spec.ts` y `stock-bajo-fallos.int-spec.ts`.
+- [ ] **T07** — Revisar con el equipo de n8n el contrato del evento (RQ-SBJ-02 y el mapa de mensajería de `specs/README.md`): exchange, routing key, sobre y `datos`. Pendiente del equipo de n8n: el contrato está documentado y probado contra RabbitMQ real.
+- [x] **T08** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-SBJ-01 a CE-SBJ-04 cubiertos.

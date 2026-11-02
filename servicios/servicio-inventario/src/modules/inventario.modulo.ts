@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { AmqpConnectionManager } from 'amqp-connection-manager';
 import { createRemoteJWKSet } from 'jose';
 import { Connection } from 'mongoose';
 import { CONJUNTO_CLAVES, JwtGuardia } from '../adapters/inbound/http/auth/jwt.guardia';
@@ -8,6 +9,13 @@ import { EstadoInventarioControlador } from '../adapters/inbound/http/estado-inv
 import { InsumosControlador } from '../adapters/inbound/http/insumos.controlador';
 import { MovimientosControlador } from '../adapters/inbound/http/movimientos.controlador';
 import { SaludControlador } from '../adapters/inbound/http/salud.controlador';
+import { EvaluacionStockBajo } from '../adapters/inbound/evaluacion-stock-bajo';
+import {
+  CONEXION_RABBITMQ,
+  CierreConexionRabbitmq,
+  crearConexionRabbitmq,
+} from '../adapters/outbound/messaging/conexion-rabbitmq';
+import { PublicadorEventosRabbitmq } from '../adapters/outbound/messaging/publicador-eventos.rabbitmq';
 import {
   CONEXION_MONGO,
   CierreConexionMongo,
@@ -26,6 +34,7 @@ import { ConsultarEstadoInventarioCasoUso } from '../application/use-cases/consu
 import { ConsultarInsumosCasoUso } from '../application/use-cases/consultar-insumos.caso-uso';
 import { ConsultarMovimientosCasoUso } from '../application/use-cases/consultar-movimientos.caso-uso';
 import { CrearInsumoCasoUso } from '../application/use-cases/crear-insumo.caso-uso';
+import { EvaluarStockBajoCasoUso } from '../application/use-cases/evaluar-stock-bajo.caso-uso';
 import { RegistrarMovimientoCasoUso } from '../application/use-cases/registrar-movimiento.caso-uso';
 import { CONFIGURACION, Configuracion, leerConfiguracion } from '../config/validacion-entorno';
 
@@ -45,6 +54,29 @@ import { CONFIGURACION, Configuracion, leerConfiguracion } from '../config/valid
       inject: [CONFIGURACION],
     },
     CierreConexionMongo,
+    {
+      provide: CONEXION_RABBITMQ,
+      useFactory: (configuracion: Configuracion) =>
+        crearConexionRabbitmq(configuracion.rabbitmqUrl),
+      inject: [CONFIGURACION],
+    },
+    CierreConexionRabbitmq,
+    {
+      provide: PublicadorEventosRabbitmq,
+      useFactory: (conexion: AmqpConnectionManager, reloj: RelojSistema) =>
+        new PublicadorEventosRabbitmq(conexion, reloj),
+      inject: [CONEXION_RABBITMQ, RelojSistema],
+    },
+    {
+      provide: EvaluarStockBajoCasoUso,
+      useFactory: (
+        insumos: RepositorioInsumoMongo,
+        publicador: PublicadorEventosRabbitmq,
+        reloj: RelojSistema,
+      ) => new EvaluarStockBajoCasoUso(insumos, publicador, reloj),
+      inject: [RepositorioInsumoMongo, PublicadorEventosRabbitmq, RelojSistema],
+    },
+    EvaluacionStockBajo,
     {
       provide: CONJUNTO_CLAVES,
       useFactory: (configuracion: Configuracion) =>

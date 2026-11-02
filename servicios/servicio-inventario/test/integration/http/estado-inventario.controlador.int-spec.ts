@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { EvaluacionStockBajo } from '../../../src/adapters/inbound/evaluacion-stock-bajo';
 import { Cantidad } from '../../../src/domain/shared/cantidad.vo';
 import { estaEnStockBajo } from '../../../src/domain/supply/politica-stock-bajo';
 import { UnidadMedida } from '../../../src/domain/supply/unidad-medida.enum';
@@ -43,6 +44,8 @@ describe('Estado del inventario (spec-estado-inventario.md, RF-33)', () => {
       .set('Authorization', admin)
       .send(datosInsumo({ nombre, stockInicial: stock, nivelMinimo, ...cambios }));
     expect(respuesta.status).toBe(201);
+    // El stock inicial es un movimiento: si queda bajo el mínimo, se publica la alerta.
+    await ap.app.get(EvaluacionStockBajo).esperarPendientes();
     return respuesta.body.id;
   }
 
@@ -75,8 +78,9 @@ describe('Estado del inventario (spec-estado-inventario.md, RF-33)', () => {
         stock: '20.000',
         nivelMinimo: '20.000',
         stockBajo: true,
-        fechaUltimaAlerta: null,
+        fechaUltimaAlerta: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       });
+      expect(respuesta.body.items[2].fechaUltimaAlerta).toBeNull();
       expect(respuesta.body.items[0]).not.toHaveProperty('costoUnitario');
       expect(respuesta.body).toMatchObject({
         resumen: { totalInsumos: 3, totalStockBajo: 2 },
@@ -110,13 +114,10 @@ describe('Estado del inventario (spec-estado-inventario.md, RF-33)', () => {
 
     it('escenario 6: muestra la fecha de la última alerta', async () => {
       const id = await crearInsumo('Urea', '40', '50');
-      // La fecha la guarda la alerta de spec-stock-bajo.md; aquí se fija a mano.
-      const fecha = new Date('2026-11-02T10:15:00Z');
-      await ap.conexion
-        .collection('insumos')
-        .updateOne({ _id: id as never }, { $set: { fecha_ultima_alerta: fecha } });
+      const guardada = await ap.conexion.collection('insumos').findOne({ _id: id as never });
+      expect(guardada?.fecha_ultima_alerta).toBeInstanceOf(Date);
       const [item] = (await consultar()).body.items;
-      expect(item.fechaUltimaAlerta).toBe('2026-11-02T10:15:00.000Z');
+      expect(item.fechaUltimaAlerta).toBe(guardada?.fecha_ultima_alerta.toISOString());
     });
   });
 

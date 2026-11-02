@@ -3,6 +3,8 @@ export const CONFIGURACION = 'CONFIGURACION';
 export interface Configuracion {
   puerto: number;
   mongodbUri: string;
+  /** `amqp://` en local y tests; `amqps://` en la nube (RNF-01). */
+  rabbitmqUrl: string;
   keycloakIssuer: string;
   keycloakJwksUri: string;
   keycloakAudience: string;
@@ -11,6 +13,7 @@ export interface Configuracion {
 const REQUERIDAS = [
   'PORT',
   'MONGODB_URI',
+  'RABBITMQ_URL',
   'KEYCLOAK_ISSUER',
   'KEYCLOAK_JWKS_URI',
   'KEYCLOAK_AUDIENCE',
@@ -29,6 +32,7 @@ export function leerConfiguracion(entorno: NodeJS.ProcessEnv = process.env): Con
   return {
     puerto,
     mongodbUri: entorno.MONGODB_URI as string,
+    rabbitmqUrl: entorno.RABBITMQ_URL as string,
     keycloakIssuer: entorno.KEYCLOAK_ISSUER as string,
     keycloakJwksUri: entorno.KEYCLOAK_JWKS_URI as string,
     keycloakAudience: entorno.KEYCLOAK_AUDIENCE as string,

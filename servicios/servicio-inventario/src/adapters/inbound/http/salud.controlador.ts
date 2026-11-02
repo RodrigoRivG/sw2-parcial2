@@ -1,7 +1,9 @@
 import { Controller, Get, Inject, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { AmqpConnectionManager } from 'amqp-connection-manager';
 import { Response } from 'express';
 import { Connection } from 'mongoose';
+import { CONEXION_RABBITMQ } from '../../outbound/messaging/conexion-rabbitmq';
 import { CONEXION_MONGO } from '../../outbound/persistence/conexion-mongo';
 import { Publica } from './auth/decoradores';
 
@@ -13,7 +15,10 @@ const LIMITE_PING_MS = 2000;
 @Publica()
 @Controller('salud')
 export class SaludControlador {
-  constructor(@Inject(CONEXION_MONGO) private readonly conexion: Connection) {}
+  constructor(
+    @Inject(CONEXION_MONGO) private readonly conexion: Connection,
+    @Inject(CONEXION_RABBITMQ) private readonly rabbitmq: AmqpConnectionManager,
+  ) {}
 
   @Get()
   salud(@Res({ passthrough: true }) respuesta: Response) {
@@ -27,10 +32,13 @@ export class SaludControlador {
 
   @Get('readiness')
   async readiness(@Res({ passthrough: true }) respuesta: Response) {
-    const mongodb = await this.estadoMongo();
-    const estado: Estado = mongodb === 'UP' ? 'UP' : 'DOWN';
+    const componentes: { mongodb: Estado; rabbitmq: Estado } = {
+      mongodb: await this.estadoMongo(),
+      rabbitmq: this.rabbitmq.isConnected() ? 'UP' : 'DOWN',
+    };
+    const estado: Estado = Object.values(componentes).every((c) => c === 'UP') ? 'UP' : 'DOWN';
     respuesta.status(estado === 'UP' ? 200 : 503);
-    return { estado, componentes: { mongodb } };
+    return { estado, componentes };
   }
 
   private async estadoMongo(): Promise<Estado> {

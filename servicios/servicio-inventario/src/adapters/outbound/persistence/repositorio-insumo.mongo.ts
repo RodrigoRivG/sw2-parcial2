@@ -75,6 +75,40 @@ export class RepositorioInsumoMongo implements RepositorioInsumo {
     return documento ? Cantidad.desdeAlmacen(documento.stock.toString()) : null;
   }
 
+  async reservarAlerta(
+    id: string,
+    fechaUltimaAlertaLeida: Date | null,
+    ahora: Date,
+    reservaHasta: Date,
+  ): Promise<boolean> {
+    const resultado = await this.modelo.updateOne(
+      {
+        _id: id,
+        fecha_ultima_alerta: fechaUltimaAlertaLeida,
+        $or: [{ reserva_alerta_hasta: null }, { reserva_alerta_hasta: { $lte: ahora } }],
+      },
+      { $set: { reserva_alerta_hasta: reservaHasta } },
+      opcionesSesion(),
+    );
+    return resultado.modifiedCount === 1;
+  }
+
+  async confirmarAlerta(id: string, fecha: Date): Promise<void> {
+    await this.modelo.updateOne(
+      { _id: id },
+      { $set: { fecha_ultima_alerta: fecha, reserva_alerta_hasta: null } },
+      opcionesSesion(),
+    );
+  }
+
+  async liberarReserva(id: string): Promise<void> {
+    await this.modelo.updateOne(
+      { _id: id },
+      { $set: { reserva_alerta_hasta: null } },
+      opcionesSesion(),
+    );
+  }
+
   async consultarEstado(
     filtros: FiltrosEstadoInventario,
     paginacion: Paginacion,

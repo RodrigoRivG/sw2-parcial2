@@ -35,7 +35,7 @@ export function aDocumento(insumo: Insumo): DocumentoInsumo {
     stock: aDecimal128(insumo.stock.valor.toString()),
     tiene_movimientos: insumo.tieneMovimientos,
     fecha_ultima_alerta: insumo.fechaUltimaAlerta,
-    reserva_alerta_hasta: null,
+    reserva_alerta_hasta: insumo.reservaAlertaHasta,
     version: insumo.version,
     fecha_creacion: insumo.fechaCreacion,
   };
@@ -54,6 +54,7 @@ export function aDominio(documento: DocumentoInsumo): Insumo {
     descripcion: documento.descripcion ?? null,
     tieneMovimientos: documento.tiene_movimientos,
     fechaUltimaAlerta: documento.fecha_ultima_alerta ?? null,
+    reservaAlertaHasta: documento.reserva_alerta_hasta ?? null,
     version: documento.version,
     fechaCreacion: documento.fecha_creacion,
     fechaActualizacion: documento.fecha_actualizacion,

@@ -10,11 +10,16 @@ describe('Salud (constitución §9)', () => {
 
   afterAll(() => ap.cerrar());
 
-  it('liveness y readiness responden UP con MongoDB disponible', async () => {
+  it('liveness y readiness responden UP con MongoDB y RabbitMQ disponibles', async () => {
     expect((await request(ap.servidor).get('/salud/liveness')).body).toEqual({ estado: 'UP' });
-    const readiness = await request(ap.servidor).get('/salud/readiness');
+    // La conexión a RabbitMQ no bloquea el arranque: se espera a que conecte.
+    let readiness = await request(ap.servidor).get('/salud/readiness');
+    for (let i = 0; i < 50 && readiness.status !== 200; i++) {
+      await new Promise((resolver) => setTimeout(resolver, 100));
+      readiness = await request(ap.servidor).get('/salud/readiness');
+    }
     expect(readiness.status).toBe(200);
-    expect(readiness.body).toEqual({ estado: 'UP', componentes: { mongodb: 'UP' } });
+    expect(readiness.body).toEqual({ estado: 'UP', componentes: { mongodb: 'UP', rabbitmq: 'UP' } });
   });
 
   it('readiness responde 503 si MongoDB no está; liveness sigue UP', async () => {
@@ -22,7 +27,10 @@ describe('Salud (constitución §9)', () => {
     await ap.conexion.close();
     const readiness = await request(ap.servidor).get('/salud/readiness');
     expect(readiness.status).toBe(503);
-    expect(readiness.body).toEqual({ estado: 'DOWN', componentes: { mongodb: 'DOWN' } });
+    expect(readiness.body).toEqual({
+      estado: 'DOWN',
+      componentes: { mongodb: 'DOWN', rabbitmq: 'UP' },
+    });
     expect((await request(ap.servidor).get('/salud')).status).toBe(503);
     expect((await request(ap.servidor).get('/salud/liveness')).status).toBe(200);
   });

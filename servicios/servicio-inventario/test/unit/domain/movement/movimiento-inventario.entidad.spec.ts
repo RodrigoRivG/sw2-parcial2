@@ -21,6 +21,7 @@ function insumoCon(stock: string, unidad = UnidadMedida.KILOGRAMO): Insumo {
     descripcion: null,
     tieneMovimientos: true,
     fechaUltimaAlerta: null,
+    reservaAlertaHasta: null,
     version: 0,
     fechaCreacion: AHORA,
     fechaActualizacion: AHORA,

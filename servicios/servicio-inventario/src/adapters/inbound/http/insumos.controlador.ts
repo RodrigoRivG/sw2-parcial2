@@ -23,6 +23,7 @@ import { ActualizarInsumoCasoUso } from '../../../application/use-cases/actualiz
 import { ConsultarInsumosCasoUso } from '../../../application/use-cases/consultar-insumos.caso-uso';
 import { CrearInsumoCasoUso } from '../../../application/use-cases/crear-insumo.caso-uso';
 import { Insumo } from '../../../domain/supply/insumo.entidad';
+import { EvaluacionStockBajo } from '../evaluacion-stock-bajo';
 import { Rol, Roles, UsuarioActual, UsuarioAutenticado } from './auth/decoradores';
 import { PREFIJO_API } from './configurar-aplicacion';
 import { ApiErrores } from './documentacion-errores';
@@ -52,6 +53,7 @@ export class InsumosControlador {
     @Inject(CrearInsumoCasoUso) private readonly crearInsumo: CrearInsumoCasoUso,
     @Inject(ActualizarInsumoCasoUso) private readonly actualizarInsumo: ActualizarInsumoCasoUso,
     @Inject(ConsultarInsumosCasoUso) private readonly consultarInsumos: ConsultarInsumosCasoUso,
+    private readonly evaluacionStockBajo: EvaluacionStockBajo,
   ) {}
 
   @Post()
@@ -69,6 +71,10 @@ export class InsumosControlador {
     @Res({ passthrough: true }) respuesta: Response,
   ): Promise<InsumoRespuesta> {
     const insumo = await this.crearInsumo.ejecutar(cuerpo, usuario.sub);
+    // La regla se evalúa tras cada movimiento: solo si se registró el stock inicial.
+    if (insumo.tieneMovimientos) {
+      this.evaluacionStockBajo.programar([insumo.id]);
+    }
     respuesta.setHeader('Location', `/${PREFIJO_API}/insumos/${insumo.id}`);
     return aRespuesta(insumo);
   }
