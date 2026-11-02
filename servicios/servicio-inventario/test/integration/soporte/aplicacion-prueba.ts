@@ -54,7 +54,8 @@ export async function crearAplicacionPrueba(
     logger: false,
   });
   configurarAplicacion(app);
-  await app.init();
+  // Escucha en un puerto libre: supertest reutiliza el servidor en vez de abrir uno por solicitud.
+  await app.listen(0);
   const conexion = app.get<Connection>(CONEXION_MONGO);
 
   return {

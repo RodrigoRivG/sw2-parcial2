@@ -332,7 +332,7 @@ Colección `sagas_procesadas` (`_id` = `idSaga`, sin índices adicionales):
 **`RestaurarInsumosCasoUso`** (`application/use-cases/restaurar-insumos.caso-uso.ts`):
 
 1. Dentro de `UnidadTrabajo`: bloqueo y decisión (tabla RQ-SAG-07).
-2. Si es `DESCONTADO`: `repositorioMovimiento.listarPorSaga(idSaga, SALIDA)`; por cada salida, una `ENTRADA` por la misma cantidad y con el costo unitario de la salida; guarda `RESTAURADO` con `restauracion`.
+2. Si es `DESCONTADO`: `repositorioMovimiento.listarPorSaga(idSaga, SALIDA)` (método nuevo del puerto, que se agrega aquí); por cada salida, una `ENTRADA` por la misma cantidad y con el costo unitario de la salida; guarda `RESTAURADO` con `restauracion`.
 3. Devuelve la respuesta y los insumos afectados.
 
 `MovimientoInventario.registrar` acepta un `costoUnitario` explícito para las entradas de compensación; si no se pasa, copia el del insumo (`spec-movimientos.md`).

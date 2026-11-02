@@ -1,5 +1,4 @@
 import request from 'supertest';
-import { Types } from 'mongoose';
 import { AplicacionPrueba, PREFIJO, crearAplicacionPrueba, datosInsumo } from '../soporte/aplicacion-prueba';
 
 describe('Insumos (spec-insumos.md)', () => {
@@ -14,9 +13,16 @@ describe('Insumos (spec-insumos.md)', () => {
   afterAll(() => ap.cerrar());
 
   beforeEach(async () => {
-    await ap.conexion.collection('insumos').deleteMany({});
-    await ap.conexion.collection('registros_auditoria').deleteMany({});
+    for (const coleccion of ['insumos', 'movimientos_inventario', 'registros_auditoria']) {
+      await ap.conexion.collection(coleccion).deleteMany({});
+    }
   });
+
+  const registrarMovimiento = (idInsumo: string, tipo: string, cantidad: string) =>
+    request(ap.servidor)
+      .post(`${PREFIJO}/movimientos`)
+      .set('Authorization', admin)
+      .send({ idInsumo, tipo, cantidad, motivo: 'Prueba' });
 
   const crear = (cuerpo: Record<string, unknown>, autorizacion = admin) =>
     request(ap.servidor).post(`${PREFIJO}/insumos`).set('Authorization', autorizacion).send(cuerpo);
@@ -24,6 +30,30 @@ describe('Insumos (spec-insumos.md)', () => {
   const auditorias = () => ap.conexion.collection('registros_auditoria').find({}).toArray();
 
   describe('Historia 1 — Registrar un insumo', () => {
+    it('escenario 1: con stock inicial se crea con ese stock y una ENTRADA "Stock inicial"', async () => {
+      const respuesta = await crear(datosInsumo({ stockInicial: '500' }));
+      expect(respuesta.status).toBe(201);
+      expect(respuesta.body.stock).toBe('500.000');
+      expect(respuesta.body.stockBajo).toBe(false);
+
+      const movimientos = await ap.conexion
+        .collection('movimientos_inventario')
+        .find({ id_insumo: respuesta.body.id })
+        .toArray();
+      expect(movimientos).toHaveLength(1);
+      expect(movimientos[0]).toMatchObject({ tipo: 'ENTRADA', motivo: 'Stock inicial', actor: 'admin-1' });
+      expect(movimientos[0].cantidad.toString()).toBe('500');
+      expect(movimientos[0].stock_resultante.toString()).toBe('500');
+      expect((await auditorias()).map((a) => a.accion)).toEqual(['CREAR', 'REGISTRAR_MOVIMIENTO']);
+    });
+
+    it('si el insumo no se puede crear, tampoco queda el movimiento del stock inicial', async () => {
+      expect((await crear(datosInsumo({ stockInicial: '10' }))).status).toBe(201);
+      const repetido = await crear(datosInsumo({ nombre: 'UREA 46 %', stockInicial: '10' }));
+      expect(repetido.status).toBe(409);
+      expect(await ap.conexion.collection('movimientos_inventario').countDocuments()).toBe(1);
+    });
+
     it('escenario 2: sin stock inicial se crea con stock 0, Location y auditoría CREAR', async () => {
       const respuesta = await crear(datosInsumo({ stockInicial: '0' })).set(
         'X-Correlation-Id',
@@ -134,12 +164,10 @@ describe('Insumos (spec-insumos.md)', () => {
     });
 
     it('escenario 3: soloConStock=true devuelve solo insumos con stock mayor a 0', async () => {
-      const conStock = await crear(datosInsumo({ nombre: 'Con stock' }));
+      await crear(datosInsumo({ nombre: 'Con stock', stockInicial: '5' }));
       await crear(datosInsumo({ nombre: 'Sin stock' }));
-      // El stock solo cambia con movimientos (spec-movimientos.md); aquí se simula directamente.
-      await ap.conexion
-        .collection('insumos')
-        .updateOne({ _id: conStock.body.id }, { $set: { stock: Types.Decimal128.fromString('5') } });
+      const agotado = await crear(datosInsumo({ nombre: 'Agotado', stockInicial: '3' }));
+      expect((await registrarMovimiento(agotado.body.id, 'SALIDA', '3')).status).toBe(201);
 
       const respuesta = await request(ap.servidor)
         .get(`${PREFIJO}/insumos?soloConStock=true`)
@@ -181,10 +209,7 @@ describe('Insumos (spec-insumos.md)', () => {
 
     it('escenario 3: con movimientos, cambiar la unidad → 422 UNIDAD_NO_MODIFICABLE', async () => {
       const creado = await crear(datosInsumo());
-      // Simula el primer movimiento (spec-movimientos.md).
-      await ap.conexion
-        .collection('insumos')
-        .updateOne({ _id: creado.body.id }, { $set: { tiene_movimientos: true } });
+      expect((await registrarMovimiento(creado.body.id, 'ENTRADA', '1')).status).toBe(201);
       const respuesta = await actualizar(creado.body.id, datosInsumo({ unidad: 'LITRO', version: 0 }));
       expect([respuesta.status, respuesta.body.codigo]).toEqual([422, 'UNIDAD_NO_MODIFICABLE']);
     });
@@ -197,15 +222,13 @@ describe('Insumos (spec-insumos.md)', () => {
     });
 
     it('escenario 5: un cambio de stock entre la lectura y el PUT no invalida la versión', async () => {
-      const creado = await crear(datosInsumo());
-      // Así cambia el stock un movimiento: $inc sin tocar version (README D-05).
-      await ap.conexion.collection('insumos').updateOne(
-        { _id: creado.body.id },
-        { $inc: { stock: Types.Decimal128.fromString('10') }, $set: { tiene_movimientos: true } },
-      );
+      const creado = await crear(datosInsumo({ stockInicial: '20' }));
+      // Una salida entre la lectura (versión 0) y el PUT no cambia la versión (README D-05).
+      expect((await registrarMovimiento(creado.body.id, 'SALIDA', '10')).status).toBe(201);
       const respuesta = await actualizar(creado.body.id, datosInsumo({ nombre: 'Urea', version: 0 }));
       expect(respuesta.status).toBe(200);
       expect(respuesta.body.stock).toBe('10.000');
+      expect(respuesta.body.version).toBe(1);
     });
 
     it('escenario 6: el stock no se modifica por PUT → 400 DATOS_INVALIDOS', async () => {

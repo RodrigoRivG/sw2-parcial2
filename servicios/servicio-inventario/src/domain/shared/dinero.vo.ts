@@ -26,6 +26,15 @@ export class Dinero {
     return new Dinero(decimal.abs());
   }
 
+  /** Monto ya validado al guardarlo. */
+  static desdeAlmacen(valor: ValorDecimal): Dinero {
+    const decimal = aDecimal(valor);
+    if (decimal === null) {
+      throw new Error(`Monto almacenado inválido: ${String(valor)}`);
+    }
+    return new Dinero(decimal);
+  }
+
   static cero(): Dinero {
     return new Dinero(new Decimal(0));
   }

@@ -180,7 +180,7 @@ Se construye una sola vez, con esta funcionalidad, y la reutilizan todas las dem
 | `mongoose` 8 | Persistencia (sin `@nestjs/mongoose`: la conexión se crea en un proveedor propio de ~10 líneas) |
 | `decimal.js` | Aritmética decimal (constitución §4) |
 | `jose` | Validación del JWT con JWKS, `iss`, `aud` y `exp` en una sola llamada |
-| Dev: `typescript`, `@nestjs/cli`, `@nestjs/testing`, `jest`, `ts-jest`, `supertest`, `@testcontainers/mongodb`, `eslint`, `prettier` | Build, tests y estilo (eslint y prettier vienen con la plantilla de Nest) |
+| Dev: `typescript`, `@nestjs/cli`, `@nestjs/testing`, `jest`, `ts-jest`, `supertest`, `testcontainers`, `eslint`, `prettier` | Build, tests y estilo (eslint y prettier vienen con la plantilla de Nest) |
 
 `amqplib` y `amqp-connection-manager` se agregan recién en `spec-stock-bajo.md`, la primera funcionalidad que usa RabbitMQ.
 
@@ -378,7 +378,7 @@ Colección `insumos`:
 | `adapters/outbound/persistence` | `insumo.esquema.ts`, `mappers/insumo.mapper.ts`, `repositorio-insumo.mongo.ts` | Esquema, mapeo `Decimal128` ↔ `Decimal`, traducción del error `11000` |
 | `adapters/inbound/http` | `insumos.controlador.ts`, `dto/` | Traduce HTTP ↔ caso de uso; elige la vista completa o reducida según los roles |
 
-**Stock inicial (RQ-INS-02):** el movimiento se crea en la misma transacción. Hasta que exista `spec-movimientos.md`, la tarea T12 implementa solo la creación sin stock inicial: el stock inicial se valida (escenario 3 y casos borde), pero uno mayor a 0 todavía responde `500` y no guarda nada (la transacción se revierte). T03 de `spec-movimientos.md` completa el escenario 1 de la Historia 1.
+**Stock inicial (RQ-INS-02):** el movimiento se crea en la misma transacción. La tarea T12 implementó la creación sin stock inicial; T03 de `spec-movimientos.md` completó el escenario 1 de la Historia 1: el stock inicial se registra con `RegistrarMovimientoCasoUso.registrarDentroDeTransaccion`, y si el insumo no se crea tampoco queda el movimiento.
 
 **Concurrencia (RQ-INS-05):** `updateOne({ _id, version }, { $set: {...}, $inc: { version: 1 } })`; si no modifica nada y el insumo existe, `CONFLICTO_CONCURRENCIA`. Los movimientos usan `$inc` sobre `stock` sin tocar `version` (README D-05).
 
@@ -399,7 +399,7 @@ Colección `insumos`:
 | Integración | `salud.int-spec.ts` | Liveness y readiness `UP`; readiness `503` con MongoDB cerrado |
 | Integración | `unidad-trabajo.int-spec.ts` | Auditoría con actor e `idCorrelacion` en la transacción, rollback, transacción anidada, migraciones registradas |
 
-Los tests de integración levantan un solo MongoDB con `@testcontainers/mongodb` (`mongo:8.0`, replica set de un nodo) en el `globalSetup` de Jest; cada archivo usa su propia base de datos, ejecuta las migraciones y arranca la app con `Test.createTestingModule` y la misma `configurarAplicacion` de `main.ts`. Viven en `test/integration/http` y `test/integration/persistence`.
+Los tests de integración levantan un solo MongoDB (`mongo:8.0`, replica set de un nodo) con `GenericContainer` de `testcontainers` en el `globalSetup` de Jest. El replica set se inicia paso a paso (`rs.initiate` con host `localhost:27017` y espera hasta ser PRIMARY), en lugar de usar `@testcontainers/mongodb`, cuyo health check terminaba `unhealthy` en GitHub Actions; cada archivo usa su propia base de datos, ejecuta las migraciones y arranca la app con `Test.createTestingModule` y la misma `configurarAplicacion` de `main.ts`. Viven en `test/integration/http` y `test/integration/persistence`.
 
 ---
 
@@ -425,7 +425,7 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [x] **T11** — Crear `002-crear-indices-insumos.ts`, el esquema, el mapper y `RepositorioInsumoMongo`, con la traducción del error `11000`.
 - [x] **T12** — Implementar `CrearInsumoCasoUso` (sin stock inicial) y `POST /insumos`. *Hecho cuando:* pasan los escenarios 2 a 6 de la Historia 1, con auditoría.
 - [x] **T13** — Implementar `ConsultarInsumosCasoUso` y los dos `GET`, con las dos vistas. *Hecho cuando:* pasan la Historia 2 e `insumos-vistas.int-spec.ts`.
-- [x] **T14** — Implementar `ActualizarInsumoCasoUso` y `PUT /insumos/{id}`. *Hecho cuando:* pasan los escenarios 1, 2, 4 y 6 de la Historia 3. Los escenarios 3 y 5 también pasan, simulando el movimiento directamente en MongoDB; `spec-movimientos.md` T04 los repite con movimientos reales.
+- [x] **T14** — Implementar `ActualizarInsumoCasoUso` y `PUT /insumos/{id}`. *Hecho cuando:* pasan los escenarios 1, 2, 4 y 6 de la Historia 3. Los escenarios 3 y 5 se completaron con movimientos reales en `spec-movimientos.md` T04.
 - [x] **T15** — Escribir `insumos-concurrencia.int-spec.ts` y los casos borde de formato.
 - [x] **T16** [P] — Escribir `insumos-rendimiento.int-spec.ts` (CE-INS-02).
 - [x] **T17** — Documentar en OpenAPI los códigos de error de cada endpoint. *Hecho cuando:* `/api-docs-json` lista los cuatro endpoints con sus respuestas de error.

@@ -1,3 +1,5 @@
+import { TipoMovimiento } from '../../domain/movement/tipo-movimiento.enum';
+import { Cantidad } from '../../domain/shared/cantidad.vo';
 import { CategoriaInsumo } from '../../domain/supply/categoria-insumo.enum';
 import { Insumo } from '../../domain/supply/insumo.entidad';
 import { Pagina, Paginacion } from './pagina';
@@ -17,5 +19,15 @@ export interface RepositorioInsumo {
    */
   actualizarSiVersion(insumo: Insumo, versionEsperada: number): Promise<boolean>;
   buscarPorId(id: string): Promise<Insumo | null>;
+  /**
+   * Suma o resta la cantidad al stock de forma atómica, sin cambiar la versión del insumo.
+   * Una salida solo se aplica si `stock >= cantidad`. Devuelve el stock resultante, o null si no se aplicó.
+   */
+  aplicarMovimiento(
+    id: string,
+    tipo: TipoMovimiento,
+    cantidad: Cantidad,
+    ahora: Date,
+  ): Promise<Cantidad | null>;
   listar(filtros: FiltrosInsumos, paginacion: Paginacion): Promise<Pagina<Insumo>>;
 }

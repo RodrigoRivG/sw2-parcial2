@@ -5,6 +5,7 @@ import { Connection } from 'mongoose';
 import { CONJUNTO_CLAVES, JwtGuardia } from '../adapters/inbound/http/auth/jwt.guardia';
 import { RolesGuardia } from '../adapters/inbound/http/auth/roles.guardia';
 import { InsumosControlador } from '../adapters/inbound/http/insumos.controlador';
+import { MovimientosControlador } from '../adapters/inbound/http/movimientos.controlador';
 import { SaludControlador } from '../adapters/inbound/http/salud.controlador';
 import {
   CONEXION_MONGO,
@@ -13,18 +14,22 @@ import {
 } from '../adapters/outbound/persistence/conexion-mongo';
 import { RegistroAuditoriaMongo } from '../adapters/outbound/persistence/registro-auditoria.mongo';
 import { RepositorioInsumoMongo } from '../adapters/outbound/persistence/repositorio-insumo.mongo';
+import { RepositorioMovimientoMongo } from '../adapters/outbound/persistence/repositorio-movimiento.mongo';
 import { esquemaInsumo } from '../adapters/outbound/persistence/schemas/insumo.esquema';
+import { esquemaMovimiento } from '../adapters/outbound/persistence/schemas/movimiento-inventario.esquema';
 import { esquemaRegistroAuditoria } from '../adapters/outbound/persistence/schemas/registro-auditoria.esquema';
 import { UnidadTrabajoMongo } from '../adapters/outbound/persistence/unidad-trabajo.mongo';
 import { RelojSistema } from '../adapters/outbound/reloj-sistema';
 import { ActualizarInsumoCasoUso } from '../application/use-cases/actualizar-insumo.caso-uso';
 import { ConsultarInsumosCasoUso } from '../application/use-cases/consultar-insumos.caso-uso';
+import { ConsultarMovimientosCasoUso } from '../application/use-cases/consultar-movimientos.caso-uso';
 import { CrearInsumoCasoUso } from '../application/use-cases/crear-insumo.caso-uso';
+import { RegistrarMovimientoCasoUso } from '../application/use-cases/registrar-movimiento.caso-uso';
 import { CONFIGURACION, Configuracion, leerConfiguracion } from '../config/validacion-entorno';
 
 /** Conecta los puertos de `application` con los adaptadores. Los casos de uso no conocen Nest. */
 @Module({
-  controllers: [InsumosControlador, SaludControlador],
+  controllers: [InsumosControlador, MovimientosControlador, SaludControlador],
   providers: [
     { provide: CONFIGURACION, useFactory: () => leerConfiguracion() },
     {
@@ -63,14 +68,51 @@ import { CONFIGURACION, Configuracion, leerConfiguracion } from '../config/valid
       inject: [CONEXION_MONGO],
     },
     {
+      provide: RepositorioMovimientoMongo,
+      useFactory: (conexion: Connection) =>
+        new RepositorioMovimientoMongo(conexion.model('MovimientoInventario', esquemaMovimiento)),
+      inject: [CONEXION_MONGO],
+    },
+    {
+      provide: RegistrarMovimientoCasoUso,
+      useFactory: (
+        insumos: RepositorioInsumoMongo,
+        movimientos: RepositorioMovimientoMongo,
+        unidadTrabajo: UnidadTrabajoMongo,
+        auditoria: RegistroAuditoriaMongo,
+        reloj: RelojSistema,
+      ) => new RegistrarMovimientoCasoUso(insumos, movimientos, unidadTrabajo, auditoria, reloj),
+      inject: [
+        RepositorioInsumoMongo,
+        RepositorioMovimientoMongo,
+        UnidadTrabajoMongo,
+        RegistroAuditoriaMongo,
+        RelojSistema,
+      ],
+    },
+    {
+      provide: ConsultarMovimientosCasoUso,
+      useFactory: (movimientos: RepositorioMovimientoMongo) =>
+        new ConsultarMovimientosCasoUso(movimientos),
+      inject: [RepositorioMovimientoMongo],
+    },
+    {
       provide: CrearInsumoCasoUso,
       useFactory: (
         repositorio: RepositorioInsumoMongo,
         unidadTrabajo: UnidadTrabajoMongo,
         auditoria: RegistroAuditoriaMongo,
         reloj: RelojSistema,
-      ) => new CrearInsumoCasoUso(repositorio, unidadTrabajo, auditoria, reloj),
-      inject: [RepositorioInsumoMongo, UnidadTrabajoMongo, RegistroAuditoriaMongo, RelojSistema],
+        registrarMovimiento: RegistrarMovimientoCasoUso,
+      ) =>
+        new CrearInsumoCasoUso(repositorio, unidadTrabajo, auditoria, reloj, registrarMovimiento),
+      inject: [
+        RepositorioInsumoMongo,
+        UnidadTrabajoMongo,
+        RegistroAuditoriaMongo,
+        RelojSistema,
+        RegistrarMovimientoCasoUso,
+      ],
     },
     {
       provide: ActualizarInsumoCasoUso,

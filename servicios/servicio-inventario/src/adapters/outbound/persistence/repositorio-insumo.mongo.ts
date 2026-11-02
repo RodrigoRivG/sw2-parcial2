@@ -4,6 +4,8 @@ import {
   FiltrosInsumos,
   RepositorioInsumo,
 } from '../../../application/ports/repositorio-insumo.puerto';
+import { TipoMovimiento } from '../../../domain/movement/tipo-movimiento.enum';
+import { Cantidad } from '../../../domain/shared/cantidad.vo';
 import { nombreInsumoDuplicado } from '../../../domain/supply/errores-insumo';
 import { Insumo } from '../../../domain/supply/insumo.entidad';
 import { esClaveDuplicada, opcionesSesion } from './contexto-sesion';
@@ -46,6 +48,29 @@ export class RepositorioInsumoMongo implements RepositorioInsumo {
       .lean<DocumentoInsumo>()
       .exec();
     return documento ? aDominio(documento) : null;
+  }
+
+  async aplicarMovimiento(
+    id: string,
+    tipo: TipoMovimiento,
+    cantidad: Cantidad,
+    ahora: Date,
+  ): Promise<Cantidad | null> {
+    const texto = cantidad.valor.toString();
+    const esSalida = tipo === TipoMovimiento.SALIDA;
+    // Actualización atómica condicionada: una salida nunca deja stock negativo (constitución §4).
+    const documento = await this.modelo
+      .findOneAndUpdate(
+        esSalida ? { _id: id, stock: { $gte: aDecimal128(texto) } } : { _id: id },
+        {
+          $inc: { stock: aDecimal128(esSalida ? `-${texto}` : texto) },
+          $set: { tiene_movimientos: true, fecha_actualizacion: ahora },
+        },
+        { ...opcionesSesion(), returnDocument: 'after' },
+      )
+      .lean<DocumentoInsumo>()
+      .exec();
+    return documento ? Cantidad.desdeAlmacen(documento.stock.toString()) : null;
   }
 
   async listar(filtros: FiltrosInsumos, paginacion: Paginacion): Promise<Pagina<Insumo>> {

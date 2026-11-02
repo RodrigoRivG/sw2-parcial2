@@ -1,6 +1,7 @@
 import { mongo } from 'mongoose';
 import { crearIndicesAuditoria } from './001-crear-indices-auditoria';
 import { crearIndicesInsumos } from './002-crear-indices-insumos';
+import { crearIndicesMovimientos } from './003-crear-indices-movimientos';
 
 export interface Migracion {
   nombre: string;
@@ -8,4 +9,8 @@ export interface Migracion {
 }
 
 /** Migraciones en orden de aplicación. Una migración aplicada no se modifica: se agrega otra. */
-export const migraciones: Migracion[] = [crearIndicesAuditoria, crearIndicesInsumos];
+export const migraciones: Migracion[] = [
+  crearIndicesAuditoria,
+  crearIndicesInsumos,
+  crearIndicesMovimientos,
+];

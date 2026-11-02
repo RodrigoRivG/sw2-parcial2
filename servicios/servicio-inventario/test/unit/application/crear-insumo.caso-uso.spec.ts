@@ -1,11 +1,14 @@
 import { ConsultarInsumosCasoUso } from '../../../src/application/use-cases/consultar-insumos.caso-uso';
 import { CrearInsumoCasoUso } from '../../../src/application/use-cases/crear-insumo.caso-uso';
+import { RegistrarMovimientoCasoUso } from '../../../src/application/use-cases/registrar-movimiento.caso-uso';
+import { TipoMovimiento } from '../../../src/domain/movement/tipo-movimiento.enum';
 import { CategoriaInsumo } from '../../../src/domain/supply/categoria-insumo.enum';
 import { UnidadMedida } from '../../../src/domain/supply/unidad-medida.enum';
 import {
   AuditoriaEnMemoria,
   RelojFijo,
   RepositorioInsumoEnMemoria,
+  RepositorioMovimientoEnMemoria,
   UnidadTrabajoDirecta,
 } from './dobles';
 
@@ -19,18 +22,23 @@ const DATOS = {
 
 describe('CrearInsumoCasoUso y ConsultarInsumosCasoUso', () => {
   let repositorio: RepositorioInsumoEnMemoria;
+  let movimientos: RepositorioMovimientoEnMemoria;
   let auditoria: AuditoriaEnMemoria;
   let crear: CrearInsumoCasoUso;
   let consultar: ConsultarInsumosCasoUso;
 
   beforeEach(() => {
     repositorio = new RepositorioInsumoEnMemoria();
+    movimientos = new RepositorioMovimientoEnMemoria();
     auditoria = new AuditoriaEnMemoria();
+    const unidadTrabajo = new UnidadTrabajoDirecta();
+    const reloj = new RelojFijo();
     crear = new CrearInsumoCasoUso(
       repositorio,
-      new UnidadTrabajoDirecta(),
+      unidadTrabajo,
       auditoria,
-      new RelojFijo(),
+      reloj,
+      new RegistrarMovimientoCasoUso(repositorio, movimientos, unidadTrabajo, auditoria, reloj),
     );
     consultar = new ConsultarInsumosCasoUso(repositorio);
   });
@@ -39,9 +47,22 @@ describe('CrearInsumoCasoUso y ConsultarInsumosCasoUso', () => {
     const insumo = await crear.ejecutar({ ...DATOS, stockInicial: '0' }, 'admin-1');
     expect(insumo.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(await consultar.obtener(insumo.id)).toBe(insumo);
+    expect(movimientos.movimientos).toHaveLength(0);
     expect(auditoria.registros).toEqual([
       { actor: 'admin-1', accion: 'CREAR', entidad: 'Insumo', idEntidad: insumo.id },
     ]);
+  });
+
+  it('registra el stock inicial como una entrada y devuelve el insumo con ese stock', async () => {
+    const insumo = await crear.ejecutar({ ...DATOS, stockInicial: '500' }, 'admin-1');
+    expect(insumo.stock.aTexto()).toBe('500.000');
+    expect(insumo.tieneMovimientos).toBe(true);
+    expect(movimientos.movimientos).toHaveLength(1);
+    const [entrada] = movimientos.movimientos;
+    expect(entrada.tipo).toBe(TipoMovimiento.ENTRADA);
+    expect(entrada.motivo).toBe('Stock inicial');
+    expect(entrada.stockResultante.aTexto()).toBe('500.000');
+    expect(auditoria.registros.map((r) => r.accion)).toEqual(['CREAR', 'REGISTRAR_MOVIMIENTO']);
   });
 
   it('valida el stock inicial con la unidad del insumo antes de guardar', async () => {

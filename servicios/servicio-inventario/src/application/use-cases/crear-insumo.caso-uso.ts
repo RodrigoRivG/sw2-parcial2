@@ -1,14 +1,19 @@
 import { randomUUID } from 'node:crypto';
+import { TipoMovimiento } from '../../domain/movement/tipo-movimiento.enum';
 import { Cantidad } from '../../domain/shared/cantidad.vo';
+import { insumoNoEncontrado } from '../../domain/supply/errores-insumo';
 import { DatosInsumo, Insumo } from '../../domain/supply/insumo.entidad';
 import { RegistroAuditoria } from '../ports/registro-auditoria.puerto';
 import { Reloj } from '../ports/reloj.puerto';
 import { RepositorioInsumo } from '../ports/repositorio-insumo.puerto';
 import { UnidadTrabajo } from '../ports/unidad-trabajo.puerto';
+import { RegistrarMovimientoCasoUso } from './registrar-movimiento.caso-uso';
 
 export interface EntradaCrearInsumo extends DatosInsumo {
   stockInicial?: string;
 }
+
+export const MOTIVO_STOCK_INICIAL = 'Stock inicial';
 
 export class CrearInsumoCasoUso {
   constructor(
@@ -16,8 +21,10 @@ export class CrearInsumoCasoUso {
     private readonly unidadTrabajo: UnidadTrabajo,
     private readonly auditoria: RegistroAuditoria,
     private readonly reloj: Reloj,
+    private readonly registrarMovimiento: RegistrarMovimientoCasoUso,
   ) {}
 
+  /** El stock inicial se registra como una entrada, en la misma transacción (constitución §3). */
   ejecutar(entrada: EntradaCrearInsumo, actor: string): Promise<Insumo> {
     return this.unidadTrabajo.ejecutar(async () => {
       const insumo = Insumo.crear(randomUUID(), entrada, this.reloj.ahora());
@@ -29,11 +36,23 @@ export class CrearInsumoCasoUso {
         entidad: 'Insumo',
         idEntidad: insumo.id,
       });
-      if (stockInicial.esMayorQueCero()) {
-        // Pendiente de spec-movimientos.md (T03): el stock inicial se registra como una entrada.
-        throw new Error('El registro del stock inicial todavía no está implementado.');
+      if (!stockInicial.esMayorQueCero()) {
+        return insumo;
       }
-      return insumo;
+      await this.registrarMovimiento.registrarDentroDeTransaccion(
+        {
+          idInsumo: insumo.id,
+          tipo: TipoMovimiento.ENTRADA,
+          cantidad: stockInicial.valor,
+          motivo: MOTIVO_STOCK_INICIAL,
+        },
+        actor,
+      );
+      const conStock = await this.repositorio.buscarPorId(insumo.id);
+      if (conStock === null) {
+        throw insumoNoEncontrado();
+      }
+      return conStock;
     });
   }
 }

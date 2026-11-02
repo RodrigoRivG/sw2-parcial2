@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-inventario` |
 | Archivo | `specs/spec-movimientos.md` |
-| Estado | Spec en borrador (2026-11-02) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-02) · Implementada (2026-11-02) |
 | Constitución | v2.8.0 (secciones 3 y 4) |
 | Trazabilidad | CU-07 (prioridad alta) · RF-08 · RN-04, RN-15, RN-16 · RNF-05 |
 | Depende de | `spec-insumos.md` |
@@ -110,7 +110,7 @@ Como administrador o gerente, quiero ver el historial de movimientos de un insum
 - **RQ-MOV-06**: Los movimientos son inmutables: no se editan ni se borran (constitución §4).
 - **RQ-MOV-07**: El primer movimiento de un insumo marca `tieneMovimientos = true`, lo que bloquea el cambio de unidad (`spec-insumos.md`).
 - **RQ-MOV-08**: El sistema debe listar movimientos paginados, ordenados por fecha descendente, con filtros opcionales `idInsumo`, `tipo`, `idSaga`, `desde` y `hasta`, y devolver un movimiento por ID.
-- **RQ-MOV-09**: Después del commit, todo movimiento evalúa la regla de stock bajo (`spec-stock-bajo.md`). Hasta implementar esa spec, el punto de extensión existe pero no hace nada.
+- **RQ-MOV-09**: Después del commit, todo movimiento evalúa la regla de stock bajo (`spec-stock-bajo.md`). El punto de extensión es el movimiento que devuelve el caso de uso, que trae el `idInsumo`; `spec-stock-bajo.md` agrega la llamada tras el commit (no hay un puerto vacío mientras tanto).
 
 ### Entidades clave
 
@@ -188,7 +188,8 @@ ejecutar(entrada, actor)              ← siempre dentro de UnidadTrabajo
 ```
 
 - El controlador REST abre la transacción con un solo movimiento. `CrearInsumoCasoUso` (stock inicial) y la Saga llaman a `registrarDentroDeTransaccion` para varios movimientos en una sola transacción.
-- La lista de insumos a evaluar se devuelve al llamador, que la entrega a `spec-stock-bajo.md` tras el commit.
+- El llamador conoce los insumos afectados por los movimientos que recibió, y los entrega a `spec-stock-bajo.md` tras el commit.
+- `MovimientoInventario.registrar` acepta un `costoUnitario` explícito (lo usará la compensación de la Saga); `conStockResultante` fija el stock que quedó guardado.
 
 ## 2.3 Persistencia
 
@@ -225,7 +226,9 @@ Colección `movimientos_inventario`:
 | `id_saga`, `id_labor` | `String` (solo Saga) |
 | `fecha` | `Date` |
 
-**`003-crear-indices-movimientos.ts`**: `{ id_insumo: 1, fecha: -1 }`, `{ fecha: -1 }` y `{ id_saga: 1 }` con `partialFilterExpression: { id_saga: { $exists: true } }`.
+**`003-crear-indices-movimientos.ts`**: `{ id_insumo: 1, fecha: -1 }`, `{ fecha: -1 }` y `{ id_saga: 1 }` con `partialFilterExpression: { id_saga: { $type: 'string' } }`. Se usa `$type` y no `$exists`, porque `$exists` también incluiría un `null`; además, los movimientos manuales no guardan `id_saga` ni `id_labor`.
+
+Las cantidades leídas de la base se reconstruyen con `Cantidad.desdeAlmacen` y `Dinero.desdeAlmacen`, porque el movimiento no guarda la unidad y esos valores ya se validaron al escribirlos.
 
 ## 2.4 Endpoints
 
@@ -273,7 +276,7 @@ Prefijo: `/api/inventario/v1`.
 | Capa | Archivo | Responsabilidad |
 |---|---|---|
 | `domain/movement` | `movimiento-inventario.entidad.ts`, `tipo-movimiento.enum.ts` | Regla de 2.1 |
-| `application/ports` | `repositorio-movimiento.puerto.ts`; se amplía `repositorio-insumo.puerto.ts` | `guardar`, `buscarPorId`, `listar`, `listarPorSaga(idSaga, tipo)`; `aplicarMovimiento` |
+| `application/ports` | `repositorio-movimiento.puerto.ts`; se amplía `repositorio-insumo.puerto.ts` | `guardar`, `buscarPorId`, `listar`; `aplicarMovimiento`. `listarPorSaga(idSaga, tipo)` se agrega en `spec-descuento-saga.md`, la primera que lo usa |
 | `application/use-cases` | `registrar-movimiento.caso-uso.ts`, `consultar-movimientos.caso-uso.ts` | 2.2 y consultas |
 | `adapters/outbound/persistence` | `movimiento-inventario.esquema.ts`, mapper, `repositorio-movimiento.mongo.ts` | 2.3 |
 | `adapters/inbound/http` | `movimientos.controlador.ts`, `dto/` | HTTP ↔ caso de uso |
@@ -283,9 +286,10 @@ Prefijo: `/api/inventario/v1`.
 | Tipo | Archivo | Qué verifica |
 |---|---|---|
 | Unitario | `movimiento-inventario.entidad.spec.ts` | Cantidad ≤ 0, decimales con `UNIDAD`, salida mayor al stock, salida igual al stock, `stockResultante` y copia del costo |
-| Unitario | `registrar-movimiento.caso-uso.spec.ts` | 404, carrera perdida (`aplicarMovimiento` devuelve `null`) → `STOCK_INSUFICIENTE`, auditoría |
+| Unitario | `registrar-movimiento.caso-uso.spec.ts` | 404, carrera perdida (`aplicarMovimiento` devuelve `null`) → `STOCK_INSUFICIENTE`, auditoría; también `ConsultarMovimientosCasoUso` |
+| Unitario | `crear-insumo.caso-uso.spec.ts` (se amplía) | Stock inicial como entrada, con auditoría `CREAR` y `REGISTRAR_MOVIMIENTO` |
 | Integración | `movimientos.controlador.int-spec.ts` | Historias 1 a 3 y casos borde, con auditoría |
-| Integración | `movimientos-concurrencia.int-spec.ts` | CE-MOV-01 (50 salidas en paralelo) y CE-MOV-02 |
+| Integración | `movimientos-concurrencia.int-spec.ts` | CE-MOV-01 (50 salidas en paralelo), CE-MOV-02 y CE-MOV-03, también con entradas y salidas mezcladas |
 | Integración | `insumos.controlador.int-spec.ts` (se amplía) | Escenario 1 de la Historia 1 de `spec-insumos.md` (stock inicial) y escenarios 3 y 5 de su Historia 3 |
 | Integración | `movimientos-rendimiento.int-spec.ts` | CE-MOV-04 |
 
@@ -293,12 +297,12 @@ Prefijo: `/api/inventario/v1`.
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `MovimientoInventario` y `TipoMovimiento`, con sus tests unitarios.
-- [ ] **T02** — Crear `003-crear-indices-movimientos.ts`, el esquema, el mapper, `RepositorioMovimientoMongo` y `aplicarMovimiento` en `RepositorioInsumoMongo`.
-- [ ] **T03** — Implementar `RegistrarMovimientoCasoUso` y `POST /movimientos`; conectar el stock inicial de `CrearInsumoCasoUso`. *Hecho cuando:* pasan las Historias 1 y 2, y el escenario 1 de la Historia 1 de `spec-insumos.md`.
-- [ ] **T04** — Completar los escenarios 3 y 5 de la Historia 3 de `spec-insumos.md` (unidad bloqueada, `PUT` aceptado tras un movimiento).
-- [ ] **T05** — Implementar `ConsultarMovimientosCasoUso` y los dos `GET`. *Hecho cuando:* pasa la Historia 3 (el escenario 4 se completa en `spec-descuento-saga.md`).
-- [ ] **T06** — Escribir `movimientos-concurrencia.int-spec.ts` (CE-MOV-01, CE-MOV-02).
-- [ ] **T07** [P] — Escribir `movimientos-rendimiento.int-spec.ts` (CE-MOV-04).
-- [ ] **T08** — Documentar en OpenAPI los códigos de error, incluido el `detalles` de `STOCK_INSUFICIENTE`.
-- [ ] **T09** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-MOV-01 a CE-MOV-04 cubiertos.
+- [x] **T01** — Crear `MovimientoInventario` y `TipoMovimiento`, con sus tests unitarios.
+- [x] **T02** — Crear `003-crear-indices-movimientos.ts`, el esquema, el mapper, `RepositorioMovimientoMongo` y `aplicarMovimiento` en `RepositorioInsumoMongo`.
+- [x] **T03** — Implementar `RegistrarMovimientoCasoUso` y `POST /movimientos`; conectar el stock inicial de `CrearInsumoCasoUso`. *Hecho cuando:* pasan las Historias 1 y 2, y el escenario 1 de la Historia 1 de `spec-insumos.md`.
+- [x] **T04** — Completar los escenarios 3 y 5 de la Historia 3 de `spec-insumos.md` (unidad bloqueada, `PUT` aceptado tras un movimiento).
+- [x] **T05** — Implementar `ConsultarMovimientosCasoUso` y los dos `GET`. *Hecho cuando:* pasa la Historia 3. El escenario 3 marca a mano un movimiento con `id_saga`; el 4 se completa en `spec-descuento-saga.md`.
+- [x] **T06** — Escribir `movimientos-concurrencia.int-spec.ts` (CE-MOV-01, CE-MOV-02).
+- [x] **T07** [P] — Escribir `movimientos-rendimiento.int-spec.ts` (CE-MOV-04).
+- [x] **T08** — Documentar en OpenAPI los códigos de error, incluido el `detalles` de `STOCK_INSUFICIENTE`.
+- [x] **T09** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-MOV-01 a CE-MOV-04 cubiertos.

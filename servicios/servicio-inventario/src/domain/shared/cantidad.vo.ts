@@ -35,6 +35,15 @@ export class Cantidad {
     return new Cantidad(decimal.abs());
   }
 
+  /** Valor ya validado al guardarlo (por ejemplo, la cantidad de un movimiento leído de la base). */
+  static desdeAlmacen(valor: ValorDecimal): Cantidad {
+    const decimal = aDecimal(valor);
+    if (decimal === null) {
+      throw new Error(`Cantidad almacenada inválida: ${String(valor)}`);
+    }
+    return new Cantidad(decimal);
+  }
+
   static cero(): Cantidad {
     return new Cantidad(new Decimal(0));
   }

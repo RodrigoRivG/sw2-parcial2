@@ -127,7 +127,7 @@ Primera funcionalidad con RabbitMQ: aquí se agregan la conexión y el publicado
 
 ## 2.1 Dependencias y configuración
 
-- Se agregan `amqplib`, `amqp-connection-manager` y, para tests, `@testcontainers/rabbitmq` (`rabbitmq:4-management-alpine`, igual que Docker Compose).
+- Se agregan `amqplib`, `amqp-connection-manager` y, para tests, un RabbitMQ con `GenericContainer` de `testcontainers` (`rabbitmq:4-management-alpine`, igual que Docker Compose), sin el módulo `@testcontainers/rabbitmq` (README D-13).
 - Variable de entorno `RABBITMQ_URL` (README D-14): `amqp://` en local y tests, `amqps://` en la nube.
 - `/salud/readiness` pasa a incluir RabbitMQ (`conexion.isConnected()`).
 
