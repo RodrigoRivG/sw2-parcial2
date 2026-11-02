@@ -4,9 +4,12 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { createLocalJWKSet } from 'jose';
 import { Connection } from 'mongoose';
+import request from 'supertest';
 import { App } from 'supertest/types';
+import { Decimal } from '../../../src/domain/shared/decimal';
 import { EvaluacionStockBajo } from '../../../src/adapters/inbound/evaluacion-stock-bajo';
 import { CONJUNTO_CLAVES } from '../../../src/adapters/inbound/http/auth/jwt.guardia';
+import { ESPERAS_REINTENTO_SAGA } from '../../../src/adapters/inbound/messaging/comandos-saga.consumidor';
 import { configurarAplicacion } from '../../../src/adapters/inbound/http/configurar-aplicacion';
 import { CONEXION_MONGO } from '../../../src/adapters/outbound/persistence/conexion-mongo';
 import { AppModule } from '../../../src/app.module';
@@ -51,7 +54,10 @@ export async function crearAplicacionPrueba(
       .overrideProvider(CONFIGURACION)
       .useValue(configuracion)
       .overrideProvider(CONJUNTO_CLAVES)
-      .useValue(createLocalJWKSet(tokens.jwks)),
+      .useValue(createLocalJWKSet(tokens.jwks))
+      // Reintentos de la Saga en milisegundos, para no esperar 7 s por test.
+      .overrideProvider(ESPERAS_REINTENTO_SAGA)
+      .useValue([10, 20, 40]),
   ).compile();
 
   const app = modulo.createNestApplication<NestExpressApplication>({
@@ -89,6 +95,27 @@ export class RelojPrueba {
   avanzar(milisegundos: number): void {
     this.instante = new Date(this.instante.getTime() + milisegundos);
   }
+}
+
+/** Crea un insumo por la API como administrador y devuelve su id. */
+export async function crearInsumoApi(
+  ap: AplicacionPrueba,
+  cambios: Record<string, unknown> = {},
+): Promise<string> {
+  const respuesta = await request(ap.servidor)
+    .post(`${PREFIJO}/insumos`)
+    .set('Authorization', await ap.tokens.bearer(['administrador']))
+    .send(datosInsumo(cambios));
+  if (respuesta.status !== 201) {
+    throw new Error(`No se pudo crear el insumo: ${JSON.stringify(respuesta.body)}`);
+  }
+  return respuesta.body.id;
+}
+
+/** Stock guardado de un insumo, con escala 3. */
+export async function stockDe(ap: AplicacionPrueba, idInsumo: string): Promise<string> {
+  const insumo = await ap.conexion.collection('insumos').findOne({ _id: idInsumo as never });
+  return new Decimal(String(insumo?.stock)).toFixed(3);
 }
 
 /** Cuerpo válido para crear un insumo, con los campos que se quieran cambiar. */

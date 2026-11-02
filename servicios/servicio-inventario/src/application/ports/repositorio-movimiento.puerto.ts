@@ -13,6 +13,8 @@ export interface FiltrosMovimientos {
 export interface RepositorioMovimiento {
   guardar(movimiento: MovimientoInventario): Promise<void>;
   buscarPorId(id: string): Promise<MovimientoInventario | null>;
+  /** Movimientos de una Saga y un tipo, en el orden en que se registraron. */
+  listarPorSaga(idSaga: string, tipo: TipoMovimiento): Promise<MovimientoInventario[]>;
   /** Ordenados por fecha descendente. */
   listar(
     filtros: FiltrosMovimientos,

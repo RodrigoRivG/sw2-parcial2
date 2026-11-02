@@ -18,7 +18,9 @@ import {
   FiltrosMovimientos,
   RepositorioMovimiento,
 } from '../../../src/application/ports/repositorio-movimiento.puerto';
+import { RepositorioSagaProcesada } from '../../../src/application/ports/repositorio-saga-procesada.puerto';
 import { UnidadTrabajo } from '../../../src/application/ports/unidad-trabajo.puerto';
+import { SagaProcesada } from '../../../src/domain/saga/saga-procesada.entidad';
 import { MovimientoInventario } from '../../../src/domain/movement/movimiento-inventario.entidad';
 import { TipoMovimiento } from '../../../src/domain/movement/tipo-movimiento.enum';
 import { Cantidad } from '../../../src/domain/shared/cantidad.vo';
@@ -155,11 +157,33 @@ export class RepositorioMovimientoEnMemoria implements RepositorioMovimiento {
     return this.movimientos.find((m) => m.id === id) ?? null;
   }
 
+  async listarPorSaga(idSaga: string, tipo: TipoMovimiento): Promise<MovimientoInventario[]> {
+    return this.movimientos.filter((m) => m.idSaga === idSaga && m.tipo === tipo);
+  }
+
   async listar(
     _filtros: FiltrosMovimientos,
     paginacion: Paginacion,
   ): Promise<Pagina<MovimientoInventario>> {
     return { ...paginacion, items: [...this.movimientos], total: this.movimientos.length };
+  }
+}
+
+export class SagasEnMemoria implements RepositorioSagaProcesada {
+  readonly sagas = new Map<string, SagaProcesada>();
+
+  async obtenerParaProcesar(idSaga: string, idLabor: string, ahora: Date): Promise<SagaProcesada> {
+    const existente = this.sagas.get(idSaga);
+    if (existente) {
+      return existente;
+    }
+    const nueva = SagaProcesada.nueva(idSaga, idLabor, ahora);
+    this.sagas.set(idSaga, nueva);
+    return nueva;
+  }
+
+  async guardar(saga: SagaProcesada): Promise<void> {
+    this.sagas.set(saga.idSaga, saga);
   }
 }
 

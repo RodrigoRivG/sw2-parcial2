@@ -67,7 +67,10 @@ describe('Unidad de trabajo y auditoría en MongoDB', () => {
       '001-crear-indices-auditoria',
       '002-crear-indices-insumos',
       '003-crear-indices-movimientos',
+      '004-crear-coleccion-sagas',
     ]);
+    const colecciones = await ap.conexion.db?.listCollections({ name: 'sagas_procesadas' }).toArray();
+    expect(colecciones).toHaveLength(1);
     const indicesMovimientos = await ap.conexion.collection('movimientos_inventario').indexes();
     expect(indicesMovimientos.find((i) => i.key.id_saga === 1)?.partialFilterExpression).toEqual({
       id_saga: { $type: 'string' },

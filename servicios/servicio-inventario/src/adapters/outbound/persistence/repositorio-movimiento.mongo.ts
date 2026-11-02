@@ -5,6 +5,7 @@ import {
   RepositorioMovimiento,
 } from '../../../application/ports/repositorio-movimiento.puerto';
 import { MovimientoInventario } from '../../../domain/movement/movimiento-inventario.entidad';
+import { TipoMovimiento } from '../../../domain/movement/tipo-movimiento.enum';
 import { opcionesSesion } from './contexto-sesion';
 import { aDocumento, aDominio } from './mappers/movimiento.mapper';
 import { DocumentoMovimiento } from './schemas/movimiento-inventario.esquema';
@@ -22,6 +23,15 @@ export class RepositorioMovimientoMongo implements RepositorioMovimiento {
       .lean<DocumentoMovimiento>()
       .exec();
     return documento ? aDominio(documento) : null;
+  }
+
+  async listarPorSaga(idSaga: string, tipo: TipoMovimiento): Promise<MovimientoInventario[]> {
+    const documentos = await this.modelo
+      .find({ id_saga: idSaga, tipo }, null, opcionesSesion())
+      .sort({ fecha: 1, _id: 1 })
+      .lean<DocumentoMovimiento[]>()
+      .exec();
+    return documentos.map(aDominio);
   }
 
   async listar(

@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-inventario` |
 | Archivo | `specs/spec-descuento-saga.md` |
-| Estado | Spec en borrador (2026-11-02) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-02) · Implementada (2026-11-02) |
 | Constitución | v2.8.0 (secciones 4, 5, 6 y 8) |
 | Trazabilidad | CU-08 (prioridad media; incluido por CU-12 como paso 2) · RF-10 (y RF-13 del coordinador) · RN-04, RN-07, RN-08, RN-09 · RNF-10, RNF-11, RNF-22 |
 | Depende de | `spec-movimientos.md` (operación común de stock), `spec-stock-bajo.md` (conexión a RabbitMQ y evento) |
@@ -343,13 +343,22 @@ Colección `sagas_procesadas` (`_id` = `idSaga`, sin índices adicionales):
 |---|---|---|
 | `domain/saga` | `saga-procesada.entidad.ts`, `resultado-saga-procesada.enum.ts` | Estado del `idSaga` y decisión de las tablas RQ-SAG-05 y RQ-SAG-07 |
 | `domain/saga` | `validacion-comando-descuento.ts` | Validación pura del formato de `datos` |
-| `application/ports` | `repositorio-saga-procesada.puerto.ts`, `publicador-eventos.puerto.ts` (se amplía con `publicarRespuesta`) | Puertos |
+| `application/ports` | `repositorio-saga-procesada.puerto.ts`; se amplía `repositorio-movimiento.puerto.ts` con `listarPorSaga` | Puertos |
+| `application/use-cases` | `respuestas-saga.ts` | `datos` de RQ-SAG-09 (decimales como texto), `ResultadoComandoSaga` (respuesta, insumos afectados y advertencia para el log) y `ComandoNoProcesable` (a la DLQ sin reintentos) |
 | `application/use-cases` | `descontar-insumos.caso-uso.ts`, `restaurar-insumos.caso-uso.ts` | 2.5 |
 | `adapters/outbound/persistence` | `saga-procesada.esquema.ts`, mapper, `repositorio-saga-procesada.mongo.ts` | 2.3 y 2.4 |
-| `adapters/outbound/messaging` | `publicador-eventos.rabbitmq.ts` (se amplía), `topologia-saga.ts` | Declaración de colas (2.1) y publicación de respuestas |
-| `adapters/inbound/messaging` | `comandos-saga.consumidor.ts`, `sobre-mensaje.ts` | 2.2 |
+| `adapters/inbound/messaging` | `comandos-saga.consumidor.ts`, `sobre-mensaje.ts`, `topologia-saga.ts` | 2.2, declaración de colas (2.1) y publicación de la respuesta |
 
 La constitución separa `descontar-insumos` y `restaurar-insumos` como casos de uso; un solo consumidor los despacha por `tipo` porque comparten cola.
+
+Ajustes respecto del plan original:
+
+- La respuesta la publica el propio consumidor, en su canal con confirmaciones, y no un puerto de `application`: es la respuesta del comando, como el cuerpo de una respuesta HTTP. Por eso `PublicadorEventos` no se amplía y `topologia-saga.ts` vive junto al consumidor.
+- `004-crear-coleccion-sagas.ts` crea `sagas_procesadas` por adelantado, para que el primer `upsert` no la cree dentro de una transacción con otros comandos simultáneos.
+- Si `aplicarMovimiento` devuelve `null` (una carrera que la transacción no detectó), el `STOCK_INSUFICIENTE` aborta la transacción y el consumidor lo trata como fallo técnico: reintenta el comando y la nueva lectura decide.
+- `RestaurarInsumos` con versión distinta de 1, `idSaga` o `idLabor` que no son UUID, o `idCorrelacion` distinto de `idSaga`, va a la DLQ (`ComandoNoProcesable`): no tiene un rechazo de negocio.
+- `insumos_afectados` guarda las cantidades como texto, porque en un `DATOS_INVALIDOS` pueden no ser decimales válidos.
+- `RegistrarMovimientoCasoUso.registrarDentroDeTransaccion` recibe la acción de auditoría (`DESCONTAR_INSUMOS_SAGA` o `RESTAURAR_INSUMOS_SAGA`).
 
 ## 2.7 Tests
 
@@ -357,26 +366,26 @@ La constitución separa `descontar-insumos` y `restaurar-insumos` como casos de 
 |---|---|---|
 | Unitario | `saga-procesada.entidad.spec.ts` | Cada fila de las tablas RQ-SAG-05 y RQ-SAG-07 |
 | Unitario | `validacion-comando-descuento.spec.ts` | `items` vacío, repetido, cantidad número JSON, ≤ 0, más de 3 decimales, `idCorrelacion` ≠ `idSaga`, versión |
-| Unitario | `descontar-insumos.caso-uso.spec.ts` | Prioridad de rechazos, cálculo y redondeo de `costoTotal` (`0.3705 → 0.37`, `0.125 → 0.13`, suma de varios ítems antes de redondear) |
+| Unitario | `saga.caso-uso.spec.ts` | Descuento y restauración con dobles: prioridad de rechazos, cálculo y redondeo de `costoTotal` (`0.3705 → 0.37`, suma de varios ítems antes de redondear), advertencias, `ComandoNoProcesable` |
 | Integración | `descontar-insumos.int-spec.ts` | Historia 1 completa con RabbitMQ y MongoDB reales |
 | Integración | `idempotencia-saga.int-spec.ts` | Historia 2, incluido el costo unitario cambiado y 100 entregas en paralelo (CE-SAG-02) |
 | Integración | `restaurar-insumos.int-spec.ts` | Historia 3 completa; descuento y restauración en paralelo y en ambos órdenes (CE-SAG-03) |
 | Integración | `fallos-saga.int-spec.ts` | Historia 4: repositorio que falla → 4 intentos y DLQ sin respuesta; sobre inválido y tipo desconocido → DLQ sin reintentos; datos inválidos → `DATOS_INVALIDOS` |
 | Integración | `concurrencia-saga.int-spec.ts` | Dos Sagas sobre el mismo insumo con stock para una; Saga y salida manual simultáneas; nunca stock negativo (CE-SAG-02) |
 
-Los tests publican en `servicio-inventario.comandos` y leen de `servicio-operaciones.respuestas-saga` y de la DLQ. Para no esperar 7 s por test, la espera entre reintentos es configurable y en los tests vale 10 ms, 20 ms y 40 ms.
+Los tests publican en `servicio-inventario.comandos` y leen de `servicio-operaciones.respuestas-saga` y de la DLQ con `ClienteSaga`, que hace de coordinador y declara las tres colas con los mismos argumentos que el servicio (si no coincidieran, RabbitMQ rechazaría la declaración). Para no esperar 7 s por test, la espera entre reintentos (`ESPERAS_REINTENTO_SAGA`) vale 10 ms, 20 ms y 40 ms en los tests.
 
 ---
 
 # 3. Tareas
 
-- [ ] **T01** — Declarar las colas de 2.1 (`topologia-saga.ts`) y ampliar el publicador con `publicarRespuesta`. *Hecho cuando:* un test de integración verifica las tres colas y sus argumentos.
-- [ ] **T02** — Crear `SagaProcesada`, `ResultadoSagaProcesada` y `validacion-comando-descuento.ts`, con sus tests unitarios.
-- [ ] **T03** — Crear el esquema, el mapper y `RepositorioSagaProcesadaMongo`, con el bloqueo de 2.3.
-- [ ] **T04** — Implementar `ComandosSagaConsumidor` con reintentos y DLQ (2.2).
-- [ ] **T05** — Implementar `DescontarInsumosCasoUso`. *Hecho cuando:* pasan `descontar-insumos.caso-uso.spec.ts` y `descontar-insumos.int-spec.ts` (salvo el escenario 7).
-- [ ] **T06** — Implementar `RestaurarInsumosCasoUso`. *Hecho cuando:* pasan `restaurar-insumos.int-spec.ts` y el escenario 7 de la Historia 1.
-- [ ] **T07** — Escribir `idempotencia-saga.int-spec.ts`, `fallos-saga.int-spec.ts` y `concurrencia-saga.int-spec.ts`.
-- [ ] **T08** — Conectar la evaluación de stock bajo después de cada respuesta (RQ-SAG-14) y completar el escenario 4 de la Historia 3 de `spec-movimientos.md` (actor de la Saga en el listado).
-- [ ] **T09** — Cuando exista la spec de la Saga de `servicio-operaciones`, verificar que consume el contrato de RQ-SAG-09 (AC-03) y las colas de 2.1 sin cambios.
-- [ ] **T10** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-SAG-01 a CE-SAG-05 cubiertos.
+- [x] **T01** — Declarar las colas de 2.1 (`topologia-saga.ts`) y ampliar el publicador con `publicarRespuesta`. *Hecho cuando:* un test de integración verifica las tres colas y sus argumentos. `ClienteSaga` las declara con los mismos argumentos en cada archivo de la Saga; además se verificó en Docker Compose (`rabbitmqctl list_queues`).
+- [x] **T02** — Crear `SagaProcesada`, `ResultadoSagaProcesada` y `validacion-comando-descuento.ts`, con sus tests unitarios.
+- [x] **T03** — Crear el esquema, el mapper y `RepositorioSagaProcesadaMongo`, con el bloqueo de 2.3.
+- [x] **T04** — Implementar `ComandosSagaConsumidor` con reintentos y DLQ (2.2).
+- [x] **T05** — Implementar `DescontarInsumosCasoUso`. *Hecho cuando:* pasan `descontar-insumos.caso-uso.spec.ts` y `descontar-insumos.int-spec.ts` (salvo el escenario 7).
+- [x] **T06** — Implementar `RestaurarInsumosCasoUso`. *Hecho cuando:* pasan `restaurar-insumos.int-spec.ts` y el escenario 7 de la Historia 1.
+- [x] **T07** — Escribir `idempotencia-saga.int-spec.ts`, `fallos-saga.int-spec.ts` y `concurrencia-saga.int-spec.ts`.
+- [x] **T08** — Conectar la evaluación de stock bajo después de cada respuesta (RQ-SAG-14) y completar el escenario 4 de la Historia 3 de `spec-movimientos.md` (actor de la Saga en el listado).
+- [ ] **T09** — Cuando exista la spec de la Saga de `servicio-operaciones`, verificar que consume el contrato de RQ-SAG-09 (AC-03) y las colas de 2.1 sin cambios. Pendiente: `servicio-operaciones` todavía no tiene specs.
+- [x] **T10** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-SAG-01 a CE-SAG-05 cubiertos.

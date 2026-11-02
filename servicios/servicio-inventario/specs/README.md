@@ -33,7 +33,7 @@ MongoDB, base `inventario_db`. Los índices se crean con migraciones versionadas
 | `001-crear-indices-auditoria.ts` | `registros_auditoria` | spec-insumos.md (Fase 0) |
 | `002-crear-indices-insumos.ts` | `insumos` | spec-insumos.md |
 | `003-crear-indices-movimientos.ts` | `movimientos_inventario` | spec-movimientos.md |
-| — (usa `_id` = `idSaga`) | `sagas_procesadas` | spec-descuento-saga.md |
+| `004-crear-coleccion-sagas.ts` (sin índices extra: `_id` = `idSaga`) | `sagas_procesadas` | spec-descuento-saga.md |
 | — (la crea el ejecutor) | `migraciones` | spec-insumos.md (Fase 0) |
 
 ## Mapa de endpoints

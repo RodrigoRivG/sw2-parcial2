@@ -5,7 +5,7 @@ import { TipoMovimiento } from '../../domain/movement/tipo-movimiento.enum';
 import { ValorDecimal } from '../../domain/shared/decimal';
 import { Dinero } from '../../domain/shared/dinero.vo';
 import { insumoNoEncontrado } from '../../domain/supply/errores-insumo';
-import { RegistroAuditoria } from '../ports/registro-auditoria.puerto';
+import { AccionAuditoria, RegistroAuditoria } from '../ports/registro-auditoria.puerto';
 import { Reloj } from '../ports/reloj.puerto';
 import { RepositorioInsumo } from '../ports/repositorio-insumo.puerto';
 import { RepositorioMovimiento } from '../ports/repositorio-movimiento.puerto';
@@ -44,6 +44,7 @@ export class RegistrarMovimientoCasoUso {
   async registrarDentroDeTransaccion(
     entrada: EntradaMovimiento,
     actor: string,
+    accion: AccionAuditoria = 'REGISTRAR_MOVIMIENTO',
   ): Promise<MovimientoInventario> {
     const insumo = await this.insumos.buscarPorId(entrada.idInsumo);
     if (insumo === null) {
@@ -76,7 +77,7 @@ export class RegistrarMovimientoCasoUso {
     await this.movimientos.guardar(guardado);
     await this.auditoria.registrar({
       actor,
-      accion: 'REGISTRAR_MOVIMIENTO',
+      accion,
       entidad: 'MovimientoInventario',
       idEntidad: guardado.id,
     });
