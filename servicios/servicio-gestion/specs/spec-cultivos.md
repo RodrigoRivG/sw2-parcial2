@@ -209,10 +209,10 @@ CREATE UNIQUE INDEX ux_cultivo_nombre_variedad
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `Cultivo` y `UnidadProduccion`, con `CultivoTest`.
-- [ ] **T02** — Crear `V3__crear_cultivo.sql` y la persistencia, con la traducción del índice único a `CULTIVO_DUPLICADO`.
-- [ ] **T03** — Implementar `POST /cultivos`. *Hecho cuando:* pasan los escenarios de la historia 1.
-- [ ] **T04** — Implementar los dos `GET`. *Hecho cuando:* pasan los escenarios de la historia 2.
-- [ ] **T05** — Implementar `PUT /cultivos/{id}`. *Hecho cuando:* pasan los escenarios de la historia 3.
-- [ ] **T06** — Escribir `CultivoConcurrenciaIT` y documentar los errores en OpenAPI.
-- [ ] **T07** — Verificación final: `mvn verify` en verde y criterios CE-CUL-01 a CE-CUL-03 cubiertos.
+- [x] **T01** — Crear `Cultivo` y `UnidadProduccion`, con `CultivoTest`.
+- [x] **T02** — Crear `V3__crear_cultivo.sql` y la persistencia, con la traducción del índice único a `CULTIVO_DUPLICADO`.
+- [x] **T03** — Implementar `POST /cultivos`. *Hecho cuando:* pasan los escenarios de la historia 1.
+- [x] **T04** — Implementar los dos `GET`. *Hecho cuando:* pasan los escenarios de la historia 2.
+- [x] **T05** — Implementar `PUT /cultivos/{id}`. *Hecho cuando:* pasan los escenarios de la historia 3.
+- [x] **T06** — Escribir `CultivoConcurrenciaIT` y documentar los errores en OpenAPI.
+- [x] **T07** — Verificación final: `mvn verify` en verde y criterios CE-CUL-01 a CE-CUL-03 cubiertos.

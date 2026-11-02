@@ -7,6 +7,8 @@ spring:
       ddl-auto: validate
   jackson:
     default-leniency: false
+    deserialization:
+      fail-on-numbers-for-enums: true
   security:
     oauth2:
       resourceserver:
