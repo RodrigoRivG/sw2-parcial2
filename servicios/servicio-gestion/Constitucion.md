@@ -209,7 +209,7 @@ servicio-gestion/
 ## 8. Mensajería [común]
 
 - Broker: RabbitMQ sobre AMQPS. Solo en desarrollo local y tests con contenedores se permite AMQP sin TLS, dentro de la red de Docker.
-- Los comandos van a la cola del servicio destino; los eventos se publican en un exchange de tipo topic con routing key `<servicio>.<entidad>.<evento>` (por ejemplo, `inventario.stock.bajo`).
+- Los comandos van a la cola del servicio destino; los eventos se publican en el exchange de tipo topic `eventos` (durable), con routing key `<servicio>.<entidad>.<evento>` (por ejemplo, `inventario.stock.bajo`). Cada consumidor de eventos crea su propia cola enlazada a ese exchange. n8n recibe los eventos con su disparador de RabbitMQ; ningún servicio llama webhooks de n8n.
 - Todo mensaje usa este sobre:
 
 ```json
@@ -308,7 +308,7 @@ servicio-gestion/
 
 ## Enmiendas
 
-- Versión: 2.4.0 (2026-11-01)
+- Versión: 2.7.0 (2026-11-02)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -323,3 +323,5 @@ servicio-gestion/
 | 2.2.0 | 2026-11-01 | **Propio:** enumeración `UnidadProduccion` (`KILOGRAMO`) y unidad de medida de producción en el cultivo, exigida por RF-02 del documento de requisitos. Sin cambios comunes. |
 | 2.3.0 | 2026-11-01 | **[común]** El sistema vive en un solo repositorio: cada pipeline está en `.github/workflows/<servicio>.yml`, en la raíz, y se filtra por `servicios/<servicio>/**`. Se permite AMQP sin TLS solo en desarrollo local y tests con contenedores. Los cuatro servicios quedan en la misma versión. Sin cambios propios. |
 | 2.4.0 | 2026-11-01 | **Propio:** la regla de una campaña `EN_CURSO` por parcela se valida en el caso de uso y con un índice único, porque un agregado no conoce las demás campañas. La tabla de permisos incluye la lectura de cultivos, costos y producción. Glosario ampliado (mensaje procesado y registro de auditoría). Sin cambios comunes. |
+| 2.6.0 | 2026-11-02 | **[común]** Los eventos se publican en el exchange de tipo topic `eventos` (durable); cada consumidor crea su propia cola enlazada a él, para que n8n y los demás sepan dónde suscribirse. Sin cambios propios. |
+| 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. Sin cambios propios. |

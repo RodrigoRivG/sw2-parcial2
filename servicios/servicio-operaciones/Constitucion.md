@@ -184,6 +184,8 @@ servicio-operaciones/
 ## 6. Saga (orquestación)
 
 - Este servicio es el **único coordinador** de la Saga. Los pasos se comunican solo por RabbitMQ, nunca accediendo a otra base de datos.
+- Colas: envía los comandos a `servicio-inventario.comandos` y `servicio-gestion.comandos`, y recibe las respuestas de ambos participantes en `servicio-operaciones.respuestas-saga`.
+- `RestaurarInsumos` lleva `idSaga` e `idLabor`: inventario devuelve lo que descontó ese `idSaga`, sin que el coordinador repita las cantidades.
 - Flujo:
   1. Registrar la labor como `PENDIENTE`.
   2. Enviar `DescontarInsumos` a `servicio-inventario`.
@@ -200,6 +202,7 @@ servicio-operaciones/
 - Cada paso tiene un tiempo límite configurable. Agotados los reintentos, la labor queda `PENDIENTE_REVISION` y se envían las compensaciones de todos los pasos que pudieron aplicarse —incluido el paso cuyo resultado se desconoce— en orden inverso y una a la vez: cada una espera el resultado de la anterior.
 - Recuperación (RNF-10): una tarea programada retoma las Sagas en estado no terminal cuya última actualización superó el tiempo límite.
 - Todas las compensaciones son idempotentes (RN-09).
+- Una respuesta tardía de un paso ya compensado (por ejemplo, `InsumosRechazados` con `SAGA_COMPENSADA`, o `CostoCampaniaRechazado` con `SAGA_ANULADA`) se registra en la Saga y no cambia el estado de la labor.
 
 ## 7. Comunicación
 
@@ -244,7 +247,7 @@ servicio-operaciones/
 ## 10. Mensajería [común]
 
 - Broker: RabbitMQ sobre AMQPS. Solo en desarrollo local y tests con contenedores se permite AMQP sin TLS, dentro de la red de Docker.
-- Los comandos van a la cola del servicio destino; los eventos se publican en un exchange de tipo topic con routing key `<servicio>.<entidad>.<evento>` (por ejemplo, `inventario.stock.bajo`).
+- Los comandos van a la cola del servicio destino; los eventos se publican en el exchange de tipo topic `eventos` (durable), con routing key `<servicio>.<entidad>.<evento>` (por ejemplo, `inventario.stock.bajo`). Cada consumidor de eventos crea su propia cola enlazada a ese exchange. n8n recibe los eventos con su disparador de RabbitMQ; ningún servicio llama webhooks de n8n.
 - Todo mensaje usa este sobre:
 
 ```json
@@ -329,7 +332,7 @@ servicio-operaciones/
 
 ## Enmiendas
 
-- Versión: 2.5.0 (2026-11-01)
+- Versión: 2.7.0 (2026-11-02)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -344,3 +347,5 @@ servicio-operaciones/
 | 2.3.0 | 2026-11-01 | **[común]** El sistema vive en un solo repositorio: cada pipeline está en `.github/workflows/<servicio>.yml`, en la raíz, y se filtra por `servicios/<servicio>/**`. Se permite AMQP sin TLS solo en desarrollo local y tests con contenedores. Los cuatro servicios quedan en la misma versión. **Propio:** `tecnico_campo` puede consultar las labores programadas y las labores e incidencias que registró. |
 | 2.4.0 | 2026-11-01 | **Propio:** las compensaciones se envían en orden inverso y una a la vez. Ante tiempo límite en el registro de costo, `RestaurarInsumos` solo se envía después de `CostoCampaniaAnulado`, para que una `AnulacionCostoRechazada` no deje el stock restaurado con el costo vigente. Sin cambios comunes. |
 | 2.5.0 | 2026-11-01 | **Propio:** con costo total `0.00` no se envía `RegistrarCostoCampania` y la labor pasa a `CONFIRMADA`, porque `servicio-gestion` solo admite montos mayores a 0. Sin cambios comunes. |
+| 2.6.0 | 2026-11-02 | **[común]** Los eventos se publican en el exchange de tipo topic `eventos` (durable); cada consumidor crea su propia cola enlazada a él, para que n8n y los demás sepan dónde suscribirse. **Propio:** colas de la Saga acordadas con los participantes (`servicio-inventario.comandos`, `servicio-gestion.comandos` y `servicio-operaciones.respuestas-saga`); `RestaurarInsumos` lleva `idSaga` e `idLabor`; las respuestas tardías de un paso ya compensado (como `InsumosRechazados` con `SAGA_COMPENSADA`) se registran en la Saga sin cambiar la labor. |
+| 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. Sin cambios propios. |

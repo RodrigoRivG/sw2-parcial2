@@ -5,7 +5,7 @@
 | Servicio | `servicio-gestion` |
 | Archivo | `specs/spec-parcelas.md` |
 | Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
-| Constitución | v2.4.0 |
+| Constitución | v2.7.0 |
 | Trazabilidad | CU-01 (prioridad alta) · RF-01 · RN-01, RN-15, RN-16 · RNF-05 |
 | Depende de | — (incluye la Fase 0: base del servicio) |
 
@@ -140,7 +140,7 @@ Como administrador, quiero corregir los datos de una parcela (nombre, superficie
 
 Criterio general: lo mínimo que cumple la spec y la constitución. Sin dependencias fuera del stack de la constitución, sin abstracciones que no tengan un uso real.
 
-**Documentos que debe tener a mano quien implemente:** la constitución de gestión v2.4.0 (`servicios/servicio-gestion/Constitucion.md`), `specs/README.md` (decisiones transversales) y este archivo.
+**Documentos que debe tener a mano quien implemente:** la constitución de gestión v2.7.0 (`servicios/servicio-gestion/Constitucion.md`), `specs/README.md` (decisiones transversales) y este archivo.
 
 **Coordenadas del proyecto:** `groupId` `com.agrosystem`, `artifactId` `servicio-gestion`, paquete raíz `com.agrosystem.gestion`.
 

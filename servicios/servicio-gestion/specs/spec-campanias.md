@@ -6,7 +6,7 @@
 | Archivo | `specs/spec-campanias.md` |
 | Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
 | Fecha | 2026-11-01 |
-| Constitución | v2.4.0 |
+| Constitución | v2.7.0 |
 | Trazabilidad | CU-03 (prioridad alta) · RF-03 · RN-01, RN-02, RN-06, RN-15, RN-16 · RNF-05 |
 | Depende de | `spec-parcelas.md`, `spec-cultivos.md` |
 

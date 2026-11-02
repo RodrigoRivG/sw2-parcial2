@@ -6,7 +6,7 @@
 | Archivo | `specs/spec-cultivos.md` |
 | Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
 | Fecha | 2026-11-01 |
-| Constitución | v2.4.0 |
+| Constitución | v2.7.0 |
 | Trazabilidad | CU-02 (prioridad alta) · RF-02 · RN-15, RN-16 · RNF-05 |
 | Depende de | — |
 

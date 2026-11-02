@@ -27,7 +27,7 @@
 
 - Node.js (LTS) + NestJS, TypeScript en modo `strict`.
 - MongoDB Atlas (sobre Azure) con Mongoose. Se usan transacciones de MongoDB (requieren replica set).
-- RabbitMQ mediante el transporte de microservicios de NestJS o la librería que apruebe el plan.
+- RabbitMQ con `amqplib` (y `amqp-connection-manager` para reconectar). No se usa el transporte de microservicios de NestJS: espera mensajes `{ pattern, data }`, incompatibles con el sobre común, y no ofrece reintentos con espera creciente ni Dead Letter Queue.
 - Validación de entrada con `class-validator` / `class-transformer`.
 - Tests: Jest + Supertest + Testcontainers (MongoDB en modo replica set y RabbitMQ).
 - Documentación de API: `@nestjs/swagger`.
@@ -49,6 +49,11 @@
   - El stock solo cambia mediante movimientos. No existe una operación para editar el stock directamente; el stock inicial se registra como una entrada.
   - Toda cantidad de un movimiento es mayor a cero y se expresa en la unidad del insumo.
   - Categorías permitidas: `SEMILLA`, `FERTILIZANTE`, `FITOSANITARIO`.
+  - Unidades de medida permitidas: `KILOGRAMO`, `LITRO`, `UNIDAD`. La unidad de un insumo no cambia una vez que tiene movimientos.
+  - Cantidades, stock y nivel mínimo admiten hasta 3 decimales; con la unidad `UNIDAD`, solo valores enteros.
+  - El costo unitario es mayor o igual a 0, en bolivianos (`BOB`), con hasta 4 decimales. Un costo de 0 es válido (insumo donado o sin costo).
+  - Diferencias intencionales con el documento de requisitos: el costo unitario no figura en RF-07, pero sin él no existe el costo que la Saga registra en `servicio-gestion`; las unidades de medida son una lista cerrada, y no texto libre, para poder validar decimales; las cantidades usan decimales exactos, y no `Float`.
+  - El nivel mínimo es mayor o igual a 0.
 
 ### Estructura de directorios
 
@@ -139,7 +144,7 @@ servicio-inventario/
 - El descuento se hace con una actualización atómica condicionada (`stock >= cantidad`) para evitar condiciones de carrera entre solicitudes concurrentes.
 - Los movimientos originados por la Saga guardan `idSaga` y `idLabor` como referencia.
 - Los movimientos son inmutables: un error se corrige con un movimiento inverso, no editando ni borrando.
-- Se registra la saga procesada (`idSaga`, resultado) para garantizar la idempotencia.
+- Se registra la saga procesada (`idSaga`, resultado `DESCONTADO`, `RECHAZADO` o `RESTAURADO`, costo total y los ítems con su cantidad y costo unitario), para garantizar la idempotencia y repetir exactamente la misma respuesta aunque el costo unitario cambie después.
 - Toda creación o modificación genera un registro de auditoría: usuario o servicio, acción, fecha y entidad.
 - Los índices y cambios de esquema se definen en código versionado y se aplican mediante scripts de migración.
 
@@ -148,14 +153,18 @@ servicio-inventario/
 - API REST con prefijo de servicio y versión: `/api/inventario/v1/...`. El API Gateway rutea todo `/api/inventario/**` a este servicio, y solo se accede a través de él.
 - El contrato OpenAPI es la fuente de verdad. Un cambio incompatible exige una nueva versión (`/api/inventario/v2/...`); la anterior se mantiene mientras haya clientes que la usen (incluida la app Flutter instalada).
 - **Rol en la Saga: participante, no coordinador.**
+  - Colas: consume de `servicio-inventario.comandos` (con su Dead Letter Queue `servicio-inventario.comandos.dlq`) y responde en `servicio-operaciones.respuestas-saga`, la misma cola que usa `servicio-gestion`.
   - Consume `DescontarInsumos` (`idSaga`, `idLabor`, `items: [{ idInsumo, cantidad }]`).
-  - Es todo o nada: si un solo insumo no alcanza, se rechaza el comando completo sin cambios.
-  - Responde `InsumosDescontados` (con el costo total calculado a partir del costo unitario de cada insumo, con precisión completa y redondeado al final a 2 decimales, mitad hacia arriba) o `InsumosRechazados` (con el motivo y los insumos insuficientes).
-  - Consume `RestaurarInsumos` (compensación): registra entradas con motivo "Compensación de saga {idSaga}" y responde `InsumosRestaurados`.
-  - Ambos comandos son idempotentes (RN-09). Una compensación sobre un `idSaga` que nunca descontó responde `InsumosRestaurados` sin efectos.
+  - `items` tiene al menos un elemento y cada `idInsumo` aparece una sola vez; si no, se rechaza con `DATOS_INVALIDOS`.
+  - Es todo o nada: si un solo insumo no existe o no alcanza, se rechaza el comando completo sin cambios.
+  - Responde `InsumosDescontados` (con el costo total calculado a partir del costo unitario de cada insumo, con precisión completa y redondeado al final a 2 decimales, mitad hacia arriba) o `InsumosRechazados` con un código (`DATOS_INVALIDOS`, `INSUMO_NO_ENCONTRADO`, `STOCK_INSUFICIENTE` o `SAGA_COMPENSADA`) y los insumos afectados.
+  - Consume `RestaurarInsumos` (compensación, con `idSaga` e `idLabor`): registra entradas por exactamente las cantidades que descontó ese `idSaga`, leídas de sus movimientos y no del comando, con motivo "Compensación de saga {idSaga}", y responde `InsumosRestaurados`.
+  - Ambos comandos son idempotentes (RN-09). Un comando repetido devuelve la misma respuesta de la primera vez.
+  - Una compensación sobre un `idSaga` que nunca descontó, o que fue rechazado, responde `InsumosRestaurados` sin efectos. Si nunca descontó, el `idSaga` queda `RESTAURADO`, y un `DescontarInsumos` que llegue después se rechaza con `SAGA_COMPENSADA` sin tocar el stock. Así un descuento que seguía en la cola no deja stock perdido.
+  - Los comandos de un mismo `idSaga` se procesan de forma serializada.
 - **Stock bajo (RN-05):**
   - Tras cada movimiento, si `stock <= nivelMinimo`, publica el evento `inventario.stock.bajo` (`idInsumo`, `nombre`, `stock`, `nivelMinimo`, `unidad`).
-  - No se publica más de un evento por insumo en 24 horas; se guarda la fecha de la última alerta.
+  - No se publica más de un evento por insumo en 24 horas; se guarda la fecha de la última alerta solo después de publicarlo. El evento se publica tras el commit: si la publicación falla, se registra el error en el log y la alerta vuelve a intentarse en el siguiente movimiento.
   - El servicio no envía correos; eso lo hace n8n.
 - Endpoint de estado del inventario con indicador de stock bajo por insumo (RF-33), para Angular, GraphQL e `servicio-ia`.
 - Este servicio no llama de forma síncrona a otros microservicios.
@@ -164,7 +173,7 @@ servicio-inventario/
 
 - Todo endpoint tiene tests de integración (Supertest + Testcontainers).
 - Toda regla del dominio tiene al menos un test unitario.
-- Tests obligatorios para la Saga: descuento exitoso, stock insuficiente, comando duplicado, compensación, compensación duplicada, compensación sin descuento previo y redondeo del costo total.
+- Tests obligatorios para la Saga: descuento exitoso, stock insuficiente, insumo inexistente, insumo repetido en `items`, comando duplicado con la misma respuesta aunque cambie el costo unitario, compensación, compensación duplicada, compensación sin descuento previo, descuento tardío después de una compensación y redondeo del costo total.
 - Test de concurrencia: dos descuentos simultáneos sobre el mismo insumo nunca dejan stock negativo.
 - Test del evento de stock bajo, incluida la regla de 24 horas.
 - Cobertura mínima: 80 % de líneas en `domain` y `application`. El pipeline falla si baja.
@@ -186,14 +195,14 @@ servicio-inventario/
 | Operación | Roles |
 |---|---|
 | Crear y modificar insumos, registrar entradas y salidas | `administrador` |
-| Consultar insumos y estado del inventario | `administrador`, `gerencia` |
-| Consultar insumos disponibles (para registrar labores) | `tecnico_campo` |
-| Lectura para integración | cuentas de servicio autorizadas |
+| Consultar insumos, movimientos y estado del inventario | `administrador`, `gerencia` |
+| Consultar insumos disponibles, sin costo unitario ni otros datos económicos (para registrar labores, también sin conexión; el documento de requisitos no lo menciona, pero `ConsumoInsumo` referencia el insumo) | `tecnico_campo` |
+| Lectura para integración (insumos y estado del inventario) | rol `lectura_inventario`: cuentas de servicio de `servicio-ia`, GraphQL y n8n |
 
 ## 8. Mensajería [común]
 
 - Broker: RabbitMQ sobre AMQPS. Solo en desarrollo local y tests con contenedores se permite AMQP sin TLS, dentro de la red de Docker.
-- Los comandos van a la cola del servicio destino; los eventos se publican en un exchange de tipo topic con routing key `<servicio>.<entidad>.<evento>` (por ejemplo, `inventario.stock.bajo`).
+- Los comandos van a la cola del servicio destino; los eventos se publican en el exchange de tipo topic `eventos` (durable), con routing key `<servicio>.<entidad>.<evento>` (por ejemplo, `inventario.stock.bajo`). Cada consumidor de eventos crea su propia cola enlazada a ese exchange. n8n recibe los eventos con su disparador de RabbitMQ; ningún servicio llama webhooks de n8n.
 - Todo mensaje usa este sobre:
 
 ```json
@@ -268,15 +277,30 @@ servicio-inventario/
 | Estado del inventario | — | `/estado-inventario` | — |
 | Nivel mínimo | — | campo `nivelMinimo` | — |
 | Costo unitario | — | campo `costoUnitario` | — |
+| Fecha de la última alerta de stock bajo | — | campo `fechaUltimaAlerta` | — |
+| Saga procesada | `SagaProcesada` | — | `sagas_procesadas` |
+| Registro de auditoría | `RegistroAuditoria` | — | `registros_auditoria` |
+| Migración aplicada | — | — | `migraciones` |
 
 | Enumeración | Valores |
 |---|---|
 | `CategoriaInsumo` | `SEMILLA` / `FERTILIZANTE` / `FITOSANITARIO` |
 | `TipoMovimiento` | `ENTRADA` / `SALIDA` |
+| `UnidadMedida` | `KILOGRAMO` / `LITRO` / `UNIDAD` |
+| `ResultadoSagaProcesada` | `DESCONTADO` / `RECHAZADO` / `RESTAURADO` |
+| Códigos de `InsumosRechazados` | `DATOS_INVALIDOS` / `INSUMO_NO_ENCONTRADO` / `STOCK_INSUFICIENTE` / `SAGA_COMPENSADA` |
+
+| Mensaje | Tipo | Dirección |
+|---|---|---|
+| `DescontarInsumos` | Comando | Entrada |
+| `RestaurarInsumos` | Comando de compensación | Entrada |
+| `InsumosDescontados` / `InsumosRechazados` | Respuesta | Salida |
+| `InsumosRestaurados` | Respuesta | Salida |
+| `StockBajo` (routing key `inventario.stock.bajo`) | Evento | Salida (exchange `eventos`) |
 
 ## Enmiendas
 
-- Versión: 2.4.0 (2026-11-01)
+- Versión: 2.8.0 (2026-11-02)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -290,3 +314,6 @@ servicio-inventario/
 | 2.1.0 | 2026-11-01 | **[común]** Decimales como texto en JSON (REST y mensajes), lo que incluye `cantidad` en `DescontarInsumos` y el costo total de `InsumosDescontados`; fechas sin hora como `AAAA-MM-DD` en los cuatro servicios; la tabla de permisos y el glosario son propios de cada servicio. Sin cambios propios. |
 | 2.3.0 | 2026-11-01 | **[común]** El sistema vive en un solo repositorio: cada pipeline está en `.github/workflows/<servicio>.yml`, en la raíz, y se filtra por `servicios/<servicio>/**`. Se permite AMQP sin TLS solo en desarrollo local y tests con contenedores. Los cuatro servicios quedan en la misma versión. Sin cambios propios. |
 | 2.4.0 | 2026-11-01 | **Propio:** el costo total de `InsumosDescontados` se redondea a 2 decimales, mitad hacia arriba, porque `servicio-gestion` no admite más decimales. Sin cambios comunes. |
+| 2.6.0 | 2026-11-02 | **[común]** Los eventos se publican en el exchange de tipo topic `eventos` (durable); cada consumidor crea su propia cola enlazada a él, para que n8n y los demás sepan dónde suscribirse. **Propio:** el descuento tardío tras una compensación se rechaza con `SAGA_COMPENSADA`; `RestaurarInsumos` devuelve exactamente lo que descontó ese `idSaga`; la saga procesada guarda costo total e ítems para repetir la misma respuesta; RabbitMQ con `amqplib`, sin el transporte de NestJS; unidades de medida, decimales, costo unitario y nivel mínimo definidos; validación de `items`; códigos de rechazo; `tecnico_campo` sin datos económicos; rol `lectura_inventario`; la alerta de stock bajo solo cuenta como enviada si se publicó. |
+| 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. **Propio:** la cuenta de servicio de n8n recibe el rol `lectura_inventario`, porque el flujo de stock bajo consulta la información actualizada antes de enviar la alerta (RF-29, proceso 3). Se documentan como diferencias intencionales con el documento de requisitos el costo unitario, las unidades de medida cerradas y la lectura del catálogo por `tecnico_campo`. |
+| 2.8.0 | 2026-11-02 | **Propio:** `administrador` y `gerencia` consultan los movimientos de inventario (trazabilidad del stock; `lectura_inventario` sigue limitado a insumos y estado del inventario). Glosario ampliado con `fechaUltimaAlerta`, `registros_auditoria`, `migraciones` y el tipo de mensaje `StockBajo` del evento `inventario.stock.bajo`. Origen: specs 001–005 de `servicio-inventario`. Sin cambios comunes. |

@@ -6,7 +6,7 @@
 | Archivo | `specs/spec-costo-saga.md` |
 | Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
 | Fecha | 2026-11-01 |
-| Constitución | v2.4.0 (secciones 4, 5, 6 y 8) |
+| Constitución | v2.7.0 (secciones 4, 5, 6 y 8) |
 | Trazabilidad | CU-04 (actor Sistema) y CU-12 (participante) · RF-04, RF-13 · RN-06, RN-08, RN-09 · RNF-10, RNF-11, RNF-22 |
 | Depende de | `spec-campanias.md`, `spec-costos-manuales.md` (entidad `CostoCampania`) |
 
@@ -166,7 +166,7 @@ Como sistema coordinador, quiero anular el costo de una Saga cuyo resultado desc
 
 #### Comunes a ambos comandos
 
-- **RQ-SAG-09**: Las respuestas se publican en la cola del coordinador (`servicio-operaciones`), según la sección 5 de la constitución. El nombre de la cola se acuerda en el plan con `servicio-operaciones`.
+- **RQ-SAG-09**: Las respuestas se publican en la cola del coordinador, `servicio-operaciones.respuestas-saga` (acordada en la constitución de operaciones v2.6.0).
 - **RQ-SAG-10**: Idempotencia por `idSaga` (resultado guardado en `SagaProcesada`) y por `idMensaje` (regla común).
 - **RQ-SAG-11**: Los comandos de un mismo `idSaga` se procesan de forma serializada (bloqueo por `idSaga`), para que registro y anulación concurrentes no dejen estados intermedios.
 - **RQ-SAG-12**: El cambio en el costo, el resultado de `SagaProcesada` y el registro de auditoría se guardan en la misma transacción.

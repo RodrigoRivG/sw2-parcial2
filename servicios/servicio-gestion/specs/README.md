@@ -2,7 +2,7 @@
 
 Un archivo por funcionalidad, cada uno con tres partes: **Spec** (qué hace), **Plan** (cómo se construye) y **Tareas** (en qué orden se implementa).
 
-- Constitución de referencia: `servicio-gestion` v2.4.0 (2026-11-01). Si un archivo la contradice, prevalece la constitución.
+- Constitución de referencia: `servicio-gestion` v2.7.0 (2026-11-02). Si un archivo la contradice, prevalece la constitución.
 - Documento de requisitos: `SW2_Parcial_2.pdf` (CU, RF, RN y RNF).
 - Criterio: lo más simple que cumpla el documento de requisitos y la constitución. Es un proyecto de examen, no un sistema en producción.
 
@@ -73,7 +73,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-09 | **Textos:** se recortan espacios; las unicidades no distinguen mayúsculas. |
 | D-10 | **Decimales en JSON:** el servicio responde y recibe solo texto (`"820.50"`); un número JSON en la entrada se rechaza con `400 DATOS_INVALIDOS`. |
 | D-11 | **Roles (realm de Keycloak):** `administrador`, `gerencia`, `tecnico_campo` para usuarios; `lectura_gestion` (`servicio-ia`, GraphQL) y `estado_campania` (`servicio-operaciones`, GraphQL) para cuentas de servicio. |
-| D-12 | **Colas de la Saga:** `servicio-gestion.comandos` (entrada), `servicio-gestion.comandos.dlq` (errores) y `servicio-operaciones.respuestas-saga` (respuestas). 3 reintentos con espera creciente y luego DLQ. A acordar con `servicio-operaciones`. |
+| D-12 | **Colas de la Saga:** `servicio-gestion.comandos` (entrada), `servicio-gestion.comandos.dlq` (errores) y `servicio-operaciones.respuestas-saga` (respuestas). 3 reintentos con espera creciente y luego DLQ. Acordado en las constituciones v2.6.0 de inventario y operaciones. |
 | D-13 | **Tecnología de soporte:** Spring Boot 3.4 (logs JSON nativos); tests con Testcontainers y `jwt()` de `spring-security-test`, sin Keycloak; sin Lombok ni MapStruct. |
 | D-14 | **Variables de entorno:** las de `docker-compose.yml`, incluidos `SPRING_*` y `KEYCLOAK_*`, para evitar traducciones en `application.yml`. Testcontainers usa las mismas versiones de PostgreSQL y RabbitMQ que Docker Compose. |
 
@@ -167,3 +167,4 @@ Donde difieren, prevalece la constitución.
 - Revisión de specs: errores 403, 404 y 405 explícitos; audiencia con la propiedad `audiences`; fechas estrictas en Jackson; indicadores calculados con valores, también en históricos; `motivosNoDisponible` en históricos; listado de campañas sin `resumen`.
 - Regla de una campaña `EN_CURSO` por parcela en el caso de uso y en el índice único (constitución de gestión v2.4.0).
 - La fecha de cosecha se valida contra `fechaInicioEjecucion`, no contra `fechaInicio`: una campaña puede iniciarse antes de lo planificado.
+- Colas de la Saga acordadas con `servicio-operaciones` e inventario (constituciones v2.6.0).

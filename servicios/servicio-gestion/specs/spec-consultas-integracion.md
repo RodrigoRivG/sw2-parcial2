@@ -6,7 +6,7 @@
 | Archivo | `specs/spec-consultas-integracion.md` |
 | Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
 | Fecha | 2026-11-01 |
-| Constitución | v2.4.0 (sección 5) |
+| Constitución | v2.7.0 (sección 5) |
 | Trazabilidad | Soporte de CU-10, CU-12, CU-14, CU-17 y CU-18 · RF-18, RF-23, RF-27 · RN-06, RN-14 · RNF-05, RNF-08, RNF-09 |
 | Depende de | `spec-campanias.md`, `spec-produccion.md` y `spec-indicadores.md` |
 
