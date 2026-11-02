@@ -5,10 +5,13 @@ import com.agrosystem.gestion.domain.campaign.CategoriaCosto;
 import com.agrosystem.gestion.domain.campaign.CostoCampania;
 import com.agrosystem.gestion.domain.campaign.EstadoCampania;
 import com.agrosystem.gestion.domain.campaign.OrigenCosto;
+import com.agrosystem.gestion.domain.campaign.ProduccionCampania;
+import com.agrosystem.gestion.domain.crop.UnidadProduccion;
 import com.agrosystem.gestion.domain.shared.Dinero;
 import com.agrosystem.gestion.domain.shared.Hectareas;
 import com.agrosystem.gestion.infrastructure.persistence.entity.CampaniaEntidad;
 import com.agrosystem.gestion.infrastructure.persistence.entity.CostoCampaniaEntidad;
+import com.agrosystem.gestion.infrastructure.persistence.entity.ProduccionCampaniaEntidad;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,16 +24,19 @@ public final class MapeadorCampania {
     private MapeadorCampania() {
     }
 
-    public static Campania aDominio(CampaniaEntidad entidad) {
-        return aDominio(entidad, entidad.getCostos().stream().map(MapeadorCampania::costoADominio).toList());
+    public static Campania aDominio(CampaniaEntidad entidad, ProduccionCampaniaEntidad produccion) {
+        return aDominio(
+                entidad,
+                entidad.getCostos().stream().map(MapeadorCampania::costoADominio).toList(),
+                produccion == null ? null : produccionADominio(produccion));
     }
 
-    /** Para listados: evita cargar los costos de cada campaña. */
-    public static Campania aDominioSinCostos(CampaniaEntidad entidad) {
-        return aDominio(entidad, List.of());
+    /** Para listados: evita cargar los costos y la producción de cada campaña. */
+    public static Campania aDominioResumido(CampaniaEntidad entidad) {
+        return aDominio(entidad, List.of(), null);
     }
 
-    private static Campania aDominio(CampaniaEntidad entidad, List<CostoCampania> costos) {
+    private static Campania aDominio(CampaniaEntidad entidad, List<CostoCampania> costos, ProduccionCampania produccion) {
         return Campania.reconstruir(
                 entidad.getId(),
                 entidad.getNombre(),
@@ -45,7 +51,28 @@ public final class MapeadorCampania {
                 entidad.getVersion(),
                 entidad.getFechaCreacion(),
                 entidad.getFechaActualizacion(),
-                costos);
+                costos,
+                produccion);
+    }
+
+    private static ProduccionCampania produccionADominio(ProduccionCampaniaEntidad entidad) {
+        return new ProduccionCampania(
+                entidad.getCantidad(),
+                UnidadProduccion.valueOf(entidad.getUnidad()),
+                entidad.getFechaCosecha(),
+                entidad.getObservaciones(),
+                entidad.getFechaRegistro(),
+                entidad.getUsuarioRegistro());
+    }
+
+    public static void copiarProduccion(ProduccionCampania produccion, ProduccionCampaniaEntidad entidad) {
+        entidad.actualizar(
+                produccion.cantidad(),
+                produccion.unidad().name(),
+                produccion.fechaCosecha(),
+                produccion.observaciones(),
+                produccion.fechaRegistro(),
+                produccion.usuarioRegistro());
     }
 
     public static CostoCampania costoADominio(CostoCampaniaEntidad entidad) {

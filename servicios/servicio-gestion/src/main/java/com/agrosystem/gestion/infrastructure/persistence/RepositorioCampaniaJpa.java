@@ -11,6 +11,7 @@ import com.agrosystem.gestion.domain.shared.ExcepcionDominio;
 import com.agrosystem.gestion.domain.shared.Pagina;
 import com.agrosystem.gestion.infrastructure.persistence.entity.CampaniaEntidad;
 import com.agrosystem.gestion.infrastructure.persistence.entity.CostoCampaniaEntidad;
+import com.agrosystem.gestion.infrastructure.persistence.entity.ProduccionCampaniaEntidad;
 import com.agrosystem.gestion.infrastructure.persistence.mapper.MapeadorCampania;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -32,10 +33,15 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
 
     private final CampaniaSpringData springData;
     private final CostoCampaniaSpringData costos;
+    private final ProduccionCampaniaSpringData producciones;
 
-    public RepositorioCampaniaJpa(CampaniaSpringData springData, CostoCampaniaSpringData costos) {
+    public RepositorioCampaniaJpa(
+            CampaniaSpringData springData,
+            CostoCampaniaSpringData costos,
+            ProduccionCampaniaSpringData producciones) {
         this.springData = springData;
         this.costos = costos;
+        this.producciones = producciones;
     }
 
     @Override
@@ -45,7 +51,8 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
                 : springData.findById(campania.getId()).orElseThrow();
         MapeadorCampania.copiarDatos(campania, entidad);
         try {
-            return MapeadorCampania.aDominio(springData.saveAndFlush(entidad));
+            CampaniaEntidad guardada = springData.saveAndFlush(entidad);
+            return MapeadorCampania.aDominio(guardada, guardarProduccion(campania));
         } catch (DataIntegrityViolationException error) {
             if (violaIndiceEnCurso(error)) {
                 throw new ExcepcionDominio(
@@ -57,6 +64,17 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
         }
     }
 
+    /** La producción se guarda aparte: una relación 1 a 1 por clave compartida no se carga de forma diferida. */
+    private ProduccionCampaniaEntidad guardarProduccion(Campania campania) {
+        if (!campania.tieneProduccion()) {
+            return null;
+        }
+        ProduccionCampaniaEntidad entidad = producciones.findById(campania.getId())
+                .orElseGet(() -> new ProduccionCampaniaEntidad(campania.getId()));
+        MapeadorCampania.copiarProduccion(campania.getProduccion(), entidad);
+        return producciones.saveAndFlush(entidad);
+    }
+
     private boolean violaIndiceEnCurso(DataIntegrityViolationException error) {
         String causa = NestedExceptionUtils.getMostSpecificCause(error).getMessage();
         return causa != null && causa.contains(INDICE_EN_CURSO);
@@ -64,7 +82,8 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
 
     @Override
     public Optional<Campania> buscarPorId(UUID id) {
-        return springData.findById(id).map(MapeadorCampania::aDominio);
+        return springData.findById(id)
+                .map(entidad -> MapeadorCampania.aDominio(entidad, producciones.findById(id).orElse(null)));
     }
 
     @Override
@@ -73,7 +92,7 @@ public class RepositorioCampaniaJpa implements RepositorioCampania {
                 pagina, tamanio, Sort.by(Sort.Order.desc("fechaInicio"), Sort.Order.asc("id")));
         Page<CampaniaEntidad> resultado = springData.findAll(condiciones(filtros), paginacion);
         return new Pagina<>(
-                resultado.getContent().stream().map(MapeadorCampania::aDominioSinCostos).toList(),
+                resultado.getContent().stream().map(MapeadorCampania::aDominioResumido).toList(),
                 resultado.getTotalElements());
     }
 

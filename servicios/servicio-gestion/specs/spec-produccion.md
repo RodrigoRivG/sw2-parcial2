@@ -186,7 +186,7 @@ La clave primaria `id_campania` garantiza una sola producción por campaña.
 | `domain/campaign` | `Campania` (se amplía) | `registrarProduccion(...)`: solo en `EN_CURSO`; reemplaza la anterior; actualiza `fechaActualizacion`. `tieneProduccion()` habilita la finalización |
 | `application/campaign` | `RegistrarProduccionCasoUso` | Carga la campaña (404) y la unidad de su cultivo, toma el `sub` del token como usuario, delega, guarda y audita `CREAR` o `MODIFICAR` sobre `PRODUCCION_CAMPANIA` |
 | `application/campaign` | `ConsultarProduccionCasoUso` | Devuelve la producción o `PRODUCCION_NO_REGISTRADA` |
-| `infrastructure/persistence` | `ProduccionCampaniaEntidad` (+ relación en `CampaniaEntidad`) | Persistencia dentro del agregado |
+| `infrastructure/persistence` | `ProduccionCampaniaEntidad`, `ProduccionCampaniaSpringData` | Persistencia dentro del agregado: la guarda y la carga `RepositorioCampaniaJpa`, sin relación JPA, porque una relación 1 a 1 por clave compartida no se carga de forma diferida y penalizaría el listado de campañas |
 | `interfaces/rest` | `ProduccionControlador` + DTO | Traduce HTTP |
 
 **Resumen de la campaña:** `ConsultarCampaniaCasoUso` pasa a devolver la producción real en `resumen.produccion`.
@@ -202,9 +202,9 @@ La clave primaria `id_campania` garantiza una sola producción por campaña.
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `ProduccionCampania` y ampliar `Campania`, con `ProduccionCampaniaTest` y `CampaniaProduccionTest`.
-- [ ] **T02** — Crear `V6__crear_produccion_campania.sql` y ampliar la persistencia del agregado.
-- [ ] **T03** — Implementar `PUT /campanias/{id}/produccion`. *Hecho cuando:* pasan los escenarios de las historias 1 y 2.
-- [ ] **T04** — Implementar `GET /campanias/{id}/produccion`. *Hecho cuando:* pasan los escenarios de la historia 3.
-- [ ] **T05** — Completar `resumen.produccion` en el detalle de campaña y escribir `FinalizacionCampaniaIT`.
-- [ ] **T06** — Documentar los errores en OpenAPI y verificar: `mvn verify` en verde, criterios CE-PRO-01 a CE-PRO-03 cubiertos.
+- [x] **T01** — Crear `ProduccionCampania` y ampliar `Campania`, con `ProduccionCampaniaTest` y `CampaniaProduccionTest`.
+- [x] **T02** — Crear `V6__crear_produccion_campania.sql` y ampliar la persistencia del agregado.
+- [x] **T03** — Implementar `PUT /campanias/{id}/produccion`. *Hecho cuando:* pasan los escenarios de las historias 1 y 2.
+- [x] **T04** — Implementar `GET /campanias/{id}/produccion`. *Hecho cuando:* pasan los escenarios de la historia 3.
+- [x] **T05** — Completar `resumen.produccion` en el detalle de campaña y escribir `FinalizacionCampaniaIT`.
+- [x] **T06** — Documentar los errores en OpenAPI y verificar: `mvn verify` en verde, criterios CE-PRO-01 a CE-PRO-03 cubiertos.

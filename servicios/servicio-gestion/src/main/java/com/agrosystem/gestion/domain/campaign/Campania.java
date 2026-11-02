@@ -1,8 +1,10 @@
 package com.agrosystem.gestion.domain.campaign;
 
+import com.agrosystem.gestion.domain.crop.UnidadProduccion;
 import com.agrosystem.gestion.domain.shared.Dinero;
 import com.agrosystem.gestion.domain.shared.ExcepcionDominio;
 import com.agrosystem.gestion.domain.shared.Hectareas;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ public class Campania {
     private final Instant fechaCreacion;
     private Instant fechaActualizacion;
     private final List<CostoCampania> costos;
+    private ProduccionCampania produccion;
 
     private Campania(
             UUID id,
@@ -43,7 +46,8 @@ public class Campania {
             Long version,
             Instant fechaCreacion,
             Instant fechaActualizacion,
-            List<CostoCampania> costos) {
+            List<CostoCampania> costos,
+            ProduccionCampania produccion) {
         this.id = id;
         this.nombre = nombre;
         this.idParcela = idParcela;
@@ -58,6 +62,7 @@ public class Campania {
         this.fechaCreacion = fechaCreacion;
         this.fechaActualizacion = fechaActualizacion;
         this.costos = new ArrayList<>(costos);
+        this.produccion = produccion;
     }
 
     public static Campania crear(
@@ -83,7 +88,8 @@ public class Campania {
                 null,
                 ahora,
                 ahora,
-                List.of());
+                List.of(),
+                null);
     }
 
     /** Reconstruye una campaña ya guardada; no vuelve a aplicar reglas de creación. */
@@ -101,7 +107,8 @@ public class Campania {
             Long version,
             Instant fechaCreacion,
             Instant fechaActualizacion,
-            List<CostoCampania> costos) {
+            List<CostoCampania> costos,
+            ProduccionCampania produccion) {
         return new Campania(
                 id,
                 nombre,
@@ -116,7 +123,8 @@ public class Campania {
                 version,
                 fechaCreacion,
                 fechaActualizacion,
-                costos);
+                costos,
+                produccion);
     }
 
     /** Aplica la tabla de campos modificables por estado (RQ-CAM-08). */
@@ -249,9 +257,30 @@ public class Campania {
         return costos.stream().filter(costo -> !costo.isAnulado()).toList();
     }
 
-    /** La producción se agrega con spec-produccion.md; hasta entonces ninguna campaña la tiene. */
+    /** Solo en EN_CURSO; registrar de nuevo reemplaza la anterior (RQ-PRO-02). */
+    public ProduccionCampania registrarProduccion(
+            BigDecimal cantidad,
+            UnidadProduccion unidad,
+            LocalDate fechaCosecha,
+            String observaciones,
+            LocalDate hoy,
+            String usuario,
+            Instant ahora) {
+        rechazarSiFinalizada();
+        if (estado != EstadoCampania.EN_CURSO) {
+            throw new ExcepcionDominio(
+                    "CAMPANIA_NO_EN_CURSO",
+                    "La producción solo se registra en una campaña en curso.",
+                    ExcepcionDominio.Tipo.REGLA_NEGOCIO);
+        }
+        produccion = ProduccionCampania.crear(
+                cantidad, unidad, fechaCosecha, observaciones, fechaInicio, hoy, usuario, ahora);
+        fechaActualizacion = ahora;
+        return produccion;
+    }
+
     public boolean tieneProduccion() {
-        return false;
+        return produccion != null;
     }
 
     private static void validarFechas(LocalDate fechaInicio, LocalDate fechaFin) {
@@ -317,5 +346,9 @@ public class Campania {
 
     public List<CostoCampania> getCostos() {
         return Collections.unmodifiableList(costos);
+    }
+
+    public ProduccionCampania getProduccion() {
+        return produccion;
     }
 }

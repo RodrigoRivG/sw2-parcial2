@@ -50,7 +50,8 @@ class CambiarEstadoCampaniaCasoUsoTest {
                 3L,
                 AHORA.minusSeconds(60),
                 AHORA.minusSeconds(60),
-                List.of());
+                List.of(),
+                null);
         repositorio.campania = campania;
         return campania;
     }

@@ -36,7 +36,8 @@ class CampaniaCostosTest {
                 1L,
                 AHORA.minusSeconds(60),
                 AHORA.minusSeconds(60),
-                new ArrayList<>(List.of(costos)));
+                new ArrayList<>(List.of(costos)),
+                null);
     }
 
     private CostoCampania costoSaga(String monto, boolean anulado) {

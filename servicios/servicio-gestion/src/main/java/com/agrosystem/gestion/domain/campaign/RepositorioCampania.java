@@ -10,7 +10,7 @@ public interface RepositorioCampania {
 
     Optional<Campania> buscarPorId(UUID id);
 
-    /** Las campañas devueltas no traen sus costos y no deben volver a guardarse. */
+    /** Las campañas devueltas no traen costos ni producción, y no deben volver a guardarse. */
     Pagina<Campania> listar(FiltrosCampania filtros, int pagina, int tamanio);
 
     boolean existeEnCursoEnParcela(UUID idParcela);

@@ -26,7 +26,7 @@ class CampaniaTest {
     private Campania enEstado(EstadoCampania estado) {
         return Campania.reconstruir(
                 UUID.randomUUID(), "Soya", PARCELA, CULTIVO, INICIO, FIN, SUPERFICIE,
-                estado, null, null, 1L, AHORA, AHORA, List.of());
+                estado, null, null, 1L, AHORA, AHORA, List.of(), null);
     }
 
     private void esperarError(Runnable accion, String codigo) {

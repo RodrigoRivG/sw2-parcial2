@@ -12,6 +12,7 @@ import com.agrosystem.gestion.infrastructure.persistence.CampaniaSpringData;
 import com.agrosystem.gestion.infrastructure.persistence.CostoCampaniaSpringData;
 import com.agrosystem.gestion.infrastructure.persistence.CultivoSpringData;
 import com.agrosystem.gestion.infrastructure.persistence.ParcelaSpringData;
+import com.agrosystem.gestion.infrastructure.persistence.ProduccionCampaniaSpringData;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -40,6 +41,9 @@ abstract class CampaniaPruebaBase extends PruebaIntegracionBase {
     protected CostoCampaniaSpringData costos;
 
     @Autowired
+    protected ProduccionCampaniaSpringData producciones;
+
+    @Autowired
     protected RepositorioCampania repositorioCampania;
 
     @Autowired
@@ -62,6 +66,7 @@ abstract class CampaniaPruebaBase extends PruebaIntegracionBase {
     @AfterEach
     void vaciarDatos() {
         costos.deleteAllInBatch();
+        producciones.deleteAllInBatch();
         campanias.deleteAllInBatch();
         parcelas.deleteAllInBatch();
         cultivos.deleteAllInBatch();
@@ -132,7 +137,8 @@ abstract class CampaniaPruebaBase extends PruebaIntegracionBase {
                 null,
                 ahora,
                 ahora,
-                List.of());
+                List.of(),
+                null);
         return repositorioCampania.guardar(campania).getId().toString();
     }
 }
