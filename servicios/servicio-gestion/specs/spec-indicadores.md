@@ -181,7 +181,7 @@ Los indicadores se calculan en cada consulta; no se guardan ni se cachean.
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `IndicadoresCampania` y `MotivoIndicadorNoDisponible`, con `IndicadoresCampaniaTest`.
-- [ ] **T02** — Implementar `ConsultarIndicadoresCasoUso` y el endpoint. *Hecho cuando:* pasa `IndicadoresControladorIT`.
-- [ ] **T03** — Escribir `IndicadoresRendimientoIT` y documentar los errores en OpenAPI.
-- [ ] **T04** — Verificación final: `mvn verify` en verde y criterios CE-IND-01 a CE-IND-03 cubiertos.
+- [x] **T01** — Crear `IndicadoresCampania` y `MotivoIndicadorNoDisponible`, con `IndicadoresCampaniaTest`.
+- [x] **T02** — Implementar `ConsultarIndicadoresCasoUso` y el endpoint. *Hecho cuando:* pasa `IndicadoresControladorIT`.
+- [x] **T03** — Escribir `IndicadoresRendimientoIT` y documentar los errores en OpenAPI.
+- [x] **T04** — Verificación final: `mvn verify` en verde y criterios CE-IND-01 a CE-IND-03 cubiertos.
