@@ -13,18 +13,26 @@ const ESPERA_PRIMARIO_MS = 60_000;
  * `@testcontainers/mongodb`, que en GitHub Actions terminaba `unhealthy` sin más detalle.
  */
 export default async function inicioGlobal(): Promise<void> {
-  const contenedor = await new GenericContainer('mongo:8.0')
-    .withCommand(['--replSet', 'rs0', '--bind_ip_all'])
-    .withExposedPorts(PUERTO_MONGO)
-    .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
-    .withStartupTimeout(120_000)
-    .start();
+  // Si MongoDB termina al arrancar (como ocurrió en GitHub Actions), el error muestra su log.
+  const log: string[] = [];
+  let contenedor: StartedTestContainer;
+  try {
+    contenedor = await new GenericContainer('mongo:8.0')
+      .withCommand(['--replSet', 'rs0', '--bind_ip_all'])
+      .withExposedPorts(PUERTO_MONGO)
+      .withLogConsumer((flujo) => flujo.on('data', (linea) => log.push(String(linea))))
+      .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
+      .withStartupTimeout(120_000)
+      .start();
+  } catch (error) {
+    throw new Error(`MongoDB no arrancó: ${String(error)}\n${ultimasLineas(log)}`);
+  }
   globalThis.contenedorMongoPruebas = contenedor;
   try {
     await iniciarReplicaSet(contenedor);
   } catch (error) {
     await contenedor.stop();
-    throw error;
+    throw new Error(`${String(error)}\n${ultimasLineas(log)}`);
   }
   // Los workers de Jest heredan esta variable; cada archivo usa su propia base de datos.
   process.env.MONGODB_PRUEBAS_URI = `mongodb://${contenedor.getHost()}:${contenedor.getMappedPort(PUERTO_MONGO)}`;
@@ -49,6 +57,11 @@ async function iniciarReplicaSet(contenedor: StartedTestContainer): Promise<void
     await new Promise((resolver) => setTimeout(resolver, 250));
   }
   throw new Error(`MongoDB no llegó a ser PRIMARY en ${ESPERA_PRIMARIO_MS} ms: ${ultimo}`);
+}
+
+function ultimasLineas(log: string[]): string {
+  const lineas = log.join('').split('\n').filter(Boolean);
+  return `Últimas líneas del log de mongod:\n${lineas.slice(-40).join('\n')}`;
 }
 
 function mongosh(contenedor: StartedTestContainer, comando: string) {

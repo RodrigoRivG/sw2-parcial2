@@ -31,5 +31,12 @@ jobs:
         run: npm run build
       - name: Probar y medir cobertura
         run: npm test -- --coverage
+      - name: Diagnóstico del entorno de Docker
+        if: failure()
+        run: |
+          uname -a
+          docker version
+          docker info --format 'cgroup={{.CgroupVersion}} ulimits={{json .DefaultUlimits}}'
+          ulimit -a
       - name: Construir la imagen Docker
         run: docker build -t servicio-inventario:${{ github.sha }} .
