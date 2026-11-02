@@ -5,6 +5,8 @@ import {
 } from '../../../src/application/ports/registro-auditoria.puerto';
 import { Reloj } from '../../../src/application/ports/reloj.puerto';
 import {
+  EstadoInventario,
+  FiltrosEstadoInventario,
   FiltrosInsumos,
   RepositorioInsumo,
 } from '../../../src/application/ports/repositorio-insumo.puerto';
@@ -66,6 +68,22 @@ export class RepositorioInsumoEnMemoria implements RepositorioInsumo {
   async listar(_filtros: FiltrosInsumos, paginacion: Paginacion): Promise<Pagina<Insumo>> {
     const items = [...this.insumos.values()];
     return { ...paginacion, items, total: items.length };
+  }
+
+  async consultarEstado(
+    filtros: FiltrosEstadoInventario,
+    paginacion: Paginacion,
+  ): Promise<EstadoInventario> {
+    const todos = [...this.insumos.values()].filter(
+      (i) => !filtros.categoria || i.categoria === filtros.categoria,
+    );
+    const items = todos.filter((i) => !filtros.soloStockBajo || i.stockBajo);
+    return {
+      ...paginacion,
+      items,
+      total: items.length,
+      resumen: { totalInsumos: todos.length, totalStockBajo: todos.filter((i) => i.stockBajo).length },
+    };
   }
 }
 

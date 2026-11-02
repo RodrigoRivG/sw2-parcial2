@@ -10,6 +10,16 @@ export interface FiltrosInsumos {
   soloConStock?: boolean;
 }
 
+export interface FiltrosEstadoInventario {
+  categoria?: CategoriaInsumo;
+  soloStockBajo?: boolean;
+}
+
+/** RF-33: insumos con los de stock bajo primero; el resumen no depende de `soloStockBajo` ni de la página. */
+export interface EstadoInventario extends Pagina<Insumo> {
+  resumen: { totalInsumos: number; totalStockBajo: number };
+}
+
 export interface RepositorioInsumo {
   /** Lanza `NOMBRE_INSUMO_DUPLICADO` si el nombre ya existe. */
   guardarNuevo(insumo: Insumo): Promise<void>;
@@ -30,4 +40,9 @@ export interface RepositorioInsumo {
     ahora: Date,
   ): Promise<Cantidad | null>;
   listar(filtros: FiltrosInsumos, paginacion: Paginacion): Promise<Pagina<Insumo>>;
+  /** Orden: stock bajo primero, luego por nombre y, para desempatar, por id. */
+  consultarEstado(
+    filtros: FiltrosEstadoInventario,
+    paginacion: Paginacion,
+  ): Promise<EstadoInventario>;
 }

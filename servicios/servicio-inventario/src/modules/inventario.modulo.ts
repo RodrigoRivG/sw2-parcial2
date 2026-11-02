@@ -4,6 +4,7 @@ import { createRemoteJWKSet } from 'jose';
 import { Connection } from 'mongoose';
 import { CONJUNTO_CLAVES, JwtGuardia } from '../adapters/inbound/http/auth/jwt.guardia';
 import { RolesGuardia } from '../adapters/inbound/http/auth/roles.guardia';
+import { EstadoInventarioControlador } from '../adapters/inbound/http/estado-inventario.controlador';
 import { InsumosControlador } from '../adapters/inbound/http/insumos.controlador';
 import { MovimientosControlador } from '../adapters/inbound/http/movimientos.controlador';
 import { SaludControlador } from '../adapters/inbound/http/salud.controlador';
@@ -21,6 +22,7 @@ import { esquemaRegistroAuditoria } from '../adapters/outbound/persistence/schem
 import { UnidadTrabajoMongo } from '../adapters/outbound/persistence/unidad-trabajo.mongo';
 import { RelojSistema } from '../adapters/outbound/reloj-sistema';
 import { ActualizarInsumoCasoUso } from '../application/use-cases/actualizar-insumo.caso-uso';
+import { ConsultarEstadoInventarioCasoUso } from '../application/use-cases/consultar-estado-inventario.caso-uso';
 import { ConsultarInsumosCasoUso } from '../application/use-cases/consultar-insumos.caso-uso';
 import { ConsultarMovimientosCasoUso } from '../application/use-cases/consultar-movimientos.caso-uso';
 import { CrearInsumoCasoUso } from '../application/use-cases/crear-insumo.caso-uso';
@@ -29,7 +31,12 @@ import { CONFIGURACION, Configuracion, leerConfiguracion } from '../config/valid
 
 /** Conecta los puertos de `application` con los adaptadores. Los casos de uso no conocen Nest. */
 @Module({
-  controllers: [InsumosControlador, MovimientosControlador, SaludControlador],
+  controllers: [
+    InsumosControlador,
+    MovimientosControlador,
+    EstadoInventarioControlador,
+    SaludControlador,
+  ],
   providers: [
     { provide: CONFIGURACION, useFactory: () => leerConfiguracion() },
     {
@@ -123,6 +130,12 @@ import { CONFIGURACION, Configuracion, leerConfiguracion } from '../config/valid
         reloj: RelojSistema,
       ) => new ActualizarInsumoCasoUso(repositorio, unidadTrabajo, auditoria, reloj),
       inject: [RepositorioInsumoMongo, UnidadTrabajoMongo, RegistroAuditoriaMongo, RelojSistema],
+    },
+    {
+      provide: ConsultarEstadoInventarioCasoUso,
+      useFactory: (repositorio: RepositorioInsumoMongo) =>
+        new ConsultarEstadoInventarioCasoUso(repositorio),
+      inject: [RepositorioInsumoMongo],
     },
     {
       provide: ConsultarInsumosCasoUso,

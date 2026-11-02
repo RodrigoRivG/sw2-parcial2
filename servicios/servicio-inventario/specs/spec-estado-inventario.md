@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-inventario` |
 | Archivo | `specs/spec-estado-inventario.md` |
-| Estado | Spec en borrador (2026-11-02) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-02) · Implementada (2026-11-02) |
 | Constitución | v2.8.0 (sección 5) |
 | Trazabilidad | CU-24 (prioridad media) · RF-33, RF-27 · RN-05, RN-14, RN-15, RN-16 · RNF-05 |
 | Depende de | `spec-insumos.md`, `spec-movimientos.md` |
@@ -176,14 +176,16 @@ $facet
 | `application/ports` | `repositorio-insumo.puerto.ts` (se amplía) | `consultarEstado` |
 | `adapters/inbound/http` | `estado-inventario.controlador.ts`, `dto/` | HTTP ↔ caso de uso |
 
-La agregación replica en MongoDB la regla de `politica-stock-bajo.ts`; el test CE-EST-02 verifica que ambas coinciden.
+La agregación replica en MongoDB la regla de `politica-stock-bajo.ts` solo para ordenar y contar: el repositorio devuelve entidades `Insumo` y el `stockBajo` de la respuesta lo calcula el dominio. El test CE-EST-02 verifica que el orden y el resumen de MongoDB coinciden con la política.
+
+El puerto devuelve `EstadoInventario` (`Pagina<Insumo>` más `resumen`). El caso de uso solo delega: los filtros los valida el DTO.
 
 ## 2.4 Tests
 
 | Tipo | Archivo | Qué verifica |
 |---|---|---|
 | Unitario | `politica-stock-bajo.spec.ts` | Stock menor, igual y mayor al mínimo; mínimo 0 |
-| Integración | `estado-inventario.controlador.int-spec.ts` | Historias 1 y 2, casos borde; resumen contra un conteo del test (CE-EST-03); misma respuesta que la política del dominio para cada insumo (CE-EST-02) |
+| Integración | `estado-inventario.controlador.int-spec.ts` | Historias 1 y 2, casos borde; resumen contra un conteo del test (CE-EST-03); misma respuesta que la política del dominio para cada insumo y orden por grupo (CE-EST-02); documentación en OpenAPI. El escenario 6 fija `fecha_ultima_alerta` a mano hasta `spec-stock-bajo.md` |
 | Integración | `estado-inventario-rendimiento.int-spec.ts` | CE-EST-01 |
 
 ---
@@ -191,7 +193,7 @@ La agregación replica en MongoDB la regla de `politica-stock-bajo.ts`; el test 
 # 3. Tareas
 
 - [x] **T01** — Crear `politica-stock-bajo.ts` (solo `estaEnStockBajo`) con su test unitario. Adelantada en `spec-insumos.md`, porque la vista completa del insumo incluye `stockBajo`; sus tests están en `insumo.entidad.spec.ts`.
-- [ ] **T02** — Implementar `consultarEstado` en el repositorio, `ConsultarEstadoInventarioCasoUso` y `GET /estado-inventario`. *Hecho cuando:* pasan las Historias 1 y 2.
-- [ ] **T03** — Escribir los casos borde y CE-EST-02, CE-EST-03.
-- [ ] **T04** [P] — Escribir `estado-inventario-rendimiento.int-spec.ts` (CE-EST-01).
-- [ ] **T05** — Documentar el endpoint en OpenAPI y verificación final (`npm test` en verde, cobertura ≥ 80 %).
+- [x] **T02** — Implementar `consultarEstado` en el repositorio, `ConsultarEstadoInventarioCasoUso` y `GET /estado-inventario`. *Hecho cuando:* pasan las Historias 1 y 2.
+- [x] **T03** — Escribir los casos borde y CE-EST-02, CE-EST-03.
+- [x] **T04** [P] — Escribir `estado-inventario-rendimiento.int-spec.ts` (CE-EST-01).
+- [x] **T05** — Documentar el endpoint en OpenAPI y verificación final (`npm test` en verde, cobertura ≥ 80 %).

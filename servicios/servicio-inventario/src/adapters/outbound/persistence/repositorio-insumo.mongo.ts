@@ -1,6 +1,8 @@
 import { FilterQuery, Model } from 'mongoose';
 import { Pagina, Paginacion } from '../../../application/ports/pagina';
 import {
+  EstadoInventario,
+  FiltrosEstadoInventario,
   FiltrosInsumos,
   RepositorioInsumo,
 } from '../../../application/ports/repositorio-insumo.puerto';
@@ -73,6 +75,48 @@ export class RepositorioInsumoMongo implements RepositorioInsumo {
     return documento ? Cantidad.desdeAlmacen(documento.stock.toString()) : null;
   }
 
+  async consultarEstado(
+    filtros: FiltrosEstadoInventario,
+    paginacion: Paginacion,
+  ): Promise<EstadoInventario> {
+    // Replica en MongoDB la regla de politica-stock-bajo.ts para ordenar y contar;
+    // el stockBajo de la respuesta lo calcula el dominio.
+    const soloBajos = filtros.soloStockBajo ? [{ $match: { stock_bajo: true } }] : [];
+    const [resultado] = await this.modelo
+      .aggregate<ResultadoEstado>([
+        { $match: filtros.categoria ? { categoria: filtros.categoria } : {} },
+        { $addFields: { stock_bajo: { $lte: ['$stock', '$nivel_minimo'] } } },
+        {
+          $facet: {
+            resumen: [
+              {
+                $group: {
+                  _id: null,
+                  total: { $sum: 1 },
+                  total_bajo: { $sum: { $cond: ['$stock_bajo', 1, 0] } },
+                },
+              },
+            ],
+            pagina: [
+              ...soloBajos,
+              { $sort: { stock_bajo: -1, nombre_normalizado: 1, _id: 1 } },
+              { $skip: paginacion.pagina * paginacion.tamanio },
+              { $limit: paginacion.tamanio },
+            ],
+            total: [...soloBajos, { $count: 'n' }],
+          },
+        },
+      ])
+      .exec();
+    const resumen = resultado?.resumen[0];
+    return {
+      ...paginacion,
+      items: (resultado?.pagina ?? []).map(aDominio),
+      total: resultado?.total[0]?.n ?? 0,
+      resumen: { totalInsumos: resumen?.total ?? 0, totalStockBajo: resumen?.total_bajo ?? 0 },
+    };
+  }
+
   async listar(filtros: FiltrosInsumos, paginacion: Paginacion): Promise<Pagina<Insumo>> {
     const filtro: FilterQuery<DocumentoInsumo> = {};
     if (filtros.nombre?.trim()) {
@@ -96,6 +140,12 @@ export class RepositorioInsumoMongo implements RepositorioInsumo {
     ]);
     return { ...paginacion, items: documentos.map(aDominio), total };
   }
+}
+
+interface ResultadoEstado {
+  resumen: { total: number; total_bajo: number }[];
+  pagina: DocumentoInsumo[];
+  total: { n: number }[];
 }
 
 function escaparRegex(texto: string): string {
