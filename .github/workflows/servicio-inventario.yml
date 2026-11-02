@@ -1,0 +1,35 @@
+name: servicio-inventario
+
+on:
+  push:
+    paths:
+      - "servicios/servicio-inventario/**"
+      - ".github/workflows/servicio-inventario.yml"
+  pull_request:
+    paths:
+      - "servicios/servicio-inventario/**"
+      - ".github/workflows/servicio-inventario.yml"
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: servicios/servicio-inventario
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: servicios/servicio-inventario/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Revisar estilo
+        run: npm run lint
+      - name: Compilar
+        run: npm run build
+      - name: Probar y medir cobertura
+        run: npm test -- --coverage
+      - name: Construir la imagen Docker
+        run: docker build -t servicio-inventario:${{ github.sha }} .

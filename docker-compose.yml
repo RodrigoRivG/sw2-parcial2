@@ -167,7 +167,7 @@ services:
 
   # ------------------------------------------------------------------
   #  MICROSERVICIOS
-  #  Cada carpeta servicios/<servicio> empieza solo con su Constitucion.md;
+  #  Cada carpeta servicios/<servicio> empieza con su Constitucion.md y sus specs;
   #  el código lo genera el agente siguiendo spec → plan → tareas.
   # ------------------------------------------------------------------
 

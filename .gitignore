@@ -11,6 +11,8 @@ target/
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
+.eslintcache
 
 # PHP / Laravel
 vendor/

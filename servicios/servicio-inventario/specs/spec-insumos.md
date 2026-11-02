@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-inventario` |
 | Archivo | `specs/spec-insumos.md` |
-| Estado | Spec en borrador (2026-11-02) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-02) · Implementada (2026-11-02) |
 | Constitución | v2.8.0 |
 | Trazabilidad | CU-06 (prioridad alta) · RF-07 · RN-04, RN-14, RN-15, RN-16 · RNF-05 |
 | Depende de | — (incluye la Fase 0: base del servicio) |
@@ -197,7 +197,7 @@ Se construye una sola vez, con esta funcionalidad, y la reutilizan todas las dem
 ### Conexión a MongoDB y migraciones
 
 - `ProveedorConexionMongo` (en `adapters/outbound/persistence`) crea la conexión con `mongoose.createConnection(MONGODB_URI, { autoIndex: false })`.
-- **Ejecutor de migraciones** (`migrations/ejecutor.ts`, ~50 líneas): al arrancar, antes de escuchar, lee los archivos `migrations/NNN-*.ts` en orden, ejecuta `subir(db)` de los que no están en la colección `migraciones` y registra cada uno (`_id` = nombre, `fecha`). Los tests de integración ejecutan el mismo ejecutor.
+- **Ejecutor de migraciones** (`migrations/ejecutor.ts`, ~30 líneas): al arrancar, antes de escuchar, recorre la lista ordenada de `migrations/index.ts` (cada `migrations/NNN-*.ts` se agrega ahí), ejecuta `subir(db)` de las que no están en la colección `migraciones` y registra cada una (`_id` = nombre, `fecha`). Una lista explícita evita leer el disco, que cambia entre `ts-jest` (`.ts`) y la imagen (`.js`). Los tests de integración ejecutan el mismo ejecutor.
 - **Unidad de trabajo** (`UnidadTrabajo`, puerto en `application/ports`): `ejecutar(fn)` abre una sesión y llama a `session.withTransaction(fn)`, que reintenta ante errores transitorios. La sesión activa viaja en un `AsyncLocalStorage` del adaptador; los repositorios Mongo la toman de ahí, así el dominio y los casos de uso no conocen la sesión.
 
 ### Seguridad
@@ -272,7 +272,8 @@ Puerto `Reloj` (`ahora(): Date`) con implementación del sistema; los tests de l
 - **`Dockerfile`** multi-etapa sobre `node:24-alpine`: `npm ci` y `npm run build`; la imagen final solo lleva `dist`, `node_modules` de producción y `migrations` compiladas, y corre con el usuario `node`.
 - **`.github/workflows/servicio-inventario.yml`** (en la raíz del repositorio, filtrado por `servicios/servicio-inventario/**`): `npm ci`, `npm run lint`, `npm run build`, `npm test -- --coverage` y construcción de la imagen.
 - **Jest:** un solo proyecto que corre unitarios e integración; `coverageThreshold` de 80 % de líneas en `src/domain/**` y `src/application/**`.
-- Docker Compose arranca el servicio con `npm run start:dev`; aquí solo se garantiza que la imagen arranca con las variables de README D-14.
+- Docker Compose arranca el servicio con `npm run start:dev`. Ese script sube el heap de Node a 384 MB (`NODE_OPTIONS=--max-old-space-size=384`): la verificación de tipos de `nest start --watch` usa unos 300 MB y el límite por defecto de V8 en el contenedor de 512 MB es de unos 256 MB. Medido: unos 390 MB en total, dentro del límite de Compose.
+- La imagen arranca con las variables de README D-14; si falta una, el proceso termina con el error en el log.
 
 ## 2.2 Endpoints
 
@@ -377,7 +378,7 @@ Colección `insumos`:
 | `adapters/outbound/persistence` | `insumo.esquema.ts`, `mappers/insumo.mapper.ts`, `repositorio-insumo.mongo.ts` | Esquema, mapeo `Decimal128` ↔ `Decimal`, traducción del error `11000` |
 | `adapters/inbound/http` | `insumos.controlador.ts`, `dto/` | Traduce HTTP ↔ caso de uso; elige la vista completa o reducida según los roles |
 
-**Stock inicial (RQ-INS-02):** el movimiento se crea en la misma transacción. Hasta que exista `spec-movimientos.md`, la tarea T12 implementa solo la creación sin stock inicial; T03 de `spec-movimientos.md` completa el escenario 1 de la Historia 1.
+**Stock inicial (RQ-INS-02):** el movimiento se crea en la misma transacción. Hasta que exista `spec-movimientos.md`, la tarea T12 implementa solo la creación sin stock inicial: el stock inicial se valida (escenario 3 y casos borde), pero uno mayor a 0 todavía responde `500` y no guarda nada (la transacción se revierte). T03 de `spec-movimientos.md` completa el escenario 1 de la Historia 1.
 
 **Concurrencia (RQ-INS-05):** `updateOne({ _id, version }, { $set: {...}, $inc: { version: 1 } })`; si no modifica nada y el insumo existe, `CONFLICTO_CONCURRENCIA`. Los movimientos usan `$inc` sobre `stock` sin tocar `version` (README D-05).
 
@@ -387,16 +388,18 @@ Colección `insumos`:
 |---|---|---|
 | Unitario | `cantidad.vo.spec.ts` | Negativos, más de 3 decimales, decimales con `UNIDAD`, operaciones exactas (`0.1 + 0.2 = 0.3`) |
 | Unitario | `dinero.vo.spec.ts` | Negativos, multiplicación exacta, redondeo mitad hacia arriba (`0.125 → 0.13`, `0.124 → 0.12`) |
-| Unitario | `insumo.entidad.spec.ts` | Recorte del nombre, rangos, cambio de unidad con y sin movimientos |
-| Unitario | `actualizar-insumo.caso-uso.spec.ts` | 404, `CONFLICTO_CONCURRENCIA`, auditoría `MODIFICAR` (dobles escritos a mano) |
+| Unitario | `insumo.entidad.spec.ts` | Recorte del nombre, rangos, cambio de unidad con y sin movimientos; `politica-stock-bajo.ts` (adelantada de `spec-estado-inventario.md` porque la vista completa incluye `stockBajo`) |
+| Unitario | `actualizar-insumo.caso-uso.spec.ts`, `crear-insumo.caso-uso.spec.ts` | 404, `CONFLICTO_CONCURRENCIA`, auditoría `CREAR` y `MODIFICAR`, validación del stock inicial (dobles escritos a mano en `test/unit/application/dobles.ts`) |
 | Integración | `insumos.controlador.int-spec.ts` | Historias 1 a 3 y casos borde de formato, con verificación de `registros_auditoria` |
 | Integración | `insumos-vistas.int-spec.ts` | Vista reducida para `tecnico_campo` en listado y detalle; vista completa con roles combinados y con `lectura_inventario` (CE-INS-03) |
 | Integración | `insumos-concurrencia.int-spec.ts` | Dos creaciones con el mismo nombre → `201` y `409`; dos `PUT` con la misma versión → el segundo `409` |
 | Integración | `insumos-rendimiento.int-spec.ts` | 1.000 insumos, listado y detalle en menos de 3 s (CE-INS-02) |
 | Integración | `seguridad.int-spec.ts` | Sin token → 401; firma, `iss`, `aud` o `exp` inválidos → 401; rol sin permiso → 403; `/salud` y `/api-docs-json` sin token; `X-Correlation-Id` en 401 y 403 |
-| Integración | `errores.int-spec.ts` | Formato común en 400, 404 de ruta inexistente y 500 |
+| Integración | `errores.int-spec.ts` | Formato común en 400 (JSON mal formado, query y UUID inválidos), 404 de ruta inexistente o método no soportado y 500 |
+| Integración | `salud.int-spec.ts` | Liveness y readiness `UP`; readiness `503` con MongoDB cerrado |
+| Integración | `unidad-trabajo.int-spec.ts` | Auditoría con actor e `idCorrelacion` en la transacción, rollback, transacción anidada, migraciones registradas |
 
-Los tests de integración levantan MongoDB con `@testcontainers/mongodb` (`mongo:8.0`, replica set de un nodo), ejecutan las migraciones y arrancan la app con `Test.createTestingModule`.
+Los tests de integración levantan un solo MongoDB con `@testcontainers/mongodb` (`mongo:8.0`, replica set de un nodo) en el `globalSetup` de Jest; cada archivo usa su propia base de datos, ejecuta las migraciones y arranca la app con `Test.createTestingModule` y la misma `configurarAplicacion` de `main.ts`. Viven en `test/integration/http` y `test/integration/persistence`.
 
 ---
 
@@ -406,24 +409,24 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 
 ## Fase 0 — Base del servicio
 
-- [ ] **T01** — Crear el proyecto NestJS (`package.json`, `tsconfig.json` con `strict`, `main.ts`, `app.module.ts`) con las dependencias de 2.1 y las carpetas de la constitución. *Hecho cuando:* `npm run build` compila.
-- [ ] **T02** — Implementar `validacion-entorno.ts`, `ProveedorConexionMongo`, el ejecutor de migraciones y `UnidadTrabajo`. *Hecho cuando:* la app arranca contra el MongoDB de Docker Compose y registra las migraciones en `migraciones`.
-- [ ] **T03** — Implementar `SaludControlador`. *Hecho cuando:* `/salud`, `/salud/liveness` y `/salud/readiness` responden sin token, y readiness responde `503` si MongoDB no está.
-- [ ] **T04** — Implementar `JwtGuardia`, `RolesGuardia`, `@Roles`, `@Publica` y el soporte de tokens de prueba. *Hecho cuando:* pasa `seguridad.int-spec.ts`.
-- [ ] **T05** [P] — Implementar `ErrorDominio` y `FiltroExcepcionesHttp`. *Hecho cuando:* pasa `errores.int-spec.ts`.
-- [ ] **T06** [P] — Implementar `IdCorrelacionMiddleware` y `LoggerJson`. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
-- [ ] **T07** — Crear `001-crear-indices-auditoria.ts` y `RegistroAuditoriaMongo`. *Hecho cuando:* un test de integración registra una auditoría dentro de una transacción y la lee con actor e `idCorrelacion`.
-- [ ] **T08** [P] — Crear `ConsultaPaginada`, la respuesta paginada, `Reloj` y la configuración de Swagger.
-- [ ] **T09** [P] — Escribir el `Dockerfile` y `.github/workflows/servicio-inventario.yml`, con el umbral de cobertura de Jest. *Hecho cuando:* el pipeline corre en verde y construye la imagen.
+- [x] **T01** — Crear el proyecto NestJS (`package.json`, `tsconfig.json` con `strict`, `main.ts`, `app.module.ts`) con las dependencias de 2.1 y las carpetas de la constitución. *Hecho cuando:* `npm run build` compila.
+- [x] **T02** — Implementar `validacion-entorno.ts`, `ProveedorConexionMongo`, el ejecutor de migraciones y `UnidadTrabajo`. *Hecho cuando:* la app arranca contra el MongoDB de Docker Compose y registra las migraciones en `migraciones`.
+- [x] **T03** — Implementar `SaludControlador`. *Hecho cuando:* `/salud`, `/salud/liveness` y `/salud/readiness` responden sin token, y readiness responde `503` si MongoDB no está.
+- [x] **T04** — Implementar `JwtGuardia`, `RolesGuardia`, `@Roles`, `@Publica` y el soporte de tokens de prueba. *Hecho cuando:* pasa `seguridad.int-spec.ts`.
+- [x] **T05** [P] — Implementar `ErrorDominio` y `FiltroExcepcionesHttp`. *Hecho cuando:* pasa `errores.int-spec.ts`.
+- [x] **T06** [P] — Implementar `IdCorrelacionMiddleware` y `LoggerJson`. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
+- [x] **T07** — Crear `001-crear-indices-auditoria.ts` y `RegistroAuditoriaMongo`. *Hecho cuando:* un test de integración registra una auditoría dentro de una transacción y la lee con actor e `idCorrelacion`.
+- [x] **T08** [P] — Crear `ConsultaPaginada`, la respuesta paginada, `Reloj` y la configuración de Swagger.
+- [x] **T09** [P] — Escribir el `Dockerfile` y `.github/workflows/servicio-inventario.yml`, con el umbral de cobertura de Jest. *Hecho cuando:* el pipeline corre en verde y construye la imagen. Verificado en local con los mismos pasos (`npm ci`, lint, build, tests con cobertura y `docker build`); la primera corrida en GitHub Actions ocurre con el push.
 
 ## Fase 1 — Insumos
 
-- [ ] **T10** — Crear `Cantidad`, `Dinero`, `Insumo` y sus enumeraciones, con sus tests unitarios.
-- [ ] **T11** — Crear `002-crear-indices-insumos.ts`, el esquema, el mapper y `RepositorioInsumoMongo`, con la traducción del error `11000`.
-- [ ] **T12** — Implementar `CrearInsumoCasoUso` (sin stock inicial) y `POST /insumos`. *Hecho cuando:* pasan los escenarios 2 a 6 de la Historia 1, con auditoría.
-- [ ] **T13** — Implementar `ConsultarInsumosCasoUso` y los dos `GET`, con las dos vistas. *Hecho cuando:* pasan la Historia 2 e `insumos-vistas.int-spec.ts`.
-- [ ] **T14** — Implementar `ActualizarInsumoCasoUso` y `PUT /insumos/{id}`. *Hecho cuando:* pasan los escenarios 1, 2, 4 y 6 de la Historia 3 (el 3 y el 5 necesitan movimientos y se completan en `spec-movimientos.md`).
-- [ ] **T15** — Escribir `insumos-concurrencia.int-spec.ts` y los casos borde de formato.
-- [ ] **T16** [P] — Escribir `insumos-rendimiento.int-spec.ts` (CE-INS-02).
-- [ ] **T17** — Documentar en OpenAPI los códigos de error de cada endpoint. *Hecho cuando:* `/api-docs-json` lista los cuatro endpoints con sus respuestas de error.
-- [ ] **T18** — Verificación final: `npm test` en verde, cobertura ≥ 80 % en `domain` y `application`, y criterios CE-INS-01 a CE-INS-04 cubiertos por al menos un test.
+- [x] **T10** — Crear `Cantidad`, `Dinero`, `Insumo` y sus enumeraciones, con sus tests unitarios.
+- [x] **T11** — Crear `002-crear-indices-insumos.ts`, el esquema, el mapper y `RepositorioInsumoMongo`, con la traducción del error `11000`.
+- [x] **T12** — Implementar `CrearInsumoCasoUso` (sin stock inicial) y `POST /insumos`. *Hecho cuando:* pasan los escenarios 2 a 6 de la Historia 1, con auditoría.
+- [x] **T13** — Implementar `ConsultarInsumosCasoUso` y los dos `GET`, con las dos vistas. *Hecho cuando:* pasan la Historia 2 e `insumos-vistas.int-spec.ts`.
+- [x] **T14** — Implementar `ActualizarInsumoCasoUso` y `PUT /insumos/{id}`. *Hecho cuando:* pasan los escenarios 1, 2, 4 y 6 de la Historia 3. Los escenarios 3 y 5 también pasan, simulando el movimiento directamente en MongoDB; `spec-movimientos.md` T04 los repite con movimientos reales.
+- [x] **T15** — Escribir `insumos-concurrencia.int-spec.ts` y los casos borde de formato.
+- [x] **T16** [P] — Escribir `insumos-rendimiento.int-spec.ts` (CE-INS-02).
+- [x] **T17** — Documentar en OpenAPI los códigos de error de cada endpoint. *Hecho cuando:* `/api-docs-json` lista los cuatro endpoints con sus respuestas de error.
+- [x] **T18** — Verificación final: `npm test` en verde, cobertura ≥ 80 % en `domain` y `application`, y criterios CE-INS-01 a CE-INS-04 cubiertos por al menos un test. CE-INS-01 (stock = suma de movimientos) se cubre aquí para el insumo nuevo (stock 0, sin movimientos) y por completo con CE-MOV-02 de `spec-movimientos.md`.

@@ -190,7 +190,7 @@ La agregación replica en MongoDB la regla de `politica-stock-bajo.ts`; el test 
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `politica-stock-bajo.ts` (solo `estaEnStockBajo`) con su test unitario.
+- [x] **T01** — Crear `politica-stock-bajo.ts` (solo `estaEnStockBajo`) con su test unitario. Adelantada en `spec-insumos.md`, porque la vista completa del insumo incluye `stockBajo`; sus tests están en `insumo.entidad.spec.ts`.
 - [ ] **T02** — Implementar `consultarEstado` en el repositorio, `ConsultarEstadoInventarioCasoUso` y `GET /estado-inventario`. *Hecho cuando:* pasan las Historias 1 y 2.
 - [ ] **T03** — Escribir los casos borde y CE-EST-02, CE-EST-03.
 - [ ] **T04** [P] — Escribir `estado-inventario-rendimiento.int-spec.ts` (CE-EST-01).

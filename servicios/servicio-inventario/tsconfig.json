@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "strict": true,
+    "declaration": false,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "incremental": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "useUnknownInCatchVariables": true
+  },
+  "include": ["src", "migrations", "test"]
+}

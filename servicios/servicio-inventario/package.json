@@ -1,0 +1,77 @@
+{
+  "name": "servicio-inventario",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servicio de gestión de inventario de insumos agrícolas",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "NODE_OPTIONS=--max-old-space-size=384 nest start --watch",
+    "start:prod": "node dist/src/main",
+    "lint": "eslint \"{src,test,migrations}/**/*.ts\"",
+    "format": "prettier --write \"{src,test,migrations}/**/*.ts\"",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/swagger": "^11.2.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "decimal.js": "^10.6.0",
+    "express": "^5.1.0",
+    "jose": "^5.10.0",
+    "mongoose": "^8.18.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@nestjs/cli": "^11.0.10",
+    "@nestjs/testing": "^11.1.6",
+    "@testcontainers/mongodb": "^11.5.1",
+    "@types/express": "^5.0.3",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.18.0",
+    "@types/supertest": "^6.0.3",
+    "eslint": "^9.34.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.6.2",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.42.0"
+  },
+  "jest": {
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/test"
+    ],
+    "testRegex": ".*\\.(spec|int-spec)\\.ts$",
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json"
+    ],
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "testEnvironment": "node",
+    "testTimeout": 60000,
+    "globalSetup": "<rootDir>/test/integration/soporte/inicio-global.ts",
+    "globalTeardown": "<rootDir>/test/integration/soporte/fin-global.ts",
+    "collectCoverageFrom": [
+      "src/domain/**/*.ts",
+      "src/application/**/*.ts"
+    ],
+    "coverageThreshold": {
+      "./src/domain/": {
+        "lines": 80
+      },
+      "./src/application/": {
+        "lines": 80
+      }
+    }
+  }
+}

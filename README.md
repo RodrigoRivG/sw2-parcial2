@@ -2,7 +2,7 @@
 
 Entorno local compartido del sistema de gestión de campañas agrícolas (RNF-19): infraestructura, emuladores de nube e imágenes de desarrollo para los cuatro microservicios, el API Gateway y el servidor GraphQL. Está pensado para una laptop de **16 GB de RAM** con Windows 11 y WSL 2.
 
-Este repositorio **no contiene código de los microservicios**. Cada carpeta `servicios/<servicio>/` empieza solo con su `Constitucion.md`, y el código se genera siguiendo spec → plan → tareas.
+Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus specs (`specs/`); el código se genera siguiendo spec → plan → tareas. Hoy tienen código `servicio-gestion` y `servicio-inventario`.
 
 > Los microfrontends (Angular, React, Vue) y Flutter se desarrollan fuera de Docker y consumen el backend a través del API Gateway.
 
@@ -12,7 +12,7 @@ Este repositorio **no contiene código de los microservicios**. Cada carpeta `se
 
 ```
 sw2-parcial2/
-├── .github/workflows/         # un pipeline por servicio, filtrado por su carpeta
+├── .github/workflows/         # un pipeline por servicio, filtrado por su carpeta (gestion, inventario)
 ├── docker-compose.yml
 ├── .env.example
 ├── scripts/
@@ -26,10 +26,10 @@ sw2-parcial2/
 │   ├── localstack/init/        # crea el bucket S3 de evidencias
 │   └── keycloak/realms/        # realm exportado (se importa al arrancar Keycloak)
 └── servicios/
-    ├── servicio-gestion/           # Constitucion.md
-    ├── servicio-inventario/      # Constitucion.md
-    ├── servicio-operaciones/      # Constitucion.md
-    ├── servicio-ia/             # Constitucion.md
+    ├── servicio-gestion/           # Constitucion.md, specs/ y código (Spring Boot)
+    ├── servicio-inventario/        # Constitucion.md, specs/ y código (NestJS)
+    ├── servicio-operaciones/       # Constitucion.md
+    ├── servicio-ia/                # Constitucion.md
     ├── api-gateway/
     └── graphql-server/
 ```
@@ -107,7 +107,7 @@ Todo lo que un servicio necesita le llega por **variables de entorno** (RNF-03).
 | Servicio | Arranque en desarrollo | Variables propias |
 |---|---|---|
 | servicio-gestion | `mvn spring-boot:run` (recompila al guardar; requiere `spring-boot-devtools`) | `SERVER_PORT`, `SPRING_DATASOURCE_*`, `SPRING_RABBITMQ_*` |
-| servicio-inventario | `npm run start:dev` | `PORT`, `MONGODB_URI`, `RABBITMQ_URL` |
+| servicio-inventario | `npm run start:dev` (recompila al guardar; aplica las migraciones de `migrations/` al arrancar) | `PORT`, `MONGODB_URI`, `RABBITMQ_URL` |
 | servicio-operaciones | `php artisan serve` | `DYNAMODB_ENDPOINT`, `AWS_*`, `AWS_ENDPOINT`, `AWS_BUCKET`, `RABBITMQ_*`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | servicio-ia | `pip install -e .` + `uvicorn app.main:app --reload` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `WHISPER_*`, `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `STORAGE_EMULATOR_HOST`, `GCS_BUCKET`, `RABBITMQ_URL`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | api-gateway | `mvn spring-boot:run` | `SERVER_PORT`, `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL` |
@@ -125,7 +125,8 @@ Los SDK de Google (Firestore y Cloud Storage) detectan los emuladores automátic
 
 ```bash
 ./scripts/ejecutar.sh servicio-gestion mvn -B verify
-./scripts/ejecutar.sh servicio-inventario npm test
+./scripts/ejecutar.sh servicio-inventario npm test -- --coverage
+./scripts/ejecutar.sh servicio-inventario npm run lint
 ./scripts/ejecutar.sh servicio-operaciones ./vendor/bin/pest
 ./scripts/ejecutar.sh servicio-ia pytest
 ./scripts/ejecutar.sh servicio-ia mypy app
@@ -224,6 +225,7 @@ docker compose --profile todo down -v         # apagar y BORRAR todos los datos
 
 - **"Permission denied" al editar archivos:** `sudo chown -R $USER:$USER ~/proyectos/sw2-parcial2`.
 - **Un contenedor se reinicia solo:** probablemente se quedó sin memoria. Revisa `docker stats` y apaga perfiles.
+- **`servicio-inventario` muestra `JavaScript heap out of memory` al arrancar:** la verificación de tipos de `nest start --watch` necesita unos 300 MB. El script `start:dev` ya sube el heap de Node a 384 MB; si se cambió, restáuralo.
 - **"port is already allocated":** otro programa usa ese puerto. Cambia la parte izquierda de `ports:` (por ejemplo `"8091:8081"`).
 - **Una base de `init.sql` no existe:** ese archivo solo se ejecuta al crear el volumen de Postgres. Recréalo con `docker compose down -v` (borra los datos).
 - **LocalStack no arranca:** revisa que `LOCALSTACK_AUTH_TOKEN` esté en el `.env` con `docker compose logs localstack`.

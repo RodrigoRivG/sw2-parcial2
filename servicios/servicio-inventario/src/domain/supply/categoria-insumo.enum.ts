@@ -1,0 +1,5 @@
+export enum CategoriaInsumo {
+  SEMILLA = 'SEMILLA',
+  FERTILIZANTE = 'FERTILIZANTE',
+  FITOSANITARIO = 'FITOSANITARIO',
+}
