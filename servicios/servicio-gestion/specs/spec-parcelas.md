@@ -412,23 +412,23 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 
 ## Fase 0 — Base del servicio
 
-- [ ] **T01** — Crear el proyecto Maven (`pom.xml`, `AplicacionGestion.java`) con las dependencias de 2.1 y la estructura de carpetas de la constitución. *Hecho cuando:* `mvn verify` compila sin tests.
-- [ ] **T02** — Escribir `application.yml` (variables de entorno, logs JSON, Actuator en `/salud`, springdoc), `application-test.yml` y `PruebaIntegracionBase`. *Hecho cuando:* la aplicación arranca contra un PostgreSQL local y `/salud`, `/salud/liveness` y `/salud/readiness` responden `UP`.
-- [ ] **T03** — Implementar `ConfiguracionSeguridad`, `ConversorRolesKeycloak` y las propiedades de validación del token, con respuestas 401 y 403 en el formato común. *Hecho cuando:* pasa `SeguridadIT` y un test del decodificador rechaza tokens con `iss` o `aud` incorrectos (`jwt()` no pasa por esa validación).
-- [ ] **T04** [P] — Implementar `ExcepcionDominio`, `RespuestaError` y `ManejadorGlobalExcepciones` según la tabla de 2.1. *Hecho cuando:* un test de integración provoca un 400, un 403 de `@PreAuthorize`, un 404 de ruta inexistente, un 405 y un 500, y comprueba el formato.
-- [ ] **T05** [P] — Implementar `FiltroIdCorrelacion`. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
-- [ ] **T06** — Crear `V1__crear_registro_auditoria.sql` y el puerto `RegistroAuditoria` con `RegistroAuditoriaJpa`. *Hecho cuando:* un test de integración registra una auditoría y la lee con actor e `idCorrelacion`.
-- [ ] **T07** [P] — Crear `PaginaRespuesta<T>`, la validación común de `pagina` y `tamanio`, y el deserializador de decimales. *Hecho cuando:* un test de integración comprueba que un decimal enviado como número JSON responde `400 DATOS_INVALIDOS`.
-- [ ] **T08** [P] — Escribir el `Dockerfile` y `.github/workflows/servicio-gestion.yml` (en la raíz del repositorio), con la configuración de JaCoCo (mínimo 80 % en `domain` y `application`) y de Surefire (incluye `*IT`). *Hecho cuando:* el pipeline corre en verde y construye la imagen.
+- [x] **T01** — Crear el proyecto Maven (`pom.xml`, `AplicacionGestion.java`) con las dependencias de 2.1 y la estructura de carpetas de la constitución. *Hecho cuando:* `mvn verify` compila sin tests.
+- [x] **T02** — Escribir `application.yml` (variables de entorno, logs JSON, Actuator en `/salud`, springdoc), `application-test.yml` y `PruebaIntegracionBase`. *Hecho cuando:* la aplicación arranca contra un PostgreSQL local y `/salud`, `/salud/liveness` y `/salud/readiness` responden `UP`.
+- [x] **T03** — Implementar `ConfiguracionSeguridad`, `ConversorRolesKeycloak` y las propiedades de validación del token, con respuestas 401 y 403 en el formato común. *Hecho cuando:* pasa `SeguridadIT` y un test del decodificador rechaza tokens con `iss` o `aud` incorrectos (`jwt()` no pasa por esa validación).
+- [x] **T04** [P] — Implementar `ExcepcionDominio`, `RespuestaError` y `ManejadorGlobalExcepciones` según la tabla de 2.1. *Hecho cuando:* un test de integración provoca un 400, un 403 de `@PreAuthorize`, un 404 de ruta inexistente, un 405 y un 500, y comprueba el formato.
+- [x] **T05** [P] — Implementar `FiltroIdCorrelacion`. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
+- [x] **T06** — Crear `V1__crear_registro_auditoria.sql` y el puerto `RegistroAuditoria` con `RegistroAuditoriaJpa`. *Hecho cuando:* un test de integración registra una auditoría y la lee con actor e `idCorrelacion`.
+- [x] **T07** [P] — Crear `PaginaRespuesta<T>`, la validación común de `pagina` y `tamanio`, y el deserializador de decimales. *Hecho cuando:* un test de integración comprueba que un decimal enviado como número JSON responde `400 DATOS_INVALIDOS`.
+- [x] **T08** [P] — Escribir el `Dockerfile` y `.github/workflows/servicio-gestion.yml` (en la raíz del repositorio), con la configuración de JaCoCo (mínimo 80 % en `domain` y `application`) y de Surefire (incluye `*IT`). *Hecho cuando:* el pipeline corre en verde y construye la imagen.
 
 ## Fase 1 — Parcelas
 
-- [ ] **T09** — Crear `Hectareas` y `Parcela` en el dominio, con `HectareasTest` y `ParcelaTest`.
-- [ ] **T10** — Crear `V2__crear_parcela.sql`, `ParcelaEntidad`, `ParcelaSpringData`, `MapeadorParcela` y `RepositorioParcelaJpa`, con la traducción del índice único a `NOMBRE_PARCELA_DUPLICADO`.
-- [ ] **T11** — Implementar `CrearParcelaCasoUso` y `POST /parcelas`. *Hecho cuando:* pasan los escenarios de la historia 1 en `ParcelaControladorIT`, con verificación de auditoría.
-- [ ] **T12** — Implementar `ConsultarParcelaCasoUso`, `ListarParcelasCasoUso` y los dos `GET`. *Hecho cuando:* pasan los escenarios de la historia 2, incluido el acceso de `tecnico_campo` y de `lectura_gestion`.
-- [ ] **T13** — Implementar `ActualizarParcelaCasoUso` y `PUT /parcelas/{id}`, con `ActualizarParcelaCasoUsoTest`. *Hecho cuando:* pasan los escenarios 1 y 3 de la historia 3, con su registro de auditoría.
-- [ ] **T14** — Escribir `ParcelaConcurrenciaIT` y los casos borde de formato restantes (decimales de más, superficie no numérica, nombre con espacios).
-- [ ] **T15** [P] — Escribir `ParcelaRendimientoIT` (CE-PAR-02).
-- [ ] **T16** — Documentar en OpenAPI los códigos de error de cada endpoint y revisar en Swagger UI. *Hecho cuando:* `/v3/api-docs` lista los cuatro endpoints con sus respuestas de error.
-- [ ] **T17** — Verificación final: `mvn verify` en verde, cobertura ≥ 80 % en `domain` y `application`, y todos los criterios CE-PAR-01 a CE-PAR-04 cubiertos por al menos un test.
+- [x] **T09** — Crear `Hectareas` y `Parcela` en el dominio, con `HectareasTest` y `ParcelaTest`.
+- [x] **T10** — Crear `V2__crear_parcela.sql`, `ParcelaEntidad`, `ParcelaSpringData`, `MapeadorParcela` y `RepositorioParcelaJpa`, con la traducción del índice único a `NOMBRE_PARCELA_DUPLICADO`.
+- [x] **T11** — Implementar `CrearParcelaCasoUso` y `POST /parcelas`. *Hecho cuando:* pasan los escenarios de la historia 1 en `ParcelaControladorIT`, con verificación de auditoría.
+- [x] **T12** — Implementar `ConsultarParcelaCasoUso`, `ListarParcelasCasoUso` y los dos `GET`. *Hecho cuando:* pasan los escenarios de la historia 2, incluido el acceso de `tecnico_campo` y de `lectura_gestion`.
+- [x] **T13** — Implementar `ActualizarParcelaCasoUso` y `PUT /parcelas/{id}`, con `ActualizarParcelaCasoUsoTest`. *Hecho cuando:* pasan los escenarios 1 y 3 de la historia 3, con su registro de auditoría.
+- [x] **T14** — Escribir `ParcelaConcurrenciaIT` y los casos borde de formato restantes (decimales de más, superficie no numérica, nombre con espacios).
+- [x] **T15** [P] — Escribir `ParcelaRendimientoIT` (CE-PAR-02).
+- [x] **T16** — Documentar en OpenAPI los códigos de error de cada endpoint y revisar en Swagger UI. *Hecho cuando:* `/v3/api-docs` lista los cuatro endpoints con sus respuestas de error.
+- [x] **T17** — Verificación final: `mvn verify` en verde, cobertura ≥ 80 % en `domain` y `application`, y todos los criterios CE-PAR-01 a CE-PAR-04 cubiertos por al menos un test.
