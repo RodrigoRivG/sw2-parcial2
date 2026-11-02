@@ -272,6 +272,7 @@ CREATE TABLE saga_procesada (
     id_campania           UUID,
     id_labor              UUID,
     id_costo              UUID,
+    monto                 NUMERIC(14,2),
     codigo                VARCHAR(50),
     motivo                VARCHAR(300),
     anulacion_resultado   VARCHAR(20)  CHECK (anulacion_resultado IN ('ANULADO','RECHAZADA')),
@@ -288,7 +289,8 @@ CREATE TABLE mensaje_procesado (
 );
 ```
 
-Las columnas `anulacion_*` guardan la respuesta de la primera anulación, para repetirla igual ante duplicados.
+- Las columnas `anulacion_*` guardan la respuesta de la primera anulación, para repetirla igual ante duplicados.
+- `monto` permite repetir `CostoCampaniaRegistrado` con los mismos datos, aunque el comando repetido traiga otro monto.
 
 ## 2.5 Flujo de procesamiento
 
@@ -330,7 +332,7 @@ Un solo consumidor para ambos comandos, porque comparten cola; la constitución 
 | Unitario | `AnularCostoSagaCasoUsoTest` | Cada fila de la tabla de RQ-SAG-06 |
 | Integración | `RegistrarCostoSagaIT` | Historia 1 completa: éxito en `PLANIFICADA` y `EN_CURSO`, rechazos por finalizada, inexistente y `SAGA_ANULADA` |
 | Integración | `IdempotenciaSagaIT` | Historia 2: mismo `idSaga` con distinto `idMensaje`, rechazos repetidos, datos distintos, 100 entregas en paralelo → un solo costo (CE-SAG-02) |
-| Integración | `FallosSagaIT` | Historia 3: base de datos detenida → 4 intentos y DLQ sin respuesta; sobre inválido → DLQ sin reintentos; datos inválidos → `DATOS_INVALIDOS` |
+| Integración | `FallosSagaIT` | Historia 3: fallo técnico simulado en el repositorio (detener el PostgreSQL compartido rompería los demás tests) → 4 intentos y DLQ sin respuesta; sobre inválido → DLQ sin reintentos; datos inválidos → `DATOS_INVALIDOS` |
 | Integración | `AnularCostoSagaIT` | Historia 4 completa; registro y anulación en paralelo y en ambos órdenes → resultado `ANULADO` (CE-SAG-03) |
 | Integración | `FinalizacionConcurrenteSagaIT` | Finalización y costo de la Saga simultáneos → nunca un costo en campaña finalizada (CE-CAM-02 de `spec-campanias.md`) |
 
@@ -338,12 +340,12 @@ Los tests publican en la cola real de RabbitMQ (Testcontainers) y leen las respu
 
 # 3. Tareas
 
-- [ ] **T01** — Agregar Spring AMQP, la configuración de RabbitMQ, RabbitMQ en `PruebaIntegracionBase` y en `/salud/readiness`.
-- [ ] **T02** — Crear `V7__crear_tablas_saga.sql`, `SagaProcesada` y la persistencia, incluido el bloqueo consultivo.
-- [ ] **T03** — Ampliar `Campania` con registro y anulación de costos de la Saga, con `CampaniaCostoSagaTest`.
-- [ ] **T04** — Implementar `ConfiguracionRabbit` (colas, DLQ, reintentos) y `PublicadorMensajesRabbit`.
-- [ ] **T05** — Implementar `ConsumidorComandosSaga` y `RegistrarCostoSagaCasoUso`. *Hecho cuando:* pasan `RegistrarCostoSagaIT` y `IdempotenciaSagaIT`.
-- [ ] **T06** — Implementar `AnularCostoSagaCasoUso`. *Hecho cuando:* pasan `AnularCostoSagaCasoUsoTest` y `AnularCostoSagaIT`.
-- [ ] **T07** — Escribir `FallosSagaIT` y `FinalizacionConcurrenteSagaIT`.
-- [ ] **T08** — Documentar el contrato de mensajes y las colas para el equipo de `servicio-operaciones` (sección 2.2 y 2.3 de este archivo).
-- [ ] **T09** — Verificación final: `mvn verify` en verde y criterios CE-SAG-01 a CE-SAG-05 cubiertos.
+- [x] **T01** — Agregar Spring AMQP, la configuración de RabbitMQ, RabbitMQ en `PruebaIntegracionBase` y en `/salud/readiness`.
+- [x] **T02** — Crear `V7__crear_tablas_saga.sql`, `SagaProcesada` y la persistencia, incluido el bloqueo consultivo.
+- [x] **T03** — Ampliar `Campania` con registro y anulación de costos de la Saga, con `CampaniaCostoSagaTest`.
+- [x] **T04** — Implementar `ConfiguracionRabbit` (colas, DLQ, reintentos) y `PublicadorMensajesRabbit`.
+- [x] **T05** — Implementar `ConsumidorComandosSaga` y `RegistrarCostoSagaCasoUso`. *Hecho cuando:* pasan `RegistrarCostoSagaIT` y `IdempotenciaSagaIT`.
+- [x] **T06** — Implementar `AnularCostoSagaCasoUso`. *Hecho cuando:* pasan `AnularCostoSagaCasoUsoTest` y `AnularCostoSagaIT`.
+- [x] **T07** — Escribir `FallosSagaIT` y `FinalizacionConcurrenteSagaIT`.
+- [x] **T08** — Documentar el contrato de mensajes y las colas para el equipo de `servicio-operaciones` (sección 2.2 y 2.3 de este archivo).
+- [x] **T09** — Verificación final: `mvn verify` en verde y criterios CE-SAG-01 a CE-SAG-05 cubiertos.

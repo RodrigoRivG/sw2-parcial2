@@ -11,8 +11,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.RabbitMQContainer;
 
-/** Un solo contenedor por ejecución, reutilizado por todos los tests *IT. */
+/** Una sola pareja de contenedores por ejecución, reutilizada por todos los tests *IT. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -21,8 +22,12 @@ public abstract class PruebaIntegracionBase {
     @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
 
+    @ServiceConnection
+    static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:4-management-alpine");
+
     static {
         POSTGRES.start();
+        RABBIT.start();
     }
 
     @Autowired

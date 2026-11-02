@@ -16,8 +16,8 @@ public class CostoCampania {
     private final OrigenCosto origen;
     private final UUID idSaga;
     private final UUID idLabor;
-    private final boolean anulado;
-    private final Instant fechaAnulacion;
+    private boolean anulado;
+    private Instant fechaAnulacion;
     private final Instant fechaRegistro;
 
     private CostoCampania(
@@ -62,6 +62,25 @@ public class CostoCampania {
                 ahora);
     }
 
+    static CostoCampania crearSaga(UUID idSaga, UUID idLabor, Dinero monto, LocalDate fecha, Instant ahora) {
+        if (!monto.esPositivo()) {
+            throw new ExcepcionDominio(
+                    "MONTO_INVALIDO", "El monto debe ser mayor a 0.", ExcepcionDominio.Tipo.REGLA_NEGOCIO);
+        }
+        return new CostoCampania(
+                UUID.randomUUID(),
+                CategoriaCosto.INSUMO,
+                monto,
+                fecha,
+                "Insumos de la labor " + idLabor,
+                OrigenCosto.SAGA,
+                idSaga,
+                idLabor,
+                false,
+                null,
+                ahora);
+    }
+
     /** Reconstruye un costo ya guardado; no vuelve a aplicar reglas de creación. */
     public static CostoCampania reconstruir(
             UUID id,
@@ -85,6 +104,12 @@ public class CostoCampania {
         this.monto = monto;
         this.fecha = fecha;
         this.descripcion = descripcion.trim();
+    }
+
+    /** No se borra: deja de contar en totales e indicadores, y conserva su idSaga. */
+    void anular(Instant ahora) {
+        anulado = true;
+        fechaAnulacion = ahora;
     }
 
     private static void validar(Dinero monto, LocalDate fecha, LocalDate hoy) {

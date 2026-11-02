@@ -211,6 +211,24 @@ public class Campania {
         fechaActualizacion = ahora;
     }
 
+    public CostoCampania registrarCostoSaga(UUID idSaga, UUID idLabor, Dinero monto, LocalDate fecha, Instant ahora) {
+        rechazarSiFinalizada();
+        CostoCampania costo = CostoCampania.crearSaga(idSaga, idLabor, monto, fecha, ahora);
+        costos.add(costo);
+        fechaActualizacion = ahora;
+        return costo;
+    }
+
+    public void anularCostoSaga(UUID idSaga, Instant ahora) {
+        rechazarSiFinalizada();
+        costos.stream()
+                .filter(costo -> idSaga.equals(costo.getIdSaga()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("La campaña no tiene un costo de la saga " + idSaga))
+                .anular(ahora);
+        fechaActualizacion = ahora;
+    }
+
     private CostoCampania costoEditable(UUID idCosto) {
         CostoCampania costo = costos.stream()
                 .filter(candidato -> candidato.getId().equals(idCosto))

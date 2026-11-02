@@ -68,6 +68,7 @@ class ValidacionTokenIT extends PruebaIntegracionBase {
     static void configurarJwks(DynamicPropertyRegistry registro) {
         registro.add("KEYCLOAK_JWKS_URI",
                 () -> "http://localhost:" + SERVIDOR_JWKS.getAddress().getPort() + "/certs");
+        registro.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
     }
 
     @AfterAll
