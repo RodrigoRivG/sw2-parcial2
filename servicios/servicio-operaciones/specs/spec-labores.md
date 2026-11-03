@@ -579,7 +579,7 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [x] **T05** [P] — Implementar `ExcepcionDominio` y el render de errores. *Hecho cuando:* pasa `ErroresTest.php`.
 - [x] **T06** [P] — Implementar `IdCorrelacion` y el log JSON. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
 - [x] **T07** — Implementar `RegistroAuditoriaDynamo`, `Reloj`, `CodificadorCursor`, `tests/bootstrap.php`, `EnParalelo` y `openapi.yaml` con `/salud`. *Hecho cuando:* pasa `OpenApiTest.php`.
-- [x] **T08** [P] — Escribir el `Dockerfile`, ajustar `docker/laravel/Dockerfile` y `docker-compose.yml` (2.1) y crear `.github/workflows/servicio-operaciones.yml`. *Hecho cuando:* `docker compose --profile operaciones up -d` deja el servicio respondiendo `/salud` y el pipeline corre en verde. Verificado en local: el perfil arranca sano, el programador ejecuta `labores:revalidar-campanias` cada minuto, la imagen de producción responde `/salud/liveness`, y los pasos del pipeline (Pint, Pest con cobertura y `docker build`) pasan. La primera corrida en GitHub Actions ocurre con el push.
+- [x] **T08** [P] — Escribir el `Dockerfile`, ajustar `docker/laravel/Dockerfile` y `docker-compose.yml` (2.1) y crear `.github/workflows/servicio-operaciones.yml`. *Hecho cuando:* `docker compose --profile operaciones up -d` deja el servicio respondiendo `/salud` y el pipeline corre en verde. Verificado en local: el perfil arranca sano, el programador ejecuta `labores:revalidar-campanias` cada minuto, la imagen de producción responde `/salud/liveness`, y los pasos del pipeline (Pint, Pest con cobertura y `docker build`) pasan. Pipeline en verde en GitHub Actions (2026-11-03).
 
 ## Fase 1 — Labores
 

@@ -11,7 +11,7 @@ it('responde liveness sin token', function () {
 it('responde readiness y /salud con DynamoDB disponible', function (string $ruta) {
     $this->getJson($ruta)
         ->assertOk()
-        ->assertJson(['estado' => 'UP', 'componentes' => ['dynamodb' => ['estado' => 'UP']]]);
+        ->assertJson(['estado' => 'UP', 'componentes' => ['dynamodb' => ['estado' => 'UP'], 'rabbitmq' => ['estado' => 'UP']]]);
 })->with(['/salud/readiness', '/salud']);
 
 it('responde 503 en readiness si DynamoDB no responde', function () {
@@ -27,6 +27,14 @@ it('responde 503 en readiness si DynamoDB no responde', function () {
     $this->getJson('/salud/readiness')
         ->assertStatus(503)
         ->assertJson(['estado' => 'DOWN', 'componentes' => ['dynamodb' => ['estado' => 'DOWN']]]);
+});
+
+it('responde 503 en readiness si RabbitMQ no responde', function () {
+    config(['rabbitmq.host' => 'rabbitmq-inexistente']);
+
+    $this->getJson('/salud/readiness')
+        ->assertStatus(503)
+        ->assertJson(['estado' => 'DOWN', 'componentes' => ['dynamodb' => ['estado' => 'UP'], 'rabbitmq' => ['estado' => 'DOWN']]]);
 });
 
 it('sirve el contrato OpenAPI sin token', function () {

@@ -5,17 +5,48 @@
       "nombre": "registros_auditoria",
       "clave": "id",
       "indices": [
-        { "nombre": "gsi_entidad", "particion": "entidad_id", "orden": "fecha" }
+        {
+          "nombre": "gsi_entidad",
+          "particion": "entidad_id",
+          "orden": "fecha"
+        }
       ]
     },
     {
       "nombre": "labores",
       "clave": "id",
       "indices": [
-        { "nombre": "gsi_estado", "particion": "estado", "orden": "fecha_referencia" },
-        { "nombre": "gsi_campania", "particion": "id_campania", "orden": "fecha_referencia" },
-        { "nombre": "gsi_responsable", "particion": "id_responsable", "orden": "fecha_referencia" },
-        { "nombre": "gsi_validacion_pendiente", "particion": "validacion_pendiente", "orden": "fecha_proximo_validacion" }
+        {
+          "nombre": "gsi_estado",
+          "particion": "estado",
+          "orden": "fecha_referencia"
+        },
+        {
+          "nombre": "gsi_campania",
+          "particion": "id_campania",
+          "orden": "fecha_referencia"
+        },
+        {
+          "nombre": "gsi_responsable",
+          "particion": "id_responsable",
+          "orden": "fecha_referencia"
+        },
+        {
+          "nombre": "gsi_validacion_pendiente",
+          "particion": "validacion_pendiente",
+          "orden": "fecha_proximo_validacion"
+        }
+      ]
+    },
+    {
+      "nombre": "sagas",
+      "clave": "id_saga",
+      "indices": [
+        {
+          "nombre": "gsi_activas",
+          "particion": "activa",
+          "orden": "fecha_limite"
+        }
       ]
     }
   ]

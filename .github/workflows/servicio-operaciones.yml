@@ -42,6 +42,7 @@ jobs:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: sw2
       RABBITMQ_PASSWORD: sw2pass
+      RABBITMQ_GESTION_URL: http://localhost:15672
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2

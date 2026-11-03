@@ -292,6 +292,20 @@ services:
         condition: service_healthy
     mem_limit: 128m
 
+  # Respuestas de inventario y gestión a la Saga; si pierde la conexión termina y Docker lo reinicia
+  servicio-operaciones-consumidor:
+    profiles: ["operaciones", "saga", "backend", "todo"]
+    image: sw2/laravel-dev
+    command: php artisan operaciones:consumir-respuestas
+    restart: unless-stopped
+    volumes:
+      - ./servicios/servicio-operaciones:/app
+    environment: *operaciones-env
+    depends_on:
+      servicio-operaciones:
+        condition: service_healthy
+    mem_limit: 128m
+
   servicio-ia:
     profiles: ["ia", "todo"]
     image: sw2/python-dev

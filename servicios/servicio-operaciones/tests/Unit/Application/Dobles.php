@@ -5,13 +5,22 @@ namespace Tests\Unit\Application;
 use App\Application\Contracts\CampaniaNoDisponible;
 use App\Application\Contracts\ConflictoEscritura;
 use App\Application\Contracts\PasarelaCampania;
+use App\Application\Contracts\PublicacionFallida;
+use App\Application\Contracts\PublicadorMensajes;
 use App\Application\Contracts\RegistroAuditoria;
 use App\Application\Contracts\UnidadTrabajo;
+use App\Application\UseCases\Saga\EnvioComandos;
+use App\Application\UseCases\Saga\IniciarSaga;
 use App\Domain\FieldTask\CampaniaConsultada;
 use App\Domain\FieldTask\EstadoLabor;
 use App\Domain\FieldTask\LaborAgricola;
 use App\Domain\FieldTask\RepositorioLabor;
+use App\Domain\Saga\ConfiguracionSaga;
+use App\Domain\Saga\Participante;
+use App\Domain\Saga\RepositorioSaga;
+use App\Domain\Saga\Saga;
 use DateTimeImmutable;
+use Psr\Log\NullLogger;
 
 /**
  * Dobles escritos a mano para los tests unitarios de Application (sin Laravel ni DynamoDB).
@@ -63,6 +72,78 @@ final class RepositorioLaborEnMemoria implements RepositorioLabor
 
         return array_map(fn (LaborAgricola $l) => clone $l, array_values(array_slice($vencidas, 0, $maximo)));
     }
+
+    public function pendientesSinSaga(int $maximo): array
+    {
+        return array_map(fn (LaborAgricola $l) => clone $l, array_values(array_filter($this->labores, fn (LaborAgricola $l) => $l->requiereSaga())));
+    }
+}
+
+final class RepositorioSagaEnMemoria implements RepositorioSaga
+{
+    /** @var array<string, Saga> */
+    public array $sagas = [];
+
+    /** Simula otra escritura (otra respuesta o la recuperación) justo antes de guardar. */
+    public ?\Closure $antesDeActualizar = null;
+
+    public function buscar(string $idSaga): ?Saga
+    {
+        return isset($this->sagas[$idSaga]) ? clone $this->sagas[$idSaga] : null;
+    }
+
+    public function guardarNueva(Saga $saga): void
+    {
+        if (isset($this->sagas[$saga->idSaga])) {
+            throw new ConflictoEscritura('saga');
+        }
+        $this->sagas[$saga->idSaga] = clone $saga;
+    }
+
+    public function actualizar(Saga $saga, int $versionLeida): void
+    {
+        if ($this->antesDeActualizar !== null) {
+            $antes = $this->antesDeActualizar;
+            $this->antesDeActualizar = null;
+            $antes($this);
+        }
+        if (($this->sagas[$saga->idSaga] ?? null)?->version !== $versionLeida) {
+            throw new ConflictoEscritura('saga');
+        }
+        $this->sagas[$saga->idSaga] = clone $saga;
+    }
+
+    public function vencidas(DateTimeImmutable $ahora, int $maximo): array
+    {
+        return array_values(array_map(
+            fn (Saga $s) => $s->idSaga,
+            array_filter($this->sagas, fn (Saga $s) => $s->estaVencida($ahora)),
+        ));
+    }
+}
+
+final class PublicadorEnMemoria implements PublicadorMensajes
+{
+    /** @var list<array{destino: Participante, tipo: string, datos: array<string, mixed>, idCorrelacion: string}> */
+    public array $enviados = [];
+
+    public bool $falla = false;
+
+    public function enviarComando(Participante $destino, string $tipo, array $datos, string $idCorrelacion): string
+    {
+        if ($this->falla) {
+            throw new PublicacionFallida('broker caído');
+        }
+        $this->enviados[] = ['destino' => $destino, 'tipo' => $tipo, 'datos' => $datos, 'idCorrelacion' => $idCorrelacion];
+
+        return 'msg-'.count($this->enviados);
+    }
+}
+
+function iniciarSagaEnMemoria(AuditoriaEnMemoria $auditoria, ?RepositorioSagaEnMemoria $sagas = null, ?PublicadorEnMemoria $publicador = null): IniciarSaga
+{
+    return new IniciarSaga($sagas ?? new RepositorioSagaEnMemoria, $auditoria,
+        new EnvioComandos($publicador ?? new PublicadorEnMemoria, new NullLogger), new ConfiguracionSaga);
 }
 
 final class UnidadTrabajoDirecta implements UnidadTrabajo

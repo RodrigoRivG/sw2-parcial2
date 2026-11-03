@@ -6,6 +6,7 @@ use App\Application\Contracts\ConflictoEscritura;
 use App\Application\Contracts\RegistroAuditoria;
 use App\Application\Contracts\Reloj;
 use App\Application\Contracts\UnidadTrabajo;
+use App\Application\UseCases\Saga\IniciarSaga;
 use App\Domain\FieldTask\LaborAgricola;
 use App\Domain\FieldTask\RepositorioLabor;
 use App\Domain\FieldTask\ValidacionCampania;
@@ -23,6 +24,7 @@ final class CreacionLabor
         private readonly RegistroAuditoria $auditoria,
         private readonly VerificadorCampania $verificador,
         private readonly Reloj $reloj,
+        private readonly IniciarSaga $iniciarSaga,
     ) {}
 
     /**
@@ -48,11 +50,14 @@ final class CreacionLabor
         $validarReglas($ahora);
         $validacion = $this->verificador->exigir($idCampania, $idParcela);
         $labor = $fabricar($validacion, $ahora);
+        // Realizada con insumos y campaña validada: la Saga se guarda junto con la labor (spec-saga.md RQ-SAG-01)
+        $saga = $this->iniciarSaga->preparar($labor, $ahora);
 
         try {
-            $this->unidadTrabajo->ejecutar(function () use ($labor, $accion, $actor) {
+            $this->unidadTrabajo->ejecutar(function () use ($labor, $accion, $actor, $saga) {
                 $this->repositorio->guardarNueva($labor);
                 $this->auditoria->registrar($actor, $accion, 'LABOR', $labor->id);
+                $this->iniciarSaga->registrar($saga);
             });
         } catch (ConflictoEscritura) {
             // Otra solicitud con el mismo idOperacion ganó la carrera
@@ -60,6 +65,7 @@ final class CreacionLabor
 
             return $this->repeticion($ganadora, $huella);
         }
+        $this->iniciarSaga->enviar($saga);
 
         return new ResultadoLabor($labor, false);
     }

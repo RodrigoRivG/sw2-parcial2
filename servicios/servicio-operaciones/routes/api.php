@@ -1,6 +1,7 @@
 <?php
 
 use App\InterfaceAdapters\Http\Controllers\LaborControlador;
+use App\InterfaceAdapters\Http\Controllers\SagaControlador;
 use App\InterfaceAdapters\Http\Middleware\ExigirJsonValido;
 use Illuminate\Support\Facades\Route;
 
@@ -11,4 +12,7 @@ Route::middleware(['jwt', ExigirJsonValido::class])->group(function (): void {
     Route::post('/labores/{id}/realizacion', [LaborControlador::class, 'realizar'])->whereUuid('id')->middleware('rol:tecnico_campo');
     Route::get('/labores', [LaborControlador::class, 'listar'])->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
     Route::get('/labores/{id}', [LaborControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
+
+    // Saga (spec-saga.md)
+    Route::get('/sagas/{id}', [SagaControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones');
 });

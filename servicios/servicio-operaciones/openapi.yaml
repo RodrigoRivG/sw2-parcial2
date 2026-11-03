@@ -104,6 +104,16 @@ paths:
         '404': { description: LABOR_NO_ENCONTRADA o CAMPANIA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: CONFLICTO_IDEMPOTENCIA o CONFLICTO_CONCURRENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: LABOR_NO_PROGRAMADA, CAMPANIA_FINALIZADA, PARCELA_NO_CORRESPONDE, CANTIDAD_INVALIDA o FECHA_EJECUCION_INVALIDA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/operaciones/v1/sagas/{id}:
+    get:
+      summary: Estado de una Saga, con el detalle de cada paso (administrador, gerencia, lectura_operaciones)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Saga, content: { application/json: { schema: { $ref: '#/components/schemas/Saga' } } } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { description: SAGA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 components:
   securitySchemes:
     jwt:
@@ -185,6 +195,34 @@ components:
                 mensaje: { type: string }
                 detalles: { type: array, items: { type: object } }
         version: { type: integer }
+        fechaActualizacion: { type: string, format: date-time }
+    Saga:
+      type: object
+      properties:
+        idSaga: { type: string, format: uuid }
+        idLabor: { type: string, format: uuid }
+        idCampania: { type: string, format: uuid }
+        estado: { type: string, enum: [EN_CURSO, COMPENSANDO, COMPLETADA, RECHAZADA, COMPENSADA, REQUIERE_INTERVENCION] }
+        pasoActual: { type: string, enum: [DESCONTAR_INSUMOS, REGISTRAR_COSTO, ANULAR_COSTO, RESTAURAR_INSUMOS] }
+        costoTotal: { type: [string, 'null'], description: En BOB, con 2 decimales }
+        items: { type: array, items: { $ref: '#/components/schemas/ConsumoInsumo' } }
+        pasos:
+          type: array
+          items:
+            type: object
+            properties:
+              paso: { type: string }
+              estado: { type: string, enum: [ENVIADO, COMPLETADO, RECHAZADO, OMITIDO, SIN_RESPUESTA] }
+              intentos: { type: integer }
+              fechaPrimerEnvio: { type: [string, 'null'], format: date-time }
+              fechaUltimoEnvio: { type: [string, 'null'], format: date-time }
+              fechaRespuesta: { type: [string, 'null'], format: date-time }
+              respuesta: { type: [object, 'null'] }
+              error: { type: [string, 'null'] }
+        respuestasTardias: { type: array, items: { type: object } }
+        fechaLimite: { type: [string, 'null'], format: date-time }
+        version: { type: integer }
+        fechaCreacion: { type: string, format: date-time }
         fechaActualizacion: { type: string, format: date-time }
     PaginaLabores:
       type: object

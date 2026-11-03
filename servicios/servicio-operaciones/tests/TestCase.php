@@ -22,7 +22,7 @@ abstract class TestCase extends BaseTestCase
      * @param  list<string>  $roles
      * @return array<string, string>
      */
-    protected function encabezados(array $roles, string $sub = 'usuario-pruebas'): array
+    public function encabezados(array $roles, string $sub = 'usuario-pruebas'): array
     {
         return ['Authorization' => 'Bearer '.Tokens::para($roles, $sub), 'Accept' => 'application/json'];
     }

@@ -86,6 +86,27 @@ final class RepositorioLaborDynamo implements ConsultaLabores, RepositorioLabor
         return array_map(fn (array $item) => LaborMapper::aLabor($this->marshaler->unmarshalItem($item)), $resultado['Items'] ?? []);
     }
 
+    public function pendientesSinSaga(int $maximo): array
+    {
+        $labores = [];
+        $parametros = [
+            'TableName' => $this->tabla(),
+            'IndexName' => 'gsi_estado',
+            'KeyConditionExpression' => 'estado = :pendiente',
+            'FilterExpression' => 'attribute_not_exists(id_saga) AND validacion_campania = :validada AND size(insumos) > :cero',
+            'ExpressionAttributeValues' => [':pendiente' => ['S' => 'PENDIENTE'], ':validada' => ['S' => 'VALIDADA'], ':cero' => ['N' => '0']],
+        ];
+        do {
+            $resultado = $this->cliente->query($parametros);
+            foreach ($resultado['Items'] ?? [] as $item) {
+                $labores[] = LaborMapper::aLabor($this->marshaler->unmarshalItem($item));
+            }
+            $parametros['ExclusiveStartKey'] = $resultado['LastEvaluatedKey'] ?? null;
+        } while ($parametros['ExclusiveStartKey'] !== null && count($labores) < $maximo);
+
+        return array_slice($labores, 0, $maximo);
+    }
+
     public function listar(FiltroLabores $filtro): Pagina
     {
         // El primer filtro presente elige el índice; los demás van en FilterExpression (spec-labores.md 2.3)

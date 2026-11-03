@@ -19,13 +19,15 @@ use Tests\Unit\Application\PasarelaCampaniaFalsa;
 use Tests\Unit\Application\RepositorioLaborEnMemoria;
 use Tests\Unit\Application\UnidadTrabajoDirecta;
 
+use function Tests\Unit\Application\iniciarSagaEnMemoria;
+
 beforeEach(function () {
     $this->reloj = new RelojFijo('2026-11-02T14:00:00Z');
     $this->repositorio = new RepositorioLaborEnMemoria;
     $this->auditoria = new AuditoriaEnMemoria;
     $this->pasarela = new PasarelaCampaniaFalsa;
     $this->revalidar = new RevalidarCampaniasCasoUso($this->repositorio, new UnidadTrabajoDirecta, $this->auditoria,
-        new VerificadorCampania($this->pasarela, new NullLogger), $this->reloj);
+        new VerificadorCampania($this->pasarela, new NullLogger), $this->reloj, iniciarSagaEnMemoria($this->auditoria));
 });
 
 function laborDiferida(string $id, string $idCampania, bool $conInsumos = false): LaborAgricola

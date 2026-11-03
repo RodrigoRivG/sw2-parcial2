@@ -20,6 +20,8 @@ use Tests\Unit\Application\PasarelaCampaniaFalsa;
 use Tests\Unit\Application\RepositorioLaborEnMemoria;
 use Tests\Unit\Application\UnidadTrabajoDirecta;
 
+use function Tests\Unit\Application\iniciarSagaEnMemoria;
+
 beforeEach(function () {
     $utc = new DateTimeZone('UTC');
     $this->repositorio = new RepositorioLaborEnMemoria;
@@ -30,7 +32,8 @@ beforeEach(function () {
     $this->pasarela = new PasarelaCampaniaFalsa;
     $this->pasarela->campanias['c1'] = new CampaniaConsultada('c1', 'p1', 'EN_CURSO');
     $this->realizar = new RealizarLaborCasoUso($this->repositorio, new UnidadTrabajoDirecta, $this->auditoria,
-        new VerificadorCampania($this->pasarela, new NullLogger), new RelojFijo('2026-11-20T12:00:00Z'));
+        new VerificadorCampania($this->pasarela, new NullLogger), new RelojFijo('2026-11-20T12:00:00Z'),
+        iniciarSagaEnMemoria($this->auditoria));
     $this->tecnico = new UsuarioAutenticado('tec-1', 'Ana', ['tecnico_campo']);
 });
 
@@ -72,7 +75,7 @@ it('la misma realización repetida devuelve la labor; con otro contenido es conf
     $this->realizar->ejecutar(realizacion(), $this->tecnico);
 
     expect($this->realizar->ejecutar(realizacion(), $this->tecnico)->repetida)->toBeTrue()
-        ->and($this->auditoria->registros)->toHaveCount(1)
+        ->and(array_column($this->auditoria->registros, 'accion'))->toBe(['REALIZAR_LABOR', 'INICIAR_SAGA'])
         ->and(codigoRealizacion(fn () => $this->realizar->ejecutar(realizacion(['insumos' => []]), $this->tecnico)))->toBe('CONFLICTO_IDEMPOTENCIA');
 });
 

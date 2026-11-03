@@ -8,6 +8,7 @@ use App\Application\Contracts\Reloj;
 use App\Application\Contracts\UnidadTrabajo;
 use App\Application\Security\SinPermiso;
 use App\Application\Security\UsuarioAutenticado;
+use App\Application\UseCases\Saga\IniciarSaga;
 use App\Domain\FieldTask\EstadoLabor;
 use App\Domain\FieldTask\LaborAgricola;
 use App\Domain\FieldTask\RepositorioLabor;
@@ -26,6 +27,7 @@ final class RealizarLaborCasoUso
         private readonly RegistroAuditoria $auditoria,
         private readonly VerificadorCampania $verificador,
         private readonly Reloj $reloj,
+        private readonly IniciarSaga $iniciarSaga,
     ) {}
 
     public function ejecutar(RealizarLaborEntrada $entrada, UsuarioAutenticado $usuario): ResultadoLabor
@@ -75,10 +77,13 @@ final class RealizarLaborCasoUso
             $ahora,
         );
 
+        $saga = $this->iniciarSaga->preparar($labor, $ahora);
+
         try {
-            $this->unidadTrabajo->ejecutar(function () use ($labor, $versionLeida, $usuario) {
+            $this->unidadTrabajo->ejecutar(function () use ($labor, $versionLeida, $usuario, $saga) {
                 $this->repositorio->actualizar($labor, $versionLeida, EstadoLabor::PROGRAMADA);
                 $this->auditoria->registrar($usuario->id, 'REALIZAR_LABOR', 'LABOR', $labor->id);
+                $this->iniciarSaga->registrar($saga);
             });
         } catch (ConflictoEscritura) {
             $actual = $this->buscar($idLabor);
@@ -90,6 +95,7 @@ final class RealizarLaborCasoUso
 
             throw ExcepcionDominio::conflicto('CONFLICTO_CONCURRENCIA', 'La labor cambió mientras se registraba su realización. Intente nuevamente.');
         }
+        $this->iniciarSaga->enviar($saga);
 
         return new ResultadoLabor($labor, false);
     }

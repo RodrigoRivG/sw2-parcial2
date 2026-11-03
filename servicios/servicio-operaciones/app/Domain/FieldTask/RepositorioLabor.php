@@ -23,4 +23,11 @@ interface RepositorioLabor
      * @return list<LaborAgricola>
      */
     public function conValidacionVencida(DateTimeImmutable $ahora, int $maximo): array;
+
+    /**
+     * Labores PENDIENTE con insumos y campaña validada que todavía no tienen Saga (spec-saga.md, casos borde).
+     *
+     * @return list<LaborAgricola>
+     */
+    public function pendientesSinSaga(int $maximo): array;
 }

@@ -200,6 +200,43 @@ final class LaborAgricola
         return $this->validacionCampania === ValidacionCampania::PENDIENTE;
     }
 
+    /** RN-07: realizada con insumos, campaña validada y todavía sin Saga. */
+    public function requiereSaga(): bool
+    {
+        return $this->estado === EstadoLabor::PENDIENTE
+            && $this->validacionCampania === ValidacionCampania::VALIDADA
+            && $this->insumos !== []
+            && $this->idSaga === null;
+    }
+
+    /** Se guarda en la misma escritura que la Saga (RQ-SAG-01); no es un cambio aparte, así que no sube la versión. */
+    public function iniciarSaga(string $idSaga): void
+    {
+        if (! $this->requiereSaga()) {
+            throw new \LogicException("La labor {$this->id} no requiere Saga.");
+        }
+        $this->idSaga = $idSaga;
+    }
+
+    /** Para iniciar la Saga de una labor ya guardada (sagas:iniciar-pendientes): ahí sí es un cambio aparte. */
+    public function confirmarCambioAparte(DateTimeImmutable $ahora): void
+    {
+        $this->tocar($ahora);
+    }
+
+    /**
+     * Resultado de la Saga (spec-saga.md RQ-SAG-04 y RQ-SAG-05): estado nuevo, motivo nuevo o ambos.
+     */
+    public function registrarResultadoSaga(?EstadoLabor $estado, ?Motivo $motivo, DateTimeImmutable $ahora): void
+    {
+        if (! in_array($this->estado, [EstadoLabor::PENDIENTE, EstadoLabor::PENDIENTE_REVISION], true)) {
+            throw new \LogicException("La labor {$this->id} ya no espera el resultado de la Saga.");
+        }
+        $this->estado = $estado ?? $this->estado;
+        $this->motivo = $motivo ?? ($estado === EstadoLabor::CONFIRMADA ? null : $this->motivo);
+        $this->tocar($ahora);
+    }
+
     /** RQ-LAB-15: la fecha por la que se ordena y filtra. */
     public function fechaReferencia(): string
     {

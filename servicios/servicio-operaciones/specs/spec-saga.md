@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-operaciones` |
 | Archivo | `specs/spec-saga.md` |
-| Estado | Spec en borrador (2026-11-02) |
+| Estado | Spec aprobada (2026-11-03) · Implementada (2026-11-03) |
 | Constitución | v2.8.0 (secciones 4, 6, 8, 10 y 11) |
 | Trazabilidad | CU-12 (prioridad alta; incluye CU-08 de inventario y CU-04 de gestión como participantes) · RF-13 · RN-07, RN-08, RN-09 · RNF-08, RNF-10, RNF-11, RNF-22 |
 | Depende de | `spec-labores.md` (labor `PENDIENTE` con insumos). Contratos: `servicio-inventario/specs/spec-descuento-saga.md` (RQ-SAG-09, 2.1) y `servicio-gestion/specs/spec-costo-saga.md` (2.2, 2.3) |
@@ -350,6 +350,17 @@ Tabla `sagas` (clave `id_saga`):
 
 La constitución nombra un manejador por respuesta; se agrega `ManejarInsumosRestaurados`, que no figura en la lista de referencia.
 
+Ajustes respecto del plan original:
+
+- Los siete manejadores se reemplazaron por `LectorRespuesta` (valida y traduce los `datos` de cada tipo según el contrato del participante) y `AvanceSaga` (relee, deja decidir a la Saga, escribe Saga, labor y auditoría juntas, y publica). Cada manejador solo habría leído campos; la decisión ya es del dominio. `ProcesarRespuestaSaga` y `ReanudarSagasEstancadas` usan el mismo `AvanceSaga`, así que la respuesta y el vencimiento comparten la relectura ante conflictos.
+- El comando siguiente lo publica Application (`EnvioComandos`) después de confirmar la escritura, no el consumidor; así el inicio de la Saga desde el registro, la realización y la revalidación de labores publica igual. Una `PublicacionFallida` solo se registra: la recuperación reenvía.
+- El consumidor (`InterfaceAdapters/Messaging`) no depende de `php-amqplib`: recibe el cuerpo del mensaje de `FuenteMensajes`, cuya implementación (`FuenteMensajesRabbitMq`) confirma o publica en la DLQ con los headers `x-motivo` y `x-cola-origen`. Si la DLQ no confirma, el mensaje no se confirma y vuelve a la cola.
+- `ConexionRabbitMq` usa un canal de publicación en modo confirmación (una sola vez por canal) y canales aparte para consumir; heartbeat de 30 s, atendido mientras el consumidor espera mensajes.
+- `PasoSaga`, `Participante` y `TipoRespuesta` son enumeraciones del dominio: la infraestructura traduce el participante a su cola (`TopologiaSaga::colaDe`).
+- `LaborAgricola::iniciarSaga` no sube la versión, porque se guarda en la misma escritura que la creación o el cambio que la origina; `sagas:iniciar-pendientes` usa `confirmarCambioAparte`, para que dos ejecuciones simultáneas no inicien dos Sagas.
+- Una tabla nueva en `tablas.json` exige volver a ejecutar `php artisan dynamodb:crear-tablas` al desplegar. En Docker Compose lo hace el arranque de `servicio-operaciones` (basta reiniciarlo); sin la tabla, la escritura falla completa y no queda la labor a medias. Se detectó en la verificación de T10.
+- Tests: el vhost `pruebas` lo crea `tests/bootstrap.php` con la API de administración de RabbitMQ (`RABBITMQ_GESTION_URL`); `FlujoSaga` vacía la tabla `sagas` al empezar cada escenario, porque la recuperación atiende todas las Sagas vencidas y una dejada activa por otro test reenviaría comandos ajenos; RabbitMQ 4 informa `x-queue-type: classic` en todas las colas, y el test de topología lo ignora.
+
 ## 2.8 Diseño por capas
 
 | Capa | Archivo | Responsabilidad |
@@ -384,14 +395,14 @@ Los tests de mensajería usan el vhost `pruebas` (README D-17): hacen de partici
 
 # 3. Tareas
 
-- [ ] **T01** — Agregar `php-amqplib`, `ConexionRabbitMq`, `TopologiaSaga`, la configuración y RabbitMQ en readiness. *Hecho cuando:* pasa `TopologiaTest.php`.
-- [ ] **T02** — Implementar `PublicadorRabbitMq` con confirmaciones.
-- [ ] **T03** — Crear `Saga`, sus enumeraciones, `Decision` y `ConfiguracionSaga`, con `SagaTest.php`.
-- [ ] **T04** — Agregar `sagas` a `tablas.json` e implementar `RepositorioSagaDynamo` con su mapper.
-- [ ] **T05** — Implementar `IniciarSaga` y conectarlo a registro, realización y revalidación de labores. *Hecho cuando:* pasa el escenario 1 (y 5) de la Historia 1.
-- [ ] **T06** — Implementar `ConsumidorRespuestasSaga`, `operaciones:consumir-respuestas`, `ProcesarRespuestaSaga` y los manejadores. *Hecho cuando:* pasan `SagaExitoTest.php`, `SagaRechazoTest.php`, `SagaDuplicadosTest.php` y `SagaFallosTest.php`.
-- [ ] **T07** — Implementar `ReanudarSagasEstancadas` y `sagas:reanudar`. *Hecho cuando:* pasan `SagaCompensacionTest.php` y `SagaRecuperacionTest.php`.
-- [ ] **T08** — Implementar `GET /sagas/{id}`, `sagas:iniciar-pendientes` y `SagaConcurrenciaTest.php`; documentar en `openapi.yaml`.
-- [ ] **T09** — Agregar `servicio-operaciones-consumidor` a `docker-compose.yml`. Cuando exista `api-gateway`, hacer la prueba de extremo a extremo de CE-SAG-05; hasta entonces queda pendiente y se anota aquí.
-- [ ] **T10** — Verificar con inventario y gestión que los contratos se consumen sin cambios y marcar el T09 de `servicio-inventario/specs/spec-descuento-saga.md` (README AP-05).
-- [ ] **T11** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-SAG-01 a CE-SAG-05 cubiertos.
+- [x] **T01** — Agregar `php-amqplib`, `ConexionRabbitMq`, `TopologiaSaga`, la configuración y RabbitMQ en readiness. *Hecho cuando:* pasa `TopologiaTest.php`.
+- [x] **T02** — Implementar `PublicadorRabbitMq` con confirmaciones.
+- [x] **T03** — Crear `Saga`, sus enumeraciones, `Decision` y `ConfiguracionSaga`, con `SagaTest.php`.
+- [x] **T04** — Agregar `sagas` a `tablas.json` e implementar `RepositorioSagaDynamo` con su mapper.
+- [x] **T05** — Implementar `IniciarSaga` y conectarlo a registro, realización y revalidación de labores. *Hecho cuando:* pasa el escenario 1 (y 5) de la Historia 1.
+- [x] **T06** — Implementar `ConsumidorRespuestasSaga`, `operaciones:consumir-respuestas`, `ProcesarRespuestaSaga` y los manejadores. *Hecho cuando:* pasan `SagaExitoTest.php`, `SagaRechazoTest.php`, `SagaDuplicadosTest.php` y `SagaFallosTest.php`.
+- [x] **T07** — Implementar `ReanudarSagasEstancadas` y `sagas:reanudar`. *Hecho cuando:* pasan `SagaCompensacionTest.php` y `SagaRecuperacionTest.php`.
+- [x] **T08** — Implementar `GET /sagas/{id}`, `sagas:iniciar-pendientes` y `SagaConcurrenciaTest.php`; documentar en `openapi.yaml`.
+- [ ] **T09** — Agregar `servicio-operaciones-consumidor` a `docker-compose.yml`. Cuando exista `api-gateway`, hacer la prueba de extremo a extremo de CE-SAG-05; hasta entonces queda pendiente y se anota aquí. Hecho: el consumidor corre en Compose (perfiles `operaciones`, `saga`, `backend`, `todo`). Pendiente: la prueba completa por HTTP, que necesita `api-gateway` y el realm de Keycloak.
+- [x] **T10** — Verificar con inventario y gestión que los contratos se consumen sin cambios y marcar el T09 de `servicio-inventario/specs/spec-descuento-saga.md` (README AP-05). Verificado (2026-11-03) en Docker Compose con el perfil `saga`, con inventario y gestión reales y solo la consulta de campaña simulada: labor con stock y campaña existente → `CONFIRMADA` (costo 48,50 registrado en gestión, stock 100 → 90); campaña inexistente en gestión → `CostoCampaniaRechazado` (`CAMPANIA_NO_ENCONTRADA`), `RestaurarInsumos` y Saga `COMPENSADA` (el stock vuelve); insumo inexistente → `InsumosRechazados` (`INSUMO_NO_ENCONTRADO`) y labor `RECHAZADA`.
+- [x] **T11** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-SAG-01 a CE-SAG-05 cubiertos. CE-SAG-05 queda cubierto en su parte de mensajería por T10; la parte HTTP depende de T09.

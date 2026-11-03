@@ -4,21 +4,31 @@ namespace App\Infrastructure\Providers;
 
 use App\Application\Contracts\ConsultaLabores;
 use App\Application\Contracts\PasarelaCampania;
+use App\Application\Contracts\PublicadorMensajes;
 use App\Application\Contracts\RegistroAuditoria;
 use App\Application\Contracts\Reloj;
 use App\Application\Contracts\UnidadTrabajo;
 use App\Domain\FieldTask\RepositorioLabor;
+use App\Domain\Saga\ConfiguracionSaga;
+use App\Domain\Saga\RepositorioSaga;
 use App\Infrastructure\Clock\RelojSistema;
 use App\Infrastructure\Http\ClienteServicioGestion;
+use App\Infrastructure\Messaging\ComprobacionRabbitMq;
+use App\Infrastructure\Messaging\ConexionRabbitMq;
+use App\Infrastructure\Messaging\FuenteMensajesRabbitMq;
+use App\Infrastructure\Messaging\PublicadorRabbitMq;
 use App\Infrastructure\Persistence\DynamoDb\ComprobacionDynamoDb;
 use App\Infrastructure\Persistence\DynamoDb\CreadorTablas;
 use App\Infrastructure\Persistence\DynamoDb\NombresTablas;
 use App\Infrastructure\Persistence\DynamoDb\RegistroAuditoriaDynamo;
 use App\Infrastructure\Persistence\DynamoDb\RepositorioLaborDynamo;
+use App\Infrastructure\Persistence\DynamoDb\RepositorioSagaDynamo;
 use App\Infrastructure\Persistence\DynamoDb\UnidadTrabajoDynamo;
 use App\Infrastructure\Security\ProveedorClavesJwksRemoto;
 use App\InterfaceAdapters\Http\Controllers\SaludControlador;
 use App\InterfaceAdapters\Http\Security\ProveedorClavesJwt;
+use App\InterfaceAdapters\Messaging\ConsumidorRespuestasSaga;
+use App\InterfaceAdapters\Messaging\FuenteMensajes;
 use Aws\DynamoDb\DynamoDbClient;
 use Illuminate\Support\ServiceProvider;
 
@@ -65,7 +75,20 @@ final class ProveedorDominio extends ServiceProvider
         $this->app->bind(ConsultaLabores::class, RepositorioLaborDynamo::class);
         $this->app->bind(PasarelaCampania::class, ClienteServicioGestion::class);
 
-        $this->app->tag([ComprobacionDynamoDb::class], 'comprobaciones_salud');
+        // Saga (spec-saga.md)
+        $this->app->bind(RepositorioSaga::class, RepositorioSagaDynamo::class);
+        $this->app->singleton(ConexionRabbitMq::class);
+        $this->app->bind(PublicadorMensajes::class, PublicadorRabbitMq::class);
+        $this->app->bind(FuenteMensajes::class, FuenteMensajesRabbitMq::class);
+        $this->app->bind(ConfiguracionSaga::class, fn () => new ConfiguracionSaga(
+            (int) config('saga.tiempo_limite_segundos'),
+            (int) config('saga.maximo_envios'),
+            (int) config('saga.espera_maxima_compensacion_segundos'),
+        ));
+        $this->app->when(ConsumidorRespuestasSaga::class)->needs('$esperasMs')->give(fn () => config('rabbitmq.esperas_reintento_ms'));
+        ValidadorEntorno::exigir('RABBITMQ_HOST', 'RABBITMQ_USER', 'RABBITMQ_PASSWORD');
+
+        $this->app->tag([ComprobacionDynamoDb::class, ComprobacionRabbitMq::class], 'comprobaciones_salud');
         $this->app->when(SaludControlador::class)->needs('$comprobaciones')->giveTagged('comprobaciones_salud');
     }
 

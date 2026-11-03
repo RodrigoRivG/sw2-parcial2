@@ -387,5 +387,5 @@ Los tests publican en `servicio-inventario.comandos` y leen de `servicio-operaci
 - [x] **T06** — Implementar `RestaurarInsumosCasoUso`. *Hecho cuando:* pasan `restaurar-insumos.int-spec.ts` y el escenario 7 de la Historia 1.
 - [x] **T07** — Escribir `idempotencia-saga.int-spec.ts`, `fallos-saga.int-spec.ts` y `concurrencia-saga.int-spec.ts`.
 - [x] **T08** — Conectar la evaluación de stock bajo después de cada respuesta (RQ-SAG-14) y completar el escenario 4 de la Historia 3 de `spec-movimientos.md` (actor de la Saga en el listado).
-- [ ] **T09** — Cuando exista la spec de la Saga de `servicio-operaciones`, verificar que consume el contrato de RQ-SAG-09 (AC-03) y las colas de 2.1 sin cambios. Pendiente: `servicio-operaciones` todavía no tiene specs.
+- [x] **T09** — Cuando exista la spec de la Saga de `servicio-operaciones`, verificar que consume el contrato de RQ-SAG-09 (AC-03) y las colas de 2.1 sin cambios. Verificado (2026-11-03) con `servicio-operaciones/specs/spec-saga.md` T10: operaciones declara las tres colas con los mismos argumentos y procesa `InsumosDescontados`, `InsumosRechazados` e `InsumosRestaurados` de este servicio sin cambios en el contrato.
 - [x] **T10** — Verificación final: `npm test` en verde, cobertura ≥ 80 % y criterios CE-SAG-01 a CE-SAG-05 cubiertos.

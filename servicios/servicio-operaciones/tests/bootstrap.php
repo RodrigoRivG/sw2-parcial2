@@ -8,6 +8,7 @@
 use App\Infrastructure\Persistence\DynamoDb\CreadorTablas;
 use App\Infrastructure\Persistence\DynamoDb\NombresTablas;
 use Aws\DynamoDb\DynamoDbClient;
+use GuzzleHttp\Client;
 
 require __DIR__.'/../vendor/autoload.php';
 
@@ -31,6 +32,18 @@ $creador = new CreadorTablas(
     __DIR__.'/../database/dynamodb/tablas.json',
 );
 $creador->crearFaltantes();
+
+// vhost de RabbitMQ de los tests, por la API de administración (idempotente)
+$gestionRabbit = new Client([
+    'base_uri' => rtrim((string) getenv('RABBITMQ_GESTION_URL'), '/').'/',
+    'auth' => [getenv('RABBITMQ_USER'), getenv('RABBITMQ_PASSWORD')],
+    'timeout' => 10,
+]);
+$vhost = rawurlencode((string) getenv('RABBITMQ_VHOST'));
+$gestionRabbit->put("api/vhosts/{$vhost}");
+$gestionRabbit->put("api/permissions/{$vhost}/".rawurlencode((string) getenv('RABBITMQ_USER')), [
+    'json' => ['configure' => '.*', 'write' => '.*', 'read' => '.*'],
+]);
 
 // Los procesos hijos de EnParalelo heredan esta función: solo el proceso original borra las tablas
 $pidOriginal = getmypid();

@@ -24,13 +24,16 @@ use Tests\Unit\Application\PasarelaCampaniaFalsa;
 use Tests\Unit\Application\RepositorioLaborEnMemoria;
 use Tests\Unit\Application\UnidadTrabajoDirecta;
 
+use function Tests\Unit\Application\iniciarSagaEnMemoria;
+
 beforeEach(function () {
     $this->repositorio = new RepositorioLaborEnMemoria;
     $this->auditoria = new AuditoriaEnMemoria;
     $this->pasarela = new PasarelaCampaniaFalsa;
     $this->pasarela->campanias['c1'] = new CampaniaConsultada('c1', 'p1', 'EN_CURSO');
     $creacion = new CreacionLabor($this->repositorio, new UnidadTrabajoDirecta, $this->auditoria,
-        new VerificadorCampania($this->pasarela, new NullLogger), new RelojFijo('2026-11-02T14:00:00Z'));
+        new VerificadorCampania($this->pasarela, new NullLogger), new RelojFijo('2026-11-02T14:00:00Z'),
+        iniciarSagaEnMemoria($this->auditoria));
     $this->registrar = new RegistrarLaborCasoUso($creacion);
     $this->programar = new ProgramarLaborCasoUso($creacion);
     $this->tecnico = new UsuarioAutenticado('tec-1', 'Ana Quispe', ['tecnico_campo']);
@@ -70,7 +73,11 @@ it('registra la labor con insumos como PENDIENTE, con el responsable del token y
         ->and($resultado->labor->estado)->toBe(EstadoLabor::PENDIENTE)
         ->and($resultado->labor->responsable->nombre)->toBe('Ana Quispe')
         ->and($this->repositorio->labores)->toHaveKey('op-1')
-        ->and($this->auditoria->registros)->toBe([['actor' => 'tec-1', 'accion' => 'REGISTRAR_LABOR', 'entidad' => 'LABOR', 'idEntidad' => 'op-1']]);
+        ->and($resultado->labor->idSaga)->toBeString()
+        ->and($this->auditoria->registros)->toBe([
+            ['actor' => 'tec-1', 'accion' => 'REGISTRAR_LABOR', 'entidad' => 'LABOR', 'idEntidad' => 'op-1'],
+            ['actor' => 'servicio-operaciones', 'accion' => 'INICIAR_SAGA', 'entidad' => 'SAGA', 'idEntidad' => $resultado->labor->idSaga],
+        ]);
 });
 
 it('una repetición con el mismo contenido devuelve la labor sin consultar gestión ni auditar', function () {
@@ -82,7 +89,7 @@ it('una repetición con el mismo contenido devuelve la labor sin consultar gesti
 
     expect($repetida->repetida)->toBeTrue()
         ->and($this->pasarela->consultas)->toBe(1)
-        ->and($this->auditoria->registros)->toHaveCount(1);
+        ->and($this->auditoria->registros)->toHaveCount(2);
 });
 
 it('el mismo idOperacion con otro contenido u otro usuario es CONFLICTO_IDEMPOTENCIA', function (array $cambios, ?UsuarioAutenticado $otro) {
@@ -102,7 +109,7 @@ it('si otra solicitud gana la carrera, responde como repetición', function () {
 
     $resultado = $this->registrar->ejecutar(entradaRealizada(), $this->tecnico);
 
-    expect($resultado->repetida)->toBeTrue()->and($this->auditoria->registros)->toHaveCount(1);
+    expect($resultado->repetida)->toBeTrue()->and($this->auditoria->registros)->toHaveCount(2);
 });
 
 it('traduce cada respuesta de gestión (RQ-LAB-05)', function (?CampaniaConsultada $campania, bool $disponible, string $esperado) {

@@ -37,5 +37,13 @@
         <env name="KEYCLOAK_TOKEN_URL" value="http://keycloak.pruebas/realms/agro/protocol/openid-connect/token"/>
         <env name="KEYCLOAK_CLIENT_ID" value="servicio-operaciones"/>
         <env name="KEYCLOAK_CLIENT_SECRET" value="secreto-pruebas"/>
+        <env name="RABBITMQ_HOST" value="rabbitmq"/>
+        <env name="RABBITMQ_PORT" value="5672"/>
+        <env name="RABBITMQ_USER" value="sw2"/>
+        <env name="RABBITMQ_PASSWORD" value="sw2pass"/>
+        <!-- vhost propio: los consumidores de inventario y gestión que corran en Compose no ven estos mensajes -->
+        <env name="RABBITMQ_VHOST" value="pruebas"/>
+        <env name="RABBITMQ_GESTION_URL" value="http://rabbitmq:15672"/>
+        <env name="RABBITMQ_ESPERAS_REINTENTO_MS" value="10,20,40"/>
     </php>
 </phpunit>

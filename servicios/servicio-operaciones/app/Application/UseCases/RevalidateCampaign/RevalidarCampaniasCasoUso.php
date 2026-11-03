@@ -7,8 +7,10 @@ use App\Application\Contracts\RegistroAuditoria;
 use App\Application\Contracts\Reloj;
 use App\Application\Contracts\UnidadTrabajo;
 use App\Application\UseCases\RegisterFieldTask\VerificadorCampania;
+use App\Application\UseCases\Saga\IniciarSaga;
 use App\Domain\FieldTask\LaborAgricola;
 use App\Domain\FieldTask\RepositorioLabor;
+use App\Domain\Saga\Saga;
 
 /**
  * Tarea programada: revalida las labores cuya consulta de campaña quedó diferida (spec-labores.md RQ-LAB-10).
@@ -25,6 +27,7 @@ final class RevalidarCampaniasCasoUso
         private readonly RegistroAuditoria $auditoria,
         private readonly VerificadorCampania $verificador,
         private readonly Reloj $reloj,
+        private readonly IniciarSaga $iniciarSaga,
     ) {}
 
     /**
@@ -47,7 +50,10 @@ final class RevalidarCampaniasCasoUso
                 $clave = $resultado->rechazo === null ? 'validadas' : 'rechazadas';
             }
 
-            if ($this->guardar($labor, $versionLeida, auditar: $resultado->disponible)) {
+            // Válida, realizada y con insumos: se inicia la Saga en la misma escritura (spec-saga.md, Historia 1, escenario 5)
+            $saga = $this->iniciarSaga->preparar($labor, $ahora);
+            if ($this->guardar($labor, $versionLeida, $resultado->disponible, $saga)) {
+                $this->iniciarSaga->enviar($saga);
                 $resumen[$clave]++;
             }
         }
@@ -55,14 +61,15 @@ final class RevalidarCampaniasCasoUso
         return $resumen;
     }
 
-    private function guardar(LaborAgricola $labor, int $versionLeida, bool $auditar): bool
+    private function guardar(LaborAgricola $labor, int $versionLeida, bool $auditar, ?Saga $saga): bool
     {
         try {
-            $this->unidadTrabajo->ejecutar(function () use ($labor, $versionLeida, $auditar) {
+            $this->unidadTrabajo->ejecutar(function () use ($labor, $versionLeida, $auditar, $saga) {
                 $this->repositorio->actualizar($labor, $versionLeida);
                 if ($auditar) {
                     $this->auditoria->registrar(self::ACTOR, 'VALIDAR_CAMPANIA', 'LABOR', $labor->id);
                 }
+                $this->iniciarSaga->registrar($saga);
             });
 
             return true;
