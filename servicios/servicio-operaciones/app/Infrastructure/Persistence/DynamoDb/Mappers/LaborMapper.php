@@ -3,8 +3,10 @@
 namespace App\Infrastructure\Persistence\DynamoDb\Mappers;
 
 use App\Domain\FieldTask\ConsumoInsumo;
+use App\Domain\FieldTask\DecisionRevision;
 use App\Domain\FieldTask\EstadoLabor;
 use App\Domain\FieldTask\LaborAgricola;
+use App\Domain\FieldTask\Resolucion;
 use App\Domain\FieldTask\Responsable;
 use App\Domain\FieldTask\TipoLabor;
 use App\Domain\FieldTask\ValidacionCampania;
@@ -43,11 +45,7 @@ final class LaborMapper
             'insumos' => array_map(fn (ConsumoInsumo $c) => ['id_insumo' => $c->idInsumo, 'cantidad' => $c->cantidad->valor], $labor->insumos),
             'validacion_campania' => $labor->validacionCampania->value,
             'id_saga' => $labor->idSaga,
-            'motivo' => $labor->motivo === null ? null : [
-                'codigo' => $labor->motivo->codigo,
-                'mensaje' => $labor->motivo->mensaje,
-                'detalles' => $labor->motivo->detalles,
-            ],
+            'motivo' => self::motivo($labor->motivo),
             'huella_creacion' => $labor->huellaCreacion,
             'id_operacion_realizacion' => $labor->idOperacionRealizacion,
             'huella_realizacion' => $labor->huellaRealizacion,
@@ -56,6 +54,15 @@ final class LaborMapper
             'intentos_validacion' => $labor->intentosValidacion,
             'version' => $labor->version,
             'fecha_actualizacion' => self::fecha($labor->fechaActualizacion),
+            'resolucion' => $labor->resolucion === null ? null : array_filter([
+                'decision' => $labor->resolucion->decision->value,
+                'observacion' => $labor->resolucion->observacion,
+                'id_administrador' => $labor->resolucion->administrador->id,
+                'nombre_administrador' => $labor->resolucion->administrador->nombre,
+                'fecha' => self::fecha($labor->resolucion->fecha),
+                'motivo_anterior' => self::motivo($labor->resolucion->motivoAnterior),
+            ], fn ($valor) => $valor !== null),
+            'ids_saga_anteriores' => $labor->idsSagaAnteriores === [] ? null : $labor->idsSagaAnteriores,
         ];
 
         return array_filter($item, fn ($valor) => $valor !== null);
@@ -86,7 +93,7 @@ final class LaborMapper
             ),
             validacionCampania: ValidacionCampania::from($item['validacion_campania']),
             idSaga: $item['id_saga'] ?? null,
-            motivo: isset($item['motivo']) ? new Motivo($item['motivo']['codigo'], $item['motivo']['mensaje'], array_values($item['motivo']['detalles'] ?? [])) : null,
+            motivo: self::leerMotivo($item['motivo'] ?? null),
             huellaCreacion: $item['huella_creacion'],
             idOperacionRealizacion: $item['id_operacion_realizacion'] ?? null,
             huellaRealizacion: $item['huella_realizacion'] ?? null,
@@ -94,7 +101,31 @@ final class LaborMapper
             fechaProximoValidacion: self::leerFecha($item['fecha_proximo_validacion'] ?? null),
             version: (int) $item['version'],
             fechaActualizacion: FormatoFecha::leerConHora($item['fecha_actualizacion']),
+            resolucion: isset($item['resolucion']) ? new Resolucion(
+                DecisionRevision::from($item['resolucion']['decision']),
+                $item['resolucion']['observacion'],
+                new Responsable($item['resolucion']['id_administrador'], $item['resolucion']['nombre_administrador']),
+                FormatoFecha::leerConHora($item['resolucion']['fecha']),
+                self::leerMotivo($item['resolucion']['motivo_anterior'] ?? null),
+            ) : null,
+            idsSagaAnteriores: array_values($item['ids_saga_anteriores'] ?? []),
         );
+    }
+
+    /**
+     * @return array{codigo: string, mensaje: string, detalles: list<array<string, mixed>>}|null
+     */
+    private static function motivo(?Motivo $motivo): ?array
+    {
+        return $motivo === null ? null : ['codigo' => $motivo->codigo, 'mensaje' => $motivo->mensaje, 'detalles' => $motivo->detalles];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $motivo
+     */
+    private static function leerMotivo(?array $motivo): ?Motivo
+    {
+        return $motivo === null ? null : new Motivo($motivo['codigo'], $motivo['mensaje'], array_values($motivo['detalles'] ?? []));
     }
 
     private static function fecha(?DateTimeImmutable $fecha): ?string

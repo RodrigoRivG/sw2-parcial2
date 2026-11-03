@@ -2,6 +2,7 @@
 
 namespace App\Domain\FieldTask;
 
+use App\Domain\Saga\EstadoSaga;
 use App\Domain\Shared\ExcepcionDominio;
 use App\Domain\Shared\Motivo;
 use DateTimeImmutable;
@@ -22,6 +23,7 @@ final class LaborAgricola
 
     /**
      * @param  list<ConsumoInsumo>  $insumos
+     * @param  list<string>  $idsSagaAnteriores  Sagas de intentos anteriores (decisión REINTENTAR)
      */
     public function __construct(
         public private(set) string $id,
@@ -48,6 +50,8 @@ final class LaborAgricola
         public private(set) ?DateTimeImmutable $fechaProximoValidacion,
         public private(set) int $version,
         public private(set) DateTimeImmutable $fechaActualizacion,
+        public private(set) ?Resolucion $resolucion = null,
+        public private(set) array $idsSagaAnteriores = [],
     ) {}
 
     public static function programar(
@@ -216,6 +220,66 @@ final class LaborAgricola
             throw new \LogicException("La labor {$this->id} no requiere Saga.");
         }
         $this->idSaga = $idSaga;
+    }
+
+    /**
+     * El administrador resuelve una labor en revisión según cómo terminó su Saga (spec-revision-labores.md RQ-REV-02 y RQ-REV-03).
+     */
+    public function resolver(
+        DecisionRevision $decision,
+        string $observacion,
+        Responsable $administrador,
+        EstadoSaga $estadoSaga,
+        DateTimeImmutable $ahora,
+    ): void {
+        if ($this->estado !== EstadoLabor::PENDIENTE_REVISION) {
+            throw ExcepcionDominio::reglaNegocio('LABOR_NO_EN_REVISION', 'Solo se resuelven labores en estado PENDIENTE_REVISION.');
+        }
+        if ($estadoSaga->activa()) {
+            throw ExcepcionDominio::conflicto('SAGA_EN_CURSO', 'La Saga de la labor todavía está compensando; espere a que termine.');
+        }
+        $permitidas = self::decisionesPermitidas($estadoSaga);
+        if (! in_array($decision, $permitidas, true)) {
+            throw ExcepcionDominio::reglaNegocio(
+                'DECISION_NO_PERMITIDA',
+                "La decisión {$decision->value} no corresponde a una Saga {$estadoSaga->value}.",
+                [['decisionesPermitidas' => array_map(fn (DecisionRevision $d) => $d->value, $permitidas)]],
+            );
+        }
+
+        $observacion = trim($observacion);
+        $this->resolucion = new Resolucion($decision, $observacion, $administrador, $ahora, $this->motivo);
+        match ($decision) {
+            // El descuento y el costo siguen vigentes y son coherentes (anulación rechazada)
+            DecisionRevision::CONFIRMAR => [$this->estado, $this->motivo] = [EstadoLabor::CONFIRMADA, null],
+            DecisionRevision::RECHAZAR => [$this->estado, $this->motivo] = [EstadoLabor::RECHAZADA, new Motivo(
+                'RECHAZADA_EN_REVISION',
+                "El administrador rechazó la labor en la revisión: {$observacion}",
+            )],
+            // Saga nueva: la anterior queda en el historial y sus respuestas tardías no afectan a la labor
+            DecisionRevision::REINTENTAR => $this->prepararReintento(),
+        };
+        $this->tocar($ahora);
+    }
+
+    /**
+     * @return list<DecisionRevision>
+     */
+    public static function decisionesPermitidas(EstadoSaga $estadoSaga): array
+    {
+        return match ($estadoSaga) {
+            EstadoSaga::COMPENSADA => [DecisionRevision::RECHAZAR, DecisionRevision::REINTENTAR],
+            EstadoSaga::REQUIERE_INTERVENCION => [DecisionRevision::CONFIRMAR],
+            default => [],
+        };
+    }
+
+    private function prepararReintento(): void
+    {
+        $this->idsSagaAnteriores[] = (string) $this->idSaga;
+        $this->idSaga = null;
+        $this->estado = EstadoLabor::PENDIENTE;
+        $this->motivo = null;
     }
 
     /** Para iniciar la Saga de una labor ya guardada (sagas:iniciar-pendientes): ahí sí es un cambio aparte. */

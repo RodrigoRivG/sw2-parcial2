@@ -9,13 +9,17 @@ use App\Application\UseCases\RegisterFieldTask\RealizarLaborEntrada;
 use App\Application\UseCases\RegisterFieldTask\RegistrarLaborCasoUso;
 use App\Application\UseCases\RegisterFieldTask\RegistrarLaborEntrada;
 use App\Application\UseCases\RegisterFieldTask\ResultadoLabor;
+use App\Application\UseCases\ResolveReview\ResolverRevisionCasoUso;
+use App\Application\UseCases\ResolveReview\ResolverRevisionEntrada;
 use App\Application\UseCases\ScheduleFieldTask\ProgramarLaborCasoUso;
 use App\Application\UseCases\ScheduleFieldTask\ProgramarLaborEntrada;
+use App\Domain\FieldTask\DecisionRevision;
 use App\Domain\FieldTask\LaborAgricola;
 use App\Domain\FieldTask\TipoLabor;
 use App\InterfaceAdapters\Http\Requests\CrearLaborRequest;
 use App\InterfaceAdapters\Http\Requests\ListarLaboresRequest;
 use App\InterfaceAdapters\Http\Requests\RealizarLaborRequest;
+use App\InterfaceAdapters\Http\Requests\ResolverRevisionRequest;
 use App\InterfaceAdapters\Http\Requests\SolicitudEstricta;
 use App\InterfaceAdapters\Http\Resources\LaborRecurso;
 use Illuminate\Http\JsonResponse;
@@ -62,6 +66,18 @@ final class LaborControlador
         ), self::usuario($request));
 
         return new JsonResponse(LaborRecurso::aArreglo($resultado->labor));
+    }
+
+    public function resolver(ResolverRevisionRequest $request, string $id, ResolverRevisionCasoUso $resolver): JsonResponse
+    {
+        $labor = $resolver->ejecutar(new ResolverRevisionEntrada(
+            idLabor: $id,
+            decision: DecisionRevision::from((string) $request->input('decision')),
+            observacion: (string) $request->input('observacion'),
+            version: (int) $request->input('version'),
+        ), self::usuario($request));
+
+        return new JsonResponse(LaborRecurso::aArreglo($labor));
     }
 
     public function listar(ListarLaboresRequest $request, ConsultarLaboresCasoUso $consultar): JsonResponse

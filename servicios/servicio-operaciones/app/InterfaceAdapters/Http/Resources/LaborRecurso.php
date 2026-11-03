@@ -40,6 +40,18 @@ final class LaborRecurso
                 'mensaje' => $labor->motivo->mensaje,
                 'detalles' => $labor->motivo->detalles,
             ],
+            'resolucion' => $labor->resolucion === null ? null : [
+                'decision' => $labor->resolucion->decision->value,
+                'observacion' => $labor->resolucion->observacion,
+                'administrador' => self::responsable($labor->resolucion->administrador),
+                'fecha' => self::fecha($labor->resolucion->fecha),
+                'motivoAnterior' => $labor->resolucion->motivoAnterior === null ? null : [
+                    'codigo' => $labor->resolucion->motivoAnterior->codigo,
+                    'mensaje' => $labor->resolucion->motivoAnterior->mensaje,
+                    'detalles' => $labor->resolucion->motivoAnterior->detalles,
+                ],
+            ],
+            'idsSagaAnteriores' => $labor->idsSagaAnteriores,
             'version' => $labor->version,
             'fechaActualizacion' => self::fecha($labor->fechaActualizacion),
         ];

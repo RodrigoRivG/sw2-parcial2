@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-operaciones` |
 | Archivo | `specs/spec-revision-labores.md` |
-| Estado | Spec en borrador (2026-11-02) |
+| Estado | Spec aprobada (2026-11-03) · Implementada (2026-11-03) |
 | Constitución | v2.8.0 (secciones 4, 6 y 9) |
 | Trazabilidad | CU-12 (prioridad alta) · RF-13 · RN-08, RN-15, RN-16 · RNF-14 |
 | Depende de | `spec-labores.md`, `spec-saga.md` |
@@ -141,6 +141,13 @@ La respuesta de labor agrega:
 | `Application/UseCases/ResolveReview` | `ResolverRevisionCasoUso.php`, `ResolverRevisionEntrada.php` | Lee labor y Saga, consulta la campaña si es `REINTENTAR`, escribe labor (+ Saga nueva) y auditoría, publica `DescontarInsumos` tras el commit |
 | `InterfaceAdapters/Http` | `LaborControlador.php` (se amplía), `Requests/ResolverRevisionRequest.php` | |
 
+Ajustes respecto del plan original:
+
+- La `version` se compara antes que el estado: si otro administrador ya resolvió la labor, la segunda solicitud responde `409 CONFLICTO_CONCURRENCIA` (escenario 9) y no `422 LABOR_NO_EN_REVISION`. La escritura sigue condicionada a `estado = PENDIENTE_REVISION` y a la versión.
+- `REINTENTAR` deja `idSaga = null` y mueve el anterior a `idsSagaAnteriores`; la Saga nueva la crea `IniciarSaga` en la misma escritura, igual que al registrar una labor. Las respuestas tardías de la Saga anterior quedan en esa Saga: `AvanceSaga` no toca una labor que ya pertenece a otra Saga.
+- `CONFIRMAR` quita el motivo de la labor (queda en `resolucion.motivoAnterior`).
+- Los campos nuevos `resolucion` e `idsSagaAnteriores` se agregaron al final del constructor de `LaborAgricola` con valores por defecto, para no cambiar las fábricas existentes.
+
 ## 2.3 Tests
 
 | Tipo | Archivo | Qué verifica |
@@ -152,6 +159,6 @@ La respuesta de labor agrega:
 
 # 3. Tareas
 
-- [ ] **T01** — Ampliar `LaborAgricola` con `resolver` y crear `DecisionRevision` y `Resolucion`, con `ResolucionLaborTest.php`.
-- [ ] **T02** — Implementar `ResolverRevisionCasoUso` y `POST /labores/{id}/resolucion`. *Hecho cuando:* pasa `ResolucionLaboresTest.php`.
-- [ ] **T03** — Documentar el endpoint en `openapi.yaml` y verificar CE-REV-01 a CE-REV-03.
+- [x] **T01** — Ampliar `LaborAgricola` con `resolver` y crear `DecisionRevision` y `Resolucion`, con `ResolucionLaborTest.php`.
+- [x] **T02** — Implementar `ResolverRevisionCasoUso` y `POST /labores/{id}/resolucion`. *Hecho cuando:* pasa `ResolucionLaboresTest.php`.
+- [x] **T03** — Documentar el endpoint en `openapi.yaml` y verificar CE-REV-01 a CE-REV-03. Resultado: 289 tests en verde, cobertura de `Domain` y `Application` 97,2 %; las 18 combinaciones de estado de Saga y decisión tienen test unitario, y las de RQ-REV-02 que se alcanzan desde la Saga real, test de integración.

@@ -104,6 +104,34 @@ paths:
         '404': { description: LABOR_NO_ENCONTRADA o CAMPANIA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: CONFLICTO_IDEMPOTENCIA o CONFLICTO_CONCURRENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: LABOR_NO_PROGRAMADA, CAMPANIA_FINALIZADA, PARCELA_NO_CORRESPONDE, CANTIDAD_INVALIDA o FECHA_EJECUCION_INVALIDA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/operaciones/v1/labores/{id}/resolucion:
+    post:
+      summary: Resolver una labor PENDIENTE_REVISION (administrador; spec-revision-labores.md)
+      description: |
+        Saga COMPENSADA → RECHAZAR o REINTENTAR (Saga nueva); Saga REQUIERE_INTERVENCION → CONFIRMAR.
+        Con la Saga todavía compensando responde 409 SAGA_EN_CURSO.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision, observacion, version]
+              properties:
+                decision: { type: string, enum: [CONFIRMAR, RECHAZAR, REINTENTAR] }
+                observacion: { type: string, minLength: 1, maxLength: 500 }
+                version: { type: integer, minimum: 0, description: La versión de la labor leída }
+      responses:
+        '200': { description: Labor resuelta, content: { application/json: { schema: { $ref: '#/components/schemas/Labor' } } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { description: LABOR_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: SAGA_EN_CURSO o CONFLICTO_CONCURRENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: LABOR_NO_EN_REVISION, DECISION_NO_PERMITIDA o CAMPANIA_FINALIZADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/operaciones/v1/sagas/{id}:
     get:
       summary: Estado de una Saga, con el detalle de cada paso (administrador, gerencia, lectura_operaciones)
@@ -194,6 +222,17 @@ components:
                 codigo: { type: string }
                 mensaje: { type: string }
                 detalles: { type: array, items: { type: object } }
+        resolucion:
+          oneOf:
+            - type: 'null'
+            - type: object
+              properties:
+                decision: { type: string, enum: [CONFIRMAR, RECHAZAR, REINTENTAR] }
+                observacion: { type: string }
+                administrador: { $ref: '#/components/schemas/Responsable' }
+                fecha: { type: string, format: date-time }
+                motivoAnterior: { type: [object, 'null'] }
+        idsSagaAnteriores: { type: array, items: { type: string, format: uuid } }
         version: { type: integer }
         fechaActualizacion: { type: string, format: date-time }
     Saga:

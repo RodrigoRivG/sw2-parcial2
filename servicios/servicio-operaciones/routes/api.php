@@ -10,6 +10,7 @@ Route::middleware(['jwt', ExigirJsonValido::class])->group(function (): void {
     // Labores (spec-labores.md). Las reglas que dependen del cuerpo o del recurso las aplica el caso de uso.
     Route::post('/labores', [LaborControlador::class, 'crear'])->middleware('rol:administrador,tecnico_campo');
     Route::post('/labores/{id}/realizacion', [LaborControlador::class, 'realizar'])->whereUuid('id')->middleware('rol:tecnico_campo');
+    Route::post('/labores/{id}/resolucion', [LaborControlador::class, 'resolver'])->whereUuid('id')->middleware('rol:administrador');
     Route::get('/labores', [LaborControlador::class, 'listar'])->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
     Route::get('/labores/{id}', [LaborControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
 
