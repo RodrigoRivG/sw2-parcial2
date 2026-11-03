@@ -28,7 +28,7 @@ sw2-parcial2/
 └── servicios/
     ├── servicio-gestion/           # Constitucion.md, specs/ y código (Spring Boot)
     ├── servicio-inventario/        # Constitucion.md, specs/ y código (NestJS)
-    ├── servicio-operaciones/       # Constitucion.md
+    ├── servicio-operaciones/       # Constitucion.md y specs/
     ├── servicio-ia/                # Constitucion.md
     ├── api-gateway/
     └── graphql-server/

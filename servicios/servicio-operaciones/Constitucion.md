@@ -237,12 +237,12 @@ servicio-operaciones/
 
 | Operación | Roles |
 |---|---|
-| Registrar labores, incidencias y sincronizar | `tecnico_campo` |
+| Registrar labores (incluida la realización de una labor programada), incidencias y sincronizar | `tecnico_campo` |
 | Programar labores | `administrador`, `tecnico_campo` |
 | Consultar labores, incidencias y estado de Sagas | `administrador`, `gerencia` |
 | Consultar labores programadas y las labores e incidencias que registró el propio usuario | `tecnico_campo` |
-| Resolver labores `PENDIENTE_REVISION` | `administrador` |
-| Lectura para integración | cuentas de servicio autorizadas |
+| Resolver labores `PENDIENTE_REVISION` (confirmar, rechazar o reintentar con una Saga nueva) | `administrador` |
+| Lectura de labores, incidencias y Sagas para integración | `lectura_operaciones` (cuentas de servicio de n8n, `servicio-ia` y GraphQL) |
 
 ## 10. Mensajería [común]
 
@@ -318,21 +318,39 @@ servicio-operaciones/
 | Concepto | Clase / archivo | Ruta REST | Tabla |
 |---|---|---|---|
 | Labor agrícola | `LaborAgricola` | `/labores` | `labores` |
+| Realización de una labor programada | — | `/labores/{id}/realizacion` | `labores` |
+| Resolución de una labor en revisión | `Resolucion` | `/labores/{id}/resolucion` | `labores` |
 | Consumo de insumo | `ConsumoInsumo` | dentro de la labor | — |
 | Incidencia | `Incidencia` | `/incidencias` | `incidencias` |
+| Clasificación de la fotografía | `ClasificacionImagen` | dentro de la incidencia | — |
 | Sincronización | — | `/sincronizacion` | — |
 | Saga | `Saga` | `/sagas` | `sagas` |
 | UUID de operación | `IdOperacion` | campo `idOperacion` | — |
+| Registro de auditoría | `RegistroAuditoria` | — | `registros_auditoria` |
 
 | Enumeración | Valores |
 |---|---|
 | `EstadoLabor` | `PROGRAMADA` / `PENDIENTE` / `CONFIRMADA` / `RECHAZADA` / `PENDIENTE_REVISION` |
+| `TipoLabor` | `PREPARACION_SUELO` / `SIEMBRA` / `FERTILIZACION` / `RIEGO` / `CONTROL_FITOSANITARIO` / `DESHIERBE` / `COSECHA` / `OTRA` |
+| `ValidacionCampania` | `VALIDADA` / `PENDIENTE` |
+| `DecisionRevision` | `CONFIRMAR` / `RECHAZAR` / `REINTENTAR` |
 | `TipoIncidencia` | `PLAGA` / `ENFERMEDAD` / `DANIO` / `OTRO` |
+| `OrigenClasificacion` | `DISPOSITIVO` / `SERVIDOR` |
+| `EstadoSaga` | `EN_CURSO` / `COMPENSANDO` (activos) · `COMPLETADA` / `RECHAZADA` / `COMPENSADA` / `REQUIERE_INTERVENCION` (terminales) |
+| `PasoSaga` | `DESCONTAR_INSUMOS` / `REGISTRAR_COSTO` / `ANULAR_COSTO` / `RESTAURAR_INSUMOS` |
+| `EstadoPaso` | `ENVIADO` / `COMPLETADO` / `RECHAZADO` / `OMITIDO` / `SIN_RESPUESTA` |
 | Resultado de sincronización | `SINCRONIZADA` / `ERROR` |
+
+| Mensajería | Nombre |
+|---|---|
+| Comandos enviados | `DescontarInsumos`, `RestaurarInsumos` (a `servicio-inventario.comandos`); `RegistrarCostoCampania`, `AnularCostoCampania` (a `servicio-gestion.comandos`) |
+| Respuestas recibidas | `InsumosDescontados`, `InsumosRechazados`, `InsumosRestaurados`, `CostoCampaniaRegistrado`, `CostoCampaniaRechazado`, `CostoCampaniaAnulado`, `AnulacionCostoRechazada` (en `servicio-operaciones.respuestas-saga`) |
+| Respuestas no procesables | Cola `servicio-operaciones.respuestas-saga.dlq` |
+| Evento publicado | `IncidenciaRegistrada`, routing key `operaciones.incidencia.registrada` |
 
 ## Enmiendas
 
-- Versión: 2.7.0 (2026-11-02)
+- Versión: 2.8.0 (2026-11-02)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -349,3 +367,4 @@ servicio-operaciones/
 | 2.5.0 | 2026-11-01 | **Propio:** con costo total `0.00` no se envía `RegistrarCostoCampania` y la labor pasa a `CONFIRMADA`, porque `servicio-gestion` solo admite montos mayores a 0. Sin cambios comunes. |
 | 2.6.0 | 2026-11-02 | **[común]** Los eventos se publican en el exchange de tipo topic `eventos` (durable); cada consumidor crea su propia cola enlazada a él, para que n8n y los demás sepan dónde suscribirse. **Propio:** colas de la Saga acordadas con los participantes (`servicio-inventario.comandos`, `servicio-gestion.comandos` y `servicio-operaciones.respuestas-saga`); `RestaurarInsumos` lleva `idSaga` e `idLabor`; las respuestas tardías de un paso ya compensado (como `InsumosRechazados` con `SAGA_COMPENSADA`) se registran en la Saga sin cambiar la labor. |
 | 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. Sin cambios propios. |
+| 2.8.0 | 2026-11-02 | **Propio:** glosario ampliado con `TipoLabor`, `ValidacionCampania`, `DecisionRevision`, `OrigenClasificacion`, `EstadoSaga`, `PasoSaga`, `EstadoPaso`, las rutas de realización y resolución, `registros_auditoria`, los mensajes de la Saga, la DLQ de respuestas y el evento `IncidenciaRegistrada`. Permisos: la realización de una labor programada es parte de "registrar labores"; la resolución incluye reintentar con una Saga nueva; la lectura para integración es el rol `lectura_operaciones`. Sin cambios comunes. Origen: specs de `servicio-operaciones` (AP-01 y AP-02). |
