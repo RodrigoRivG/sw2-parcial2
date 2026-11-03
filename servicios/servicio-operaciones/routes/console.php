@@ -5,3 +5,4 @@ use Illuminate\Support\Facades\Schedule;
 // Tareas programadas (constitución §3: el scheduler es de Laravel). Las corre servicio-operaciones-programador.
 Schedule::command('labores:revalidar-campanias')->everyMinute()->withoutOverlapping();
 Schedule::command('sagas:reanudar')->everyTenSeconds()->withoutOverlapping();
+Schedule::command('incidencias:republicar-eventos')->everyMinute()->withoutOverlapping();

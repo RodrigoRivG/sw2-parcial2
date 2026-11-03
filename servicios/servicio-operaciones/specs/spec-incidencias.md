@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-operaciones` |
 | Archivo | `specs/spec-incidencias.md` |
-| Estado | Spec en borrador (2026-11-02) |
+| Estado | Spec aprobada (2026-11-03) · Implementada (2026-11-03) |
 | Constitución | v2.8.0 (secciones 1, 4, 5, 7 y 10) |
 | Trazabilidad | CU-11 (prioridad media; incluye CU-22 de n8n) · RF-12, RF-14 (y RF-31 de n8n; RF-20 y RF-21 como soporte) · RN-10, RN-13, RN-15 · RNF-05, RNF-08, RNF-09 |
 | Depende de | `spec-labores.md` (Fase 0), `spec-saga.md` (conexión y publicador de RabbitMQ) |
@@ -344,15 +344,25 @@ Selección de índice y filtros como en `spec-labores.md` 2.3, en el orden `idPa
 
 Los tests usan el bucket `evidencias-pruebas` (README D-17), que crea el arranque de los tests, y cada uno usa claves bajo su propio `id`.
 
+## 2.7 Ajustes respecto del plan original
+
+- LocalStack no valida la firma ni el vencimiento de las URL prefirmadas por defecto: aceptaba una URL con la firma alterada. Se activa `S3_SKIP_SIGNATURE_VALIDATION=0` en Docker Compose y en el workflow, para que se comporte como S3 y el escenario 2 de la Historia 5 (URL vencida → `403`) sea verificable.
+- El exchange `eventos` lo declara `TopologiaSaga` al abrir la conexión, junto con las colas de la Saga (topic y durable, igual que inventario); el servicio sigue sin declarar colas para el evento.
+- Una foto que PHP rechaza por superar `upload_max_filesize` llega sin contenido; el controlador la convierte en `422 FOTO_INVALIDA`, no en `400`. El límite del dominio es exactamente 10 MB (10 485 760 bytes), el mismo de PHP.
+- La respuesta del registro también lleva la URL prefirmada de la foto (la firma el controlador con `AlmacenamientoArchivos`), para que la app no tenga que pedir el detalle.
+- El evento lleva el `X-Correlation-Id` de la solicitud; la republicación usa un `idCorrelacion` nuevo por evento.
+- Las reglas de la parte `datos` están en `RegistrarIncidenciaRequest::reglasDatos()`, estáticas, para que la sincronización (`spec-sincronizacion.md`) valide igual.
+- Tests: RabbitMQ 4 ya no permite colas no durables y no exclusivas, así que la cola de prueba que imita a n8n se declara durable. La republicación publica todas las incidencias pendientes de la tabla, también las de otros tests: `EventoIncidenciaTest` cuenta solo el evento de su incidencia.
+
 ---
 
 # 3. Tareas
 
-- [ ] **T01** — Crear `Incidencia`, `TipoIncidencia`, `ClasificacionImagen`, `OrigenClasificacion` y `FotoIncidencia`, con sus tests unitarios.
-- [ ] **T02** — Implementar `ClienteS3` y `AlmacenamientoArchivosS3`, y crear el bucket de pruebas en el arranque de los tests. Agregar LocalStack a los contenedores de servicio del workflow y el secreto `LOCALSTACK_AUTH_TOKEN` al repositorio (`spec-labores.md`, ajustes del plan). *Hecho cuando:* un test de integración guarda, firma, descarga y borra un objeto en LocalStack.
-- [ ] **T03** — Agregar `incidencias` a `tablas.json` e implementar `RepositorioIncidenciaDynamo`.
-- [ ] **T04** — Implementar `RegistrarIncidenciaCasoUso` y `POST /incidencias` (sin evento). *Hecho cuando:* pasan las Historias 1, 2 y 4.
-- [ ] **T05** — Ampliar `PublicadorRabbitMq` con `publicarEvento`, conectar el evento y crear `incidencias:republicar-eventos`. *Hecho cuando:* pasa `EventoIncidenciaTest.php`.
-- [ ] **T06** — Implementar `ConsultarIncidenciasCasoUso` y los dos `GET`. *Hecho cuando:* pasa la Historia 5.
-- [ ] **T07** [P] — Escribir `IncidenciasRendimientoTest.php` y documentar los endpoints en `openapi.yaml`.
-- [ ] **T08** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-INC-01 a CE-INC-04 cubiertos.
+- [x] **T01** — Crear `Incidencia`, `TipoIncidencia`, `ClasificacionImagen`, `OrigenClasificacion` y `FotoIncidencia`, con sus tests unitarios.
+- [x] **T02** — Implementar `ClienteS3` y `AlmacenamientoArchivosS3`, y crear el bucket de pruebas en el arranque de los tests. Agregar LocalStack a los contenedores de servicio del workflow y el secreto `LOCALSTACK_AUTH_TOKEN` al repositorio (`spec-labores.md`, ajustes del plan). *Hecho cuando:* un test de integración guarda, firma, descarga y borra un objeto en LocalStack. El secreto lo agrega el dueño del repositorio en GitHub; el workflow ya lo usa.
+- [x] **T03** — Agregar `incidencias` a `tablas.json` e implementar `RepositorioIncidenciaDynamo`.
+- [x] **T04** — Implementar `RegistrarIncidenciaCasoUso` y `POST /incidencias` (sin evento). *Hecho cuando:* pasan las Historias 1, 2 y 4.
+- [x] **T05** — Ampliar `PublicadorRabbitMq` con `publicarEvento`, conectar el evento y crear `incidencias:republicar-eventos`. *Hecho cuando:* pasa `EventoIncidenciaTest.php`.
+- [x] **T06** — Implementar `ConsultarIncidenciasCasoUso` y los dos `GET`. *Hecho cuando:* pasa la Historia 5.
+- [x] **T07** [P] — Escribir `IncidenciasRendimientoTest.php` y documentar los endpoints en `openapi.yaml`.
+- [x] **T08** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-INC-01 a CE-INC-04 cubiertos. Resultado: 353 tests, cobertura de `Domain` y `Application` 97,4 %; registro con foto de 5 MB y listado de 100 incidencias con sus URL, cada uno en menos de 3 s.

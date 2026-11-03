@@ -118,6 +118,8 @@ services:
       LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
       SERVICES: s3
       S3_BUCKET: ${S3_BUCKET}
+      # Valida la firma y el vencimiento de las URL prefirmadas, como S3 real (spec-incidencias.md)
+      S3_SKIP_SIGNATURE_VALIDATION: "0"
     volumes:
       - localstack-data:/var/lib/localstack
       - ./docker/localstack/init:/etc/localstack/init/ready.d:ro   # crea el bucket al arrancar

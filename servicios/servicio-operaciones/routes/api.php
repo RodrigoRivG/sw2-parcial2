@@ -1,5 +1,6 @@
 <?php
 
+use App\InterfaceAdapters\Http\Controllers\IncidenciaControlador;
 use App\InterfaceAdapters\Http\Controllers\LaborControlador;
 use App\InterfaceAdapters\Http\Controllers\SagaControlador;
 use App\InterfaceAdapters\Http\Middleware\ExigirJsonValido;
@@ -13,6 +14,11 @@ Route::middleware(['jwt', ExigirJsonValido::class])->group(function (): void {
     Route::post('/labores/{id}/resolucion', [LaborControlador::class, 'resolver'])->whereUuid('id')->middleware('rol:administrador');
     Route::get('/labores', [LaborControlador::class, 'listar'])->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
     Route::get('/labores/{id}', [LaborControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
+
+    // Incidencias (spec-incidencias.md); el registro es multipart/form-data
+    Route::post('/incidencias', [IncidenciaControlador::class, 'crear'])->middleware('rol:tecnico_campo');
+    Route::get('/incidencias', [IncidenciaControlador::class, 'listar'])->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
+    Route::get('/incidencias/{id}', [IncidenciaControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
 
     // Saga (spec-saga.md)
     Route::get('/sagas/{id}', [SagaControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones');

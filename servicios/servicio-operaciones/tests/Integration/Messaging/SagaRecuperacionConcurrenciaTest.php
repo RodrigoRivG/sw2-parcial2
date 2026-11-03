@@ -34,6 +34,11 @@ describe('Historia 6 — recuperación del coordinador', function () {
             {
                 throw new PublicacionFallida('RabbitMQ no disponible');
             }
+
+            public function publicarEvento(string $routingKey, string $tipo, array $datos, string $idCorrelacion): string
+            {
+                throw new PublicacionFallida('RabbitMQ no disponible');
+            }
         });
         $cuerpo = DatosLabor::realizada($this->flujo->parcela, $this->flujo->campania, ['insumos' => DatosLabor::insumos('5')]);
 

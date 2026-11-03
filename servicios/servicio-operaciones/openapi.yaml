@@ -132,6 +132,61 @@ paths:
         '404': { description: LABOR_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: SAGA_EN_CURSO o CONFLICTO_CONCURRENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: LABOR_NO_EN_REVISION, DECISION_NO_PERMITIDA o CAMPANIA_FINALIZADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/operaciones/v1/incidencias:
+    post:
+      summary: Registrar una incidencia con fotografía (tecnico_campo; spec-incidencias.md)
+      description: |
+        multipart/form-data con la parte `datos` (JSON) y la parte `foto` (JPEG o PNG, hasta 10 MB).
+        Idempotente por idOperacion: repetida con los mismos datos y la misma foto → 200.
+        Publica el evento IncidenciaRegistrada (routing key operaciones.incidencia.registrada) en el exchange eventos.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [datos, foto]
+              properties:
+                datos: { type: string, description: JSON con el esquema DatosIncidencia }
+                foto: { type: string, format: binary }
+            encoding:
+              datos: { contentType: application/json }
+              foto: { contentType: 'image/jpeg, image/png' }
+      responses:
+        '201': { description: Incidencia registrada, content: { application/json: { schema: { $ref: '#/components/schemas/Incidencia' } } } }
+        '200': { description: Operación ya procesada, content: { application/json: { schema: { $ref: '#/components/schemas/Incidencia' } } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { description: CONFLICTO_IDEMPOTENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: FOTO_INVALIDA, FECHA_OBSERVACION_INVALIDA o CONFIANZA_INVALIDA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      summary: Listar incidencias por parcela, campaña o las propias (paginado por cursor)
+      parameters:
+        - { name: idParcela, in: query, schema: { type: string, format: uuid } }
+        - { name: idCampania, in: query, schema: { type: string, format: uuid } }
+        - { name: mias, in: query, schema: { type: string, enum: ['true', 'false'] } }
+        - { name: tipo, in: query, schema: { type: string, enum: [PLAGA, ENFERMEDAD, DANIO, OTRO] } }
+        - { name: fechaDesde, in: query, schema: { type: string, format: date } }
+        - { name: fechaHasta, in: query, schema: { type: string, format: date } }
+        - { name: orden, in: query, schema: { type: string, enum: [ASC, DESC], default: DESC } }
+        - { name: limite, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Página de incidencias, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Incidencia' } }, siguienteCursor: { type: [string, 'null'] } } } } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+  /api/operaciones/v1/incidencias/{id}:
+    get:
+      summary: Detalle de una incidencia, con URL prefirmada de la foto (10 minutos)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Incidencia, content: { application/json: { schema: { $ref: '#/components/schemas/Incidencia' } } } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { description: INCIDENCIA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/operaciones/v1/sagas/{id}:
     get:
       summary: Estado de una Saga, con el detalle de cada paso (administrador, gerencia, lectura_operaciones)
@@ -263,6 +318,54 @@ components:
         version: { type: integer }
         fechaCreacion: { type: string, format: date-time }
         fechaActualizacion: { type: string, format: date-time }
+    Clasificacion:
+      type: object
+      required: [categoria, confianza, versionModelo, origen]
+      properties:
+        categoria: { type: string, maxLength: 100 }
+        confianza: { type: string, pattern: '^\d(\.\d{1,4})?$', description: Decimal como texto entre 0 y 1 }
+        versionModelo: { type: string, maxLength: 50 }
+        origen: { type: string, enum: [DISPOSITIVO, SERVIDOR] }
+    DatosIncidencia:
+      type: object
+      additionalProperties: false
+      required: [idOperacion, fechaCreacion, tipo, descripcion, fechaObservacion, idParcela]
+      properties:
+        idOperacion: { type: string, format: uuid }
+        fechaCreacion: { type: string, format: date-time }
+        tipo: { type: string, enum: [PLAGA, ENFERMEDAD, DANIO, OTRO] }
+        descripcion: { type: string, maxLength: 1000 }
+        fechaObservacion: { type: string, format: date-time }
+        idParcela: { type: string, format: uuid }
+        idCampania: { type: [string, 'null'], format: uuid }
+        clasificacion: { oneOf: [{ $ref: '#/components/schemas/Clasificacion' }, { type: 'null' }] }
+    Incidencia:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tipo: { type: string, enum: [PLAGA, ENFERMEDAD, DANIO, OTRO] }
+        descripcion: { type: string }
+        fechaObservacion: { type: string, format: date-time }
+        idParcela: { type: string, format: uuid }
+        idCampania: { type: [string, 'null'], format: uuid }
+        foto:
+          type: object
+          properties:
+            url: { type: string, description: URL prefirmada de corta duración }
+            tipoContenido: { type: string, enum: [image/jpeg, image/png] }
+            tamanio: { type: integer }
+            expiraEn: { type: string, format: date-time }
+        clasificacion:
+          oneOf:
+            - type: 'null'
+            - allOf:
+                - $ref: '#/components/schemas/Clasificacion'
+                - type: object
+                  properties:
+                    orientativa: { type: boolean, const: true, description: RN-13 }
+        registradaPor: { $ref: '#/components/schemas/Responsable' }
+        fechaCreacion: { type: string, format: date-time }
+        fechaRecepcion: { type: string, format: date-time }
     PaginaLabores:
       type: object
       properties:

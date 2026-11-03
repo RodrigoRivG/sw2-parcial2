@@ -138,6 +138,19 @@ final class PublicadorEnMemoria implements PublicadorMensajes
 
         return 'msg-'.count($this->enviados);
     }
+
+    /** @var list<array{routingKey: string, tipo: string, datos: array<string, mixed>, idCorrelacion: string}> */
+    public array $eventos = [];
+
+    public function publicarEvento(string $routingKey, string $tipo, array $datos, string $idCorrelacion): string
+    {
+        if ($this->falla) {
+            throw new PublicacionFallida('broker caído');
+        }
+        $this->eventos[] = ['routingKey' => $routingKey, 'tipo' => $tipo, 'datos' => $datos, 'idCorrelacion' => $idCorrelacion];
+
+        return 'evt-'.count($this->eventos);
+    }
 }
 
 function iniciarSagaEnMemoria(AuditoriaEnMemoria $auditoria, ?RepositorioSagaEnMemoria $sagas = null, ?PublicadorEnMemoria $publicador = null): IniciarSaga

@@ -18,4 +18,14 @@ interface PublicadorMensajes
      * @throws PublicacionFallida
      */
     public function enviarComando(Participante $destino, string $tipo, array $datos, string $idCorrelacion): string;
+
+    /**
+     * Evento en el exchange `eventos` (topic), para n8n y los demás suscriptores (constitución §10).
+     *
+     * @param  array<string, mixed>  $datos
+     * @return string idMensaje
+     *
+     * @throws PublicacionFallida
+     */
+    public function publicarEvento(string $routingKey, string $tipo, array $datos, string $idCorrelacion): string;
 }

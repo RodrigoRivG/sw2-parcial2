@@ -17,8 +17,22 @@ jobs:
       run:
         working-directory: servicios/servicio-operaciones
     # Las mismas imágenes de Docker Compose (README de specs, D-17).
-    # LocalStack se agrega con spec-incidencias.md, la primera que usa S3, junto con el secreto LOCALSTACK_AUTH_TOKEN.
+    # LocalStack necesita el secreto LOCALSTACK_AUTH_TOKEN del repositorio (plan Hobby).
     services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          SERVICES: s3
+          S3_SKIP_SIGNATURE_VALIDATION: "0"
+        options: >-
+          --health-cmd "python3 -c \"import urllib.request,json,sys; s=json.load(urllib.request.urlopen('http://localhost:4566/_localstack/health'))['services'].get('s3'); sys.exit(0 if s in ('available','running') else 1)\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-start-period 20s
+          --health-retries 12
       dynamodb:
         image: amazon/dynamodb-local:latest
         ports:
@@ -38,6 +52,7 @@ jobs:
           --health-retries 10
     env:
       DYNAMODB_ENDPOINT: http://localhost:8000
+      AWS_ENDPOINT: http://localhost:4566
       RABBITMQ_HOST: localhost
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: sw2

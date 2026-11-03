@@ -40,6 +40,22 @@ final class PublicadorRabbitMq implements PublicadorMensajes
         return $idMensaje;
     }
 
+    public function publicarEvento(string $routingKey, string $tipo, array $datos, string $idCorrelacion): string
+    {
+        $idMensaje = Uuid::v4();
+        $this->publicar(TopologiaSaga::EXCHANGE_EVENTOS, $routingKey, [
+            'idMensaje' => $idMensaje,
+            'idCorrelacion' => $idCorrelacion,
+            'tipo' => $tipo,
+            'version' => 1,
+            'fechaOcurrencia' => $this->reloj->ahora()->format('Y-m-d\TH:i:s\Z'),
+            'origen' => self::ORIGEN,
+            'datos' => $datos,
+        ], $idMensaje, $idCorrelacion);
+
+        return $idMensaje;
+    }
+
     /**
      * @param  array<string, mixed>  $sobre
      */

@@ -8,6 +8,7 @@
 use App\Infrastructure\Persistence\DynamoDb\CreadorTablas;
 use App\Infrastructure\Persistence\DynamoDb\NombresTablas;
 use Aws\DynamoDb\DynamoDbClient;
+use Aws\S3\S3Client;
 use GuzzleHttp\Client;
 
 require __DIR__.'/../vendor/autoload.php';
@@ -32,6 +33,18 @@ $creador = new CreadorTablas(
     __DIR__.'/../database/dynamodb/tablas.json',
 );
 $creador->crearFaltantes();
+
+// Bucket de los tests en LocalStack (idempotente)
+$s3 = new S3Client([
+    'region' => getenv('AWS_DEFAULT_REGION') ?: 'us-east-1',
+    'version' => '2006-03-01',
+    'endpoint' => getenv('AWS_ENDPOINT'),
+    'use_path_style_endpoint' => true,
+    'credentials' => ['key' => getenv('AWS_ACCESS_KEY_ID'), 'secret' => getenv('AWS_SECRET_ACCESS_KEY')],
+]);
+if (! $s3->doesBucketExistV2((string) getenv('AWS_BUCKET'))) {
+    $s3->createBucket(['Bucket' => getenv('AWS_BUCKET')]);
+}
 
 // vhost de RabbitMQ de los tests, por la API de administración (idempotente)
 $gestionRabbit = new Client([

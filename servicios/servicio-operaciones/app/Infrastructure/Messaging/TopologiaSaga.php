@@ -28,8 +28,12 @@ final class TopologiaSaga
         };
     }
 
+    /** Exchange de eventos (constitución §10): topic y durable, igual que lo declara inventario. */
+    public const EXCHANGE_EVENTOS = 'eventos';
+
     public static function declarar(AMQPChannel $canal): void
     {
+        $canal->exchange_declare(self::EXCHANGE_EVENTOS, 'topic', false, true, false);
         foreach ([self::COLA_INVENTARIO, self::COLA_GESTION] as $cola) {
             $canal->queue_declare($cola, false, true, false, false, false, new AMQPTable([
                 'x-dead-letter-exchange' => '',

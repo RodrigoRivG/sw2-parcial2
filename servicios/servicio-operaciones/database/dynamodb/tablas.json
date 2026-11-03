@@ -48,6 +48,32 @@
           "orden": "fecha_limite"
         }
       ]
+    },
+    {
+      "nombre": "incidencias",
+      "clave": "id",
+      "indices": [
+        {
+          "nombre": "gsi_parcela",
+          "particion": "id_parcela",
+          "orden": "fecha_observacion"
+        },
+        {
+          "nombre": "gsi_campania",
+          "particion": "id_campania",
+          "orden": "fecha_observacion"
+        },
+        {
+          "nombre": "gsi_registrador",
+          "particion": "id_registrador",
+          "orden": "fecha_observacion"
+        },
+        {
+          "nombre": "gsi_notificacion_pendiente",
+          "particion": "notificacion_pendiente",
+          "orden": "fecha_recepcion"
+        }
+      ]
     }
   ]
 }
