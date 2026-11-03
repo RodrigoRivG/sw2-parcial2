@@ -1,0 +1,8 @@
+# Lo que genera servicio-operaciones al instalarse, correr o probarse (el .gitignore raíz cubre .env y editores)
+/vendor/
+/storage/
+/bootstrap/cache/*.php
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+*.log

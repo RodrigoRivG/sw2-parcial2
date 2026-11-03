@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-operaciones` |
 | Archivo | `specs/spec-labores.md` |
-| Estado | Spec en borrador (2026-11-02) |
+| Estado | Spec aprobada (2026-11-02) · Implementada (2026-11-02) |
 | Constitución | v2.8.0 (secciones 3, 4, 5, 7 y 9) |
 | Trazabilidad | CU-10 (prioridad alta) · RF-11, RF-14 (y RF-30 de n8n, RF-23 y RF-27 como soporte) · RN-06, RN-07, RN-10, RN-11, RN-15, RN-16 · RNF-05, RNF-08, RNF-09 |
 | Depende de | — (incluye la Fase 0: base del servicio). Consume `GET /campanias/{id}/estado` de `servicio-gestion` |
@@ -529,6 +529,22 @@ Tabla `labores` (clave `id`):
 
 **Revalidación:** `Query` de `gsi_validacion_pendiente` con `fecha_proximo_validacion <= ahora` (hasta 100 por ejecución); por cada labor, consulta la campaña y aplica `aplicarValidacion` con un `Update` condicionado a `version`. Si la condición falla, otra ejecución ya la procesó y se sigue con la siguiente.
 
+Ajustes respecto del plan original:
+
+- Versiones fijadas al crear el proyecto: Laravel 13.39, Pest 4.7 (PHPUnit 12) y `firebase/php-jwt` 7.2. La serie 6.x tiene un aviso de seguridad (PKSA-y2cr-5h3j-g3ys) y Composer no la instala.
+- El listado usa un puerto de lectura propio, `ConsultaLabores` (`Application/Contracts`), en lugar de ampliar `RepositorioLabor`, porque `FiltroLabores` y `Pagina` son tipos de Application y el repositorio está en Domain. `RepositorioLaborDynamo` implementa los dos.
+- `CrearTablasComando` vive en `Infrastructure/Persistence/DynamoDb/Console`, no en `InterfaceAdapters/Console`: solo maneja el esquema de DynamoDB y desde InterfaceAdapters violaría la regla de dependencias.
+- `ExigirJsonValido` (middleware del grupo de la API) rechaza con `400` un cuerpo JSON mal formado: Laravel lo ignoraría y respondería otro error.
+- Un `id` que no es UUID en la ruta (`/labores/abc`) no coincide con la ruta y responde `404 RECURSO_NO_ENCONTRADO`; los UUID inválidos del cuerpo o de la consulta responden `400`.
+- `ClienteServicioGestion` trata un `404` como "campaña inexistente" solo si el cuerpo trae `CAMPANIA_NO_ENCONTRADA`; un `404` del Gateway (por ejemplo, ruta sin configurar) cuenta como "no disponible". Un `401` o `403` de gestión borra el token en caché.
+- El tiempo límite de 2 s se configura en el cliente HTTP (`GESTION_TIEMPO_LIMITE_SEGUNDOS`); los tests simulan su efecto con una `ConnectionException`, no esperan 2 s reales.
+- `ValidadorEntorno` solo corre en solicitudes HTTP y en los comandos propios (`dynamodb:`, `labores:`, `schedule:`…), para que `composer install` (que ejecuta `package:discover`) funcione sin variables en la construcción de la imagen.
+- La imagen escucha en el puerto 8080 con el usuario `www-data` (Apache no puede abrir el 80 sin root).
+- `.env.testing` (solo comentarios) se versiona para que Laravel no busque `.env` en los tests; el `.gitignore` raíz tiene la excepción. Los avisos de `phpdotenv` por la falta de `.env` hacían ruido en cada test.
+- `EnParalelo` termina cada proceso hijo con `SIGKILL` después de escribir su resultado, para que no ejecute las funciones de cierre de PHPUnit ni el borrado de tablas del proceso padre.
+- El healthcheck de `localstack` en `docker-compose.yml` usaba `curl`, que la imagen `localstack/localstack:latest` ya no trae; ahora usa Python. Sin ese cambio, el perfil `operaciones` no arrancaba.
+- El workflow levanta DynamoDB Local y RabbitMQ; LocalStack se agrega en `spec-incidencias.md` (T02), la primera que usa S3, junto con el secreto `LOCALSTACK_AUTH_TOKEN`, para que el pipeline no falle antes de necesitarlo.
+
 ## 2.5 Tests
 
 | Tipo | Archivo | Qué verifica |
@@ -556,24 +572,24 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 
 ## Fase 0 — Base del servicio
 
-- [ ] **T01** — Crear el proyecto Laravel, quitar lo que no se usa, crear las carpetas de la constitución y agregar las dependencias de 2.1. *Hecho cuando:* `composer install` y `php artisan about` funcionan con la imagen de desarrollo.
-- [ ] **T02** — Implementar la configuración, `ValidadorEntorno`, `ClienteDynamoDb`, `tablas.json` (solo `registros_auditoria` y `labores`), `dynamodb:crear-tablas` y `UnidadTrabajoDynamo`. *Hecho cuando:* pasa `UnidadTrabajoTest.php` y el comando crea las tablas en el DynamoDB de Docker Compose dos veces sin error.
-- [ ] **T03** — Implementar las rutas de salud. *Hecho cuando:* pasa `SaludTest.php`.
-- [ ] **T04** — Implementar `ValidarJwt`, `ProveedorClavesJwks`, `RequerirRol` y el soporte de tokens de prueba. *Hecho cuando:* pasa `SeguridadTest.php`.
-- [ ] **T05** [P] — Implementar `ExcepcionDominio` y el render de errores. *Hecho cuando:* pasa `ErroresTest.php`.
-- [ ] **T06** [P] — Implementar `IdCorrelacion` y el log JSON. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
-- [ ] **T07** — Implementar `RegistroAuditoriaDynamo`, `Reloj`, `CodificadorCursor`, `tests/bootstrap.php`, `EnParalelo` y `openapi.yaml` con `/salud`. *Hecho cuando:* pasa `OpenApiTest.php`.
-- [ ] **T08** [P] — Escribir el `Dockerfile`, ajustar `docker/laravel/Dockerfile` y `docker-compose.yml` (2.1) y crear `.github/workflows/servicio-operaciones.yml`. *Hecho cuando:* `docker compose --profile operaciones up -d` deja el servicio respondiendo `/salud` y el pipeline corre en verde.
+- [x] **T01** — Crear el proyecto Laravel, quitar lo que no se usa, crear las carpetas de la constitución y agregar las dependencias de 2.1. *Hecho cuando:* `composer install` y `php artisan about` funcionan con la imagen de desarrollo.
+- [x] **T02** — Implementar la configuración, `ValidadorEntorno`, `ClienteDynamoDb`, `tablas.json` (solo `registros_auditoria` y `labores`), `dynamodb:crear-tablas` y `UnidadTrabajoDynamo`. *Hecho cuando:* pasa `UnidadTrabajoTest.php` y el comando crea las tablas en el DynamoDB de Docker Compose dos veces sin error.
+- [x] **T03** — Implementar las rutas de salud. *Hecho cuando:* pasa `SaludTest.php`.
+- [x] **T04** — Implementar `ValidarJwt`, `ProveedorClavesJwks`, `RequerirRol` y el soporte de tokens de prueba. *Hecho cuando:* pasa `SeguridadTest.php`.
+- [x] **T05** [P] — Implementar `ExcepcionDominio` y el render de errores. *Hecho cuando:* pasa `ErroresTest.php`.
+- [x] **T06** [P] — Implementar `IdCorrelacion` y el log JSON. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
+- [x] **T07** — Implementar `RegistroAuditoriaDynamo`, `Reloj`, `CodificadorCursor`, `tests/bootstrap.php`, `EnParalelo` y `openapi.yaml` con `/salud`. *Hecho cuando:* pasa `OpenApiTest.php`.
+- [x] **T08** [P] — Escribir el `Dockerfile`, ajustar `docker/laravel/Dockerfile` y `docker-compose.yml` (2.1) y crear `.github/workflows/servicio-operaciones.yml`. *Hecho cuando:* `docker compose --profile operaciones up -d` deja el servicio respondiendo `/salud` y el pipeline corre en verde. Verificado en local: el perfil arranca sano, el programador ejecuta `labores:revalidar-campanias` cada minuto, la imagen de producción responde `/salud/liveness`, y los pasos del pipeline (Pint, Pest con cobertura y `docker build`) pasan. La primera corrida en GitHub Actions ocurre con el push.
 
 ## Fase 1 — Labores
 
-- [ ] **T09** — Crear `Cantidad`, `Huella`, `LaborAgricola` y sus enumeraciones, con sus tests unitarios.
-- [ ] **T10** — Implementar `RepositorioLaborDynamo`, su mapper y los índices de 2.3.
-- [ ] **T11** — Implementar `ClienteServicioGestion` y `TokenCuentaServicio`. *Hecho cuando:* pasa `ClienteServicioGestionTest.php`.
-- [ ] **T12** — Implementar `ProgramarLaborCasoUso`, `RegistrarLaborCasoUso` y `POST /labores`. *Hecho cuando:* pasan la Historia 1, los escenarios 1 a 3 de la Historia 2 y la Historia 3 (salvo el escenario 6).
-- [ ] **T13** — Implementar `RealizarLaborCasoUso` y `POST /labores/{id}/realizacion`. *Hecho cuando:* pasan los escenarios 4 a 6 de la Historia 2 y el escenario 6 de la Historia 3.
-- [ ] **T14** — Implementar la validación diferida, `RevalidarCampaniasCasoUso` y el comando programado. *Hecho cuando:* pasa `RevalidarCampaniasTest.php`.
-- [ ] **T15** — Implementar `ConsultarLaboresCasoUso` y los dos `GET`, con la visibilidad. *Hecho cuando:* pasa la Historia 5.
-- [ ] **T16** [P] — Escribir `IdempotenciaLaboresTest.php` (incluido CE-LAB-02) y `LaboresRendimientoTest.php` (CE-LAB-04).
-- [ ] **T17** — Documentar en `openapi.yaml` los cuatro endpoints con sus errores.
-- [ ] **T18** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-LAB-01 a CE-LAB-05 cubiertos por al menos un test.
+- [x] **T09** — Crear `Cantidad`, `Huella`, `LaborAgricola` y sus enumeraciones, con sus tests unitarios.
+- [x] **T10** — Implementar `RepositorioLaborDynamo`, su mapper y los índices de 2.3.
+- [x] **T11** — Implementar `ClienteServicioGestion` y `TokenCuentaServicio`. *Hecho cuando:* pasa `ClienteServicioGestionTest.php`.
+- [x] **T12** — Implementar `ProgramarLaborCasoUso`, `RegistrarLaborCasoUso` y `POST /labores`. *Hecho cuando:* pasan la Historia 1, los escenarios 1 a 3 de la Historia 2 y la Historia 3 (salvo el escenario 6).
+- [x] **T13** — Implementar `RealizarLaborCasoUso` y `POST /labores/{id}/realizacion`. *Hecho cuando:* pasan los escenarios 4 a 6 de la Historia 2 y el escenario 6 de la Historia 3.
+- [x] **T14** — Implementar la validación diferida, `RevalidarCampaniasCasoUso` y el comando programado. *Hecho cuando:* pasa `RevalidarCampaniasTest.php`.
+- [x] **T15** — Implementar `ConsultarLaboresCasoUso` y los dos `GET`, con la visibilidad. *Hecho cuando:* pasa la Historia 5.
+- [x] **T16** [P] — Escribir `IdempotenciaLaboresTest.php` (incluido CE-LAB-02) y `LaboresRendimientoTest.php` (CE-LAB-04).
+- [x] **T17** — Documentar en `openapi.yaml` los cuatro endpoints con sus errores.
+- [x] **T18** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-LAB-01 a CE-LAB-05 cubiertos por al menos un test. Resultado: 174 tests, cobertura de `Domain` y `Application` 99,1 %. Listado de 100 labores sobre 1.000 en 0,07 s y detalle en 0,01 s (CE-LAB-04).

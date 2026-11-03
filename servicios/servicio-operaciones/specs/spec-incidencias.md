@@ -349,7 +349,7 @@ Los tests usan el bucket `evidencias-pruebas` (README D-17), que crea el arranqu
 # 3. Tareas
 
 - [ ] **T01** — Crear `Incidencia`, `TipoIncidencia`, `ClasificacionImagen`, `OrigenClasificacion` y `FotoIncidencia`, con sus tests unitarios.
-- [ ] **T02** — Implementar `ClienteS3` y `AlmacenamientoArchivosS3`, y crear el bucket de pruebas en el arranque de los tests. *Hecho cuando:* un test de integración guarda, firma, descarga y borra un objeto en LocalStack.
+- [ ] **T02** — Implementar `ClienteS3` y `AlmacenamientoArchivosS3`, y crear el bucket de pruebas en el arranque de los tests. Agregar LocalStack a los contenedores de servicio del workflow y el secreto `LOCALSTACK_AUTH_TOKEN` al repositorio (`spec-labores.md`, ajustes del plan). *Hecho cuando:* un test de integración guarda, firma, descarga y borra un objeto en LocalStack.
 - [ ] **T03** — Agregar `incidencias` a `tablas.json` e implementar `RepositorioIncidenciaDynamo`.
 - [ ] **T04** — Implementar `RegistrarIncidenciaCasoUso` y `POST /incidencias` (sin evento). *Hecho cuando:* pasan las Historias 1, 2 y 4.
 - [ ] **T05** — Ampliar `PublicadorRabbitMq` con `publicarEvento`, conectar el evento y crear `incidencias:republicar-eventos`. *Hecho cuando:* pasa `EventoIncidenciaTest.php`.

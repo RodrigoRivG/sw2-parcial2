@@ -2,7 +2,7 @@
 
 Entorno local compartido del sistema de gestión de campañas agrícolas (RNF-19): infraestructura, emuladores de nube e imágenes de desarrollo para los cuatro microservicios, el API Gateway y el servidor GraphQL. Está pensado para una laptop de **16 GB de RAM** con Windows 11 y WSL 2.
 
-Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus specs (`specs/`); el código se genera siguiendo spec → plan → tareas. Hoy tienen código `servicio-gestion` y `servicio-inventario`.
+Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus specs (`specs/`); el código se genera siguiendo spec → plan → tareas. Hoy tienen código `servicio-gestion`, `servicio-inventario` y `servicio-operaciones`.
 
 > Los microfrontends (Angular, React, Vue) y Flutter se desarrollan fuera de Docker y consumen el backend a través del API Gateway.
 
@@ -12,7 +12,7 @@ Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus spec
 
 ```
 sw2-parcial2/
-├── .github/workflows/         # un pipeline por servicio, filtrado por su carpeta (gestion, inventario)
+├── .github/workflows/         # un pipeline por servicio, filtrado por su carpeta (gestion, inventario, operaciones)
 ├── docker-compose.yml
 ├── .env.example
 ├── scripts/
@@ -28,7 +28,7 @@ sw2-parcial2/
 └── servicios/
     ├── servicio-gestion/           # Constitucion.md, specs/ y código (Spring Boot)
     ├── servicio-inventario/        # Constitucion.md, specs/ y código (NestJS)
-    ├── servicio-operaciones/       # Constitucion.md y specs/
+    ├── servicio-operaciones/       # Constitucion.md, specs/ y código (Laravel)
     ├── servicio-ia/                # Constitucion.md
     ├── api-gateway/
     └── graphql-server/
@@ -108,7 +108,7 @@ Todo lo que un servicio necesita le llega por **variables de entorno** (RNF-03).
 |---|---|---|
 | servicio-gestion | `mvn spring-boot:run` (recompila al guardar; requiere `spring-boot-devtools`) | `SERVER_PORT`, `SPRING_DATASOURCE_*`, `SPRING_RABBITMQ_*` |
 | servicio-inventario | `npm run start:dev` (recompila al guardar; aplica las migraciones de `migrations/` al arrancar) | `PORT`, `MONGODB_URI`, `RABBITMQ_URL` |
-| servicio-operaciones | `php artisan serve` | `DYNAMODB_ENDPOINT`, `AWS_*`, `AWS_ENDPOINT`, `AWS_BUCKET`, `RABBITMQ_*`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
+| servicio-operaciones | `php artisan serve` (crea las tablas de DynamoDB al arrancar); `servicio-operaciones-programador` corre `php artisan schedule:work` | `DYNAMODB_ENDPOINT`, `AWS_*`, `AWS_ENDPOINT`, `AWS_ENDPOINT_PUBLICO`, `AWS_BUCKET`, `RABBITMQ_*`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | servicio-ia | `pip install -e .` + `uvicorn app.main:app --reload` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `WHISPER_*`, `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `STORAGE_EMULATOR_HOST`, `GCS_BUCKET`, `RABBITMQ_URL`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | api-gateway | `mvn spring-boot:run` | `SERVER_PORT`, `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL` |
 | graphql-server | `npm run dev` | `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |

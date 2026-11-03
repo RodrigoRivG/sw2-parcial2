@@ -1,0 +1,59 @@
+name: servicio-operaciones
+
+on:
+  push:
+    paths:
+      - "servicios/servicio-operaciones/**"
+      - ".github/workflows/servicio-operaciones.yml"
+  pull_request:
+    paths:
+      - "servicios/servicio-operaciones/**"
+      - ".github/workflows/servicio-operaciones.yml"
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: servicios/servicio-operaciones
+    # Las mismas imágenes de Docker Compose (README de specs, D-17).
+    # LocalStack se agrega con spec-incidencias.md, la primera que usa S3, junto con el secreto LOCALSTACK_AUTH_TOKEN.
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: sw2
+          RABBITMQ_DEFAULT_PASS: sw2pass
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DYNAMODB_ENDPOINT: http://localhost:8000
+      RABBITMQ_HOST: localhost
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: sw2
+      RABBITMQ_PASSWORD: sw2pass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: bcmath, sockets, pcntl, posix
+          coverage: pcov
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist
+      - name: Revisar estilo
+        run: vendor/bin/pint --test
+      - name: Probar y medir cobertura
+        run: vendor/bin/pest --coverage --min=80
+      - name: Construir la imagen Docker
+        run: docker build -t servicio-operaciones:${{ github.sha }} .

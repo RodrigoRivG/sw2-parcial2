@@ -1,0 +1,22 @@
+{
+  "_descripcion": "Tablas e índices de servicio-operaciones (constitución §4). Los crea `php artisan dynamodb:crear-tablas`. Todos los atributos clave son de tipo S.",
+  "tablas": [
+    {
+      "nombre": "registros_auditoria",
+      "clave": "id",
+      "indices": [
+        { "nombre": "gsi_entidad", "particion": "entidad_id", "orden": "fecha" }
+      ]
+    },
+    {
+      "nombre": "labores",
+      "clave": "id",
+      "indices": [
+        { "nombre": "gsi_estado", "particion": "estado", "orden": "fecha_referencia" },
+        { "nombre": "gsi_campania", "particion": "id_campania", "orden": "fecha_referencia" },
+        { "nombre": "gsi_responsable", "particion": "id_responsable", "orden": "fecha_referencia" },
+        { "nombre": "gsi_validacion_pendiente", "particion": "validacion_pendiente", "orden": "fecha_proximo_validacion" }
+      ]
+    }
+  ]
+}

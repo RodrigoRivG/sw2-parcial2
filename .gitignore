@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Sin secretos: solo hace que Laravel no busque .env en los tests de operaciones
+!servicios/servicio-operaciones/.env.testing
 
 # Java / Maven
 target/

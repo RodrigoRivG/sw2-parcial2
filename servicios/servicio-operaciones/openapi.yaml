@@ -1,0 +1,211 @@
+openapi: 3.1.0
+info:
+  title: servicio-operaciones
+  version: 1.0.0
+  description: |
+    Operaciones de campo: labores, incidencias, sincronización offline y coordinación de la Saga.
+    Todas las rutas bajo /api/operaciones/v1 exigen un JWT de Keycloak. Los decimales viajan como texto
+    y los montos están en bolivianos (BOB).
+servers:
+  - url: /
+security:
+  - jwt: []
+paths:
+  /salud:
+    get:
+      summary: Readiness (DynamoDB y RabbitMQ)
+      security: []
+      responses:
+        '200': { description: Todo responde }
+        '503': { description: Alguna dependencia no responde }
+  /salud/liveness:
+    get:
+      summary: El proceso responde
+      security: []
+      responses:
+        '200': { description: UP }
+  /salud/readiness:
+    get:
+      summary: Readiness (DynamoDB y RabbitMQ)
+      security: []
+      responses:
+        '200': { description: Todo responde }
+        '503': { description: Alguna dependencia no responde }
+  /api-docs:
+    get:
+      summary: Este contrato
+      security: []
+      responses:
+        '200': { description: Contrato OpenAPI en YAML }
+  /api/operaciones/v1/labores:
+    post:
+      summary: Programar una labor o registrar una labor realizada (spec-labores.md)
+      description: |
+        Exactamente una de fechaProgramada (programar; administrador o tecnico_campo) o fechaEjecucion
+        (registrar realizada; tecnico_campo). Idempotente por idOperacion: repetida con el mismo contenido → 200.
+        Si servicio-gestion no responde, la labor queda PENDIENTE con validacionCampania = PENDIENTE.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CrearLabor' }
+      responses:
+        '201': { description: Labor creada, content: { application/json: { schema: { $ref: '#/components/schemas/Labor' } } } }
+        '200': { description: Operación ya procesada; estado actual, content: { application/json: { schema: { $ref: '#/components/schemas/Labor' } } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { description: CAMPANIA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: CONFLICTO_IDEMPOTENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: CAMPANIA_FINALIZADA, PARCELA_NO_CORRESPONDE, CANTIDAD_INVALIDA, FECHA_PROGRAMADA_INVALIDA o FECHA_EJECUCION_INVALIDA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      summary: Listar labores por campaña, responsable o estado (paginado por cursor)
+      description: Obligatorio al menos uno de idCampania, idResponsable, mias=true o estado. Un técnico de campo solo lista las suyas o las programadas.
+      parameters:
+        - { name: idCampania, in: query, schema: { type: string, format: uuid } }
+        - { name: idResponsable, in: query, schema: { type: string } }
+        - { name: mias, in: query, schema: { type: string, enum: ['true', 'false'] } }
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoLabor' } }
+        - { name: fechaDesde, in: query, schema: { type: string, format: date } }
+        - { name: fechaHasta, in: query, schema: { type: string, format: date } }
+        - { name: orden, in: query, schema: { type: string, enum: [ASC, DESC], default: DESC } }
+        - { name: limite, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Página de labores, content: { application/json: { schema: { $ref: '#/components/schemas/PaginaLabores' } } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+  /api/operaciones/v1/labores/{id}:
+    get:
+      summary: Detalle de una labor
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Labor, content: { application/json: { schema: { $ref: '#/components/schemas/Labor' } } } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { description: LABOR_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/operaciones/v1/labores/{id}/realizacion:
+    post:
+      summary: Registrar como realizada una labor programada (tecnico_campo)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RealizarLabor' }
+      responses:
+        '200': { description: Labor realizada (o realización ya procesada), content: { application/json: { schema: { $ref: '#/components/schemas/Labor' } } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { description: LABOR_NO_ENCONTRADA o CAMPANIA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: CONFLICTO_IDEMPOTENCIA o CONFLICTO_CONCURRENCIA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: LABOR_NO_PROGRAMADA, CAMPANIA_FINALIZADA, PARCELA_NO_CORRESPONDE, CANTIDAD_INVALIDA o FECHA_EJECUCION_INVALIDA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+components:
+  securitySchemes:
+    jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    EstadoLabor:
+      type: string
+      enum: [PROGRAMADA, PENDIENTE, CONFIRMADA, RECHAZADA, PENDIENTE_REVISION]
+    TipoLabor:
+      type: string
+      enum: [PREPARACION_SUELO, SIEMBRA, FERTILIZACION, RIEGO, CONTROL_FITOSANITARIO, DESHIERBE, COSECHA, OTRA]
+    Decimal3:
+      type: string
+      pattern: '^\d{1,12}(\.\d{1,3})?$'
+      description: Decimal como texto, mayor a 0 y con hasta 3 decimales. Un número JSON se rechaza con 400.
+    ConsumoInsumo:
+      type: object
+      required: [idInsumo, cantidad]
+      properties:
+        idInsumo: { type: string, format: uuid }
+        cantidad: { $ref: '#/components/schemas/Decimal3' }
+    CrearLabor:
+      type: object
+      additionalProperties: false
+      required: [idOperacion, fechaCreacion, tipoLabor, idParcela, idCampania]
+      properties:
+        idOperacion: { type: string, format: uuid, description: UUID generado en el dispositivo; es el id de la labor }
+        fechaCreacion: { type: string, format: date-time }
+        tipoLabor: { $ref: '#/components/schemas/TipoLabor' }
+        idParcela: { type: string, format: uuid }
+        idCampania: { type: string, format: uuid }
+        fechaProgramada: { type: string, format: date }
+        fechaEjecucion: { type: string, format: date-time }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+        insumos: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/ConsumoInsumo' } }
+    RealizarLabor:
+      type: object
+      additionalProperties: false
+      required: [idOperacion, fechaCreacion, fechaEjecucion]
+      properties:
+        idOperacion: { type: string, format: uuid }
+        fechaCreacion: { type: string, format: date-time }
+        fechaEjecucion: { type: string, format: date-time }
+        observaciones: { type: [string, 'null'], maxLength: 500 }
+        insumos: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/ConsumoInsumo' } }
+    Responsable:
+      type: object
+      properties:
+        id: { type: string, description: sub de Keycloak }
+        nombre: { type: string }
+    Labor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tipoLabor: { $ref: '#/components/schemas/TipoLabor' }
+        idParcela: { type: string, format: uuid }
+        idCampania: { type: string, format: uuid }
+        estado: { $ref: '#/components/schemas/EstadoLabor' }
+        fechaReferencia: { type: string }
+        fechaProgramada: { type: [string, 'null'], format: date }
+        fechaEjecucion: { type: [string, 'null'], format: date-time }
+        fechaCreacion: { type: string, format: date-time }
+        fechaRecepcion: { type: string, format: date-time }
+        fechaRecepcionEjecucion: { type: [string, 'null'], format: date-time }
+        responsable: { $ref: '#/components/schemas/Responsable' }
+        programadaPor: { oneOf: [{ $ref: '#/components/schemas/Responsable' }, { type: 'null' }] }
+        observaciones: { type: [string, 'null'] }
+        insumos: { type: array, items: { $ref: '#/components/schemas/ConsumoInsumo' } }
+        validacionCampania: { type: string, enum: [VALIDADA, PENDIENTE] }
+        idSaga: { type: [string, 'null'], format: uuid }
+        motivo:
+          oneOf:
+            - type: 'null'
+            - type: object
+              properties:
+                codigo: { type: string }
+                mensaje: { type: string }
+                detalles: { type: array, items: { type: object } }
+        version: { type: integer }
+        fechaActualizacion: { type: string, format: date-time }
+    PaginaLabores:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Labor' } }
+        siguienteCursor: { type: [string, 'null'] }
+    Error:
+      type: object
+      required: [codigo, mensaje, detalles, idCorrelacion]
+      properties:
+        codigo: { type: string, examples: [DATOS_INVALIDOS] }
+        mensaje: { type: string }
+        detalles: { type: array, items: { type: object } }
+        idCorrelacion: { type: string }
+  responses:
+    DatosInvalidos:
+      description: DATOS_INVALIDOS
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NoAutenticado:
+      description: NO_AUTENTICADO
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    SinPermiso:
+      description: SIN_PERMISO
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

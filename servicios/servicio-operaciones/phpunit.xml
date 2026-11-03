@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+    <!-- La cobertura mínima de 80 % se mide sobre Domain y Application (constitución §8) -->
+    <source>
+        <include>
+            <directory>app/Domain</directory>
+            <directory>app/Application</directory>
+        </include>
+    </source>
+    <!-- Valores por defecto para correr con scripts/ejecutar.sh en la red de Docker Compose.
+         En GitHub Actions el workflow los reemplaza con variables de entorno (no se fuerzan). -->
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_DEBUG" value="false"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="LOG_CHANNEL" value="null"/>
+        <env name="AWS_ACCESS_KEY_ID" value="test"/>
+        <env name="AWS_SECRET_ACCESS_KEY" value="test"/>
+        <env name="AWS_DEFAULT_REGION" value="us-east-1"/>
+        <env name="DYNAMODB_ENDPOINT" value="http://dynamodb:8000"/>
+        <env name="API_GATEWAY_URL" value="http://gateway.pruebas"/>
+        <env name="KEYCLOAK_ISSUER" value="http://keycloak.pruebas/realms/agro"/>
+        <env name="KEYCLOAK_JWKS_URI" value="http://keycloak.pruebas/realms/agro/protocol/openid-connect/certs"/>
+        <env name="KEYCLOAK_AUDIENCE" value="servicio-operaciones"/>
+        <env name="KEYCLOAK_TOKEN_URL" value="http://keycloak.pruebas/realms/agro/protocol/openid-connect/token"/>
+        <env name="KEYCLOAK_CLIENT_ID" value="servicio-operaciones"/>
+        <env name="KEYCLOAK_CLIENT_SECRET" value="secreto-pruebas"/>
+    </php>
+</phpunit>

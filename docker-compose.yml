@@ -122,7 +122,8 @@ services:
       - localstack-data:/var/lib/localstack
       - ./docker/localstack/init:/etc/localstack/init/ready.d:ro   # crea el bucket al arrancar
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:4566/_localstack/health | grep -Eq '\"s3\": \"(available|running)\"'"]
+      # Las versiones recientes de la imagen no traen curl; Python sí
+      test: ["CMD", "python3", "-c", "import urllib.request,json,sys; s=json.load(urllib.request.urlopen('http://localhost:4566/_localstack/health'))['services'].get('s3'); sys.exit(0 if s in ('available','running') else 1)"]
       interval: 10s
       timeout: 5s
       start_period: 20s
@@ -227,33 +228,48 @@ services:
     profiles: ["operaciones", "saga", "backend", "todo"]
     image: sw2/laravel-dev
     build: ./docker/laravel
+    # Solo este contenedor instala dependencias y crea las tablas; el programador espera a que esté sano
+    command: sh -c "composer install --no-interaction && php artisan dynamodb:crear-tablas && php artisan serve --host=0.0.0.0 --port=8000"
     ports:
       - "8000:8000"
     volumes:
       - ./servicios/servicio-operaciones:/app
-    environment:
+    environment: &operaciones-env
       <<: *keycloak-env
       # Laravel sin base relacional (la constitución prohíbe Eloquent)
       CACHE_STORE: file
       SESSION_DRIVER: file
       QUEUE_CONNECTION: sync
+      # Sin esto, el servidor embebido atiende una solicitud a la vez
+      PHP_CLI_SERVER_WORKERS: 4
       # AWS apuntando a los emuladores locales
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
       DYNAMODB_ENDPOINT: http://dynamodb:8000
       AWS_ENDPOINT: http://localstack:4566
+      # Las URL prefirmadas de las fotos se abren desde el navegador, que no conoce "localstack"
+      AWS_ENDPOINT_PUBLICO: http://localhost:4566
       AWS_USE_PATH_STYLE_ENDPOINT: "true"
       AWS_BUCKET: ${S3_BUCKET}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: /
+      RABBITMQ_SSL: "false"
       # Consulta de campaña a servicio-gestion, a través del gateway con cuenta de servicio
       API_GATEWAY_URL: http://api-gateway:8080
       KEYCLOAK_AUDIENCE: servicio-operaciones
       KEYCLOAK_CLIENT_ID: servicio-operaciones
       KEYCLOAK_CLIENT_SECRET: ${OPERACIONES_CLIENT_SECRET:-}
+    healthcheck:
+      # La imagen no trae curl
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://localhost:8000/salud/liveness') === false ? 1 : 0);"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
     depends_on:
       dynamodb:
         condition: service_started
@@ -262,6 +278,19 @@ services:
       rabbitmq:
         condition: service_healthy
     mem_limit: 384m
+
+  # Tareas programadas de servicio-operaciones (revalidación de campañas, recuperación de la Saga…)
+  servicio-operaciones-programador:
+    profiles: ["operaciones", "saga", "backend", "todo"]
+    image: sw2/laravel-dev
+    command: php artisan schedule:work
+    volumes:
+      - ./servicios/servicio-operaciones:/app
+    environment: *operaciones-env
+    depends_on:
+      servicio-operaciones:
+        condition: service_healthy
+    mem_limit: 128m
 
   servicio-ia:
     profiles: ["ia", "todo"]
