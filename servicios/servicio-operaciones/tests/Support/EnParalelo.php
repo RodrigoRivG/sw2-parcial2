@@ -23,6 +23,10 @@ final class EnParalelo
     {
         $archivos = [];
         $pids = [];
+        // El padre destruye su basura antes de crear los hijos: si no, un hijo podría destruir una copia heredada de
+        // una conexión (por ejemplo, a RabbitMQ) y cerrarla por el socket que comparte con el padre, que después
+        // esperaría respuestas que nunca llegan
+        gc_collect_cycles();
 
         for ($i = 0; $i < $procesos; $i++) {
             $archivos[$i] = (string) tempnam(sys_get_temp_dir(), 'paralelo');
@@ -52,6 +56,8 @@ final class EnParalelo
 
     private static function hijo(int $numero, string $archivo, callable $tarea, ?callable $preparar): never
     {
+        // Lo heredado del padre no se recolecta en el hijo, por la misma razón
+        gc_disable();
         try {
             $app = require __DIR__.'/../../bootstrap/app.php';
             $app->make(Kernel::class)->bootstrap();

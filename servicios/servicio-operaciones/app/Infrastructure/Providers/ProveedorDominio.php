@@ -10,6 +10,7 @@ use App\Application\Contracts\PublicadorMensajes;
 use App\Application\Contracts\RegistroAuditoria;
 use App\Application\Contracts\Reloj;
 use App\Application\Contracts\UnidadTrabajo;
+use App\Application\UseCases\SyncOfflineOperations\PasarelaCampaniaConCache;
 use App\Domain\FieldTask\RepositorioLabor;
 use App\Domain\Incident\RepositorioIncidencia;
 use App\Domain\Saga\ConfiguracionSaga;
@@ -79,7 +80,9 @@ final class ProveedorDominio extends ServiceProvider
         // Labores (spec-labores.md)
         $this->app->bind(RepositorioLabor::class, RepositorioLaborDynamo::class);
         $this->app->bind(ConsultaLabores::class, RepositorioLaborDynamo::class);
-        $this->app->bind(PasarelaCampania::class, ClienteServicioGestion::class);
+        // Un solo decorador: solo guarda respuestas mientras un lote de sincronización lo activa (RQ-SIN-07)
+        $this->app->singleton(PasarelaCampaniaConCache::class, fn ($app) => new PasarelaCampaniaConCache($app->make(ClienteServicioGestion::class)));
+        $this->app->bind(PasarelaCampania::class, PasarelaCampaniaConCache::class);
 
         // Saga (spec-saga.md)
         $this->app->bind(RepositorioSaga::class, RepositorioSagaDynamo::class);

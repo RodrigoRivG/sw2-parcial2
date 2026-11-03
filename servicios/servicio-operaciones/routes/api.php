@@ -3,6 +3,7 @@
 use App\InterfaceAdapters\Http\Controllers\IncidenciaControlador;
 use App\InterfaceAdapters\Http\Controllers\LaborControlador;
 use App\InterfaceAdapters\Http\Controllers\SagaControlador;
+use App\InterfaceAdapters\Http\Controllers\SincronizacionControlador;
 use App\InterfaceAdapters\Http\Middleware\ExigirJsonValido;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,9 @@ Route::middleware(['jwt', ExigirJsonValido::class])->group(function (): void {
     Route::post('/incidencias', [IncidenciaControlador::class, 'crear'])->middleware('rol:tecnico_campo');
     Route::get('/incidencias', [IncidenciaControlador::class, 'listar'])->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
     Route::get('/incidencias/{id}', [IncidenciaControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones,tecnico_campo');
+
+    // Sincronización offline por lotes (spec-sincronizacion.md); multipart/form-data
+    Route::post('/sincronizacion', [SincronizacionControlador::class, 'sincronizar'])->middleware('rol:tecnico_campo');
 
     // Saga (spec-saga.md)
     Route::get('/sagas/{id}', [SagaControlador::class, 'detalle'])->whereUuid('id')->middleware('rol:administrador,gerencia,lectura_operaciones');

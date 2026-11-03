@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Application;
 
+use App\Application\Contracts\AlmacenamientoArchivos;
 use App\Application\Contracts\CampaniaNoDisponible;
 use App\Application\Contracts\ConflictoEscritura;
 use App\Application\Contracts\PasarelaCampania;
@@ -9,12 +10,15 @@ use App\Application\Contracts\PublicacionFallida;
 use App\Application\Contracts\PublicadorMensajes;
 use App\Application\Contracts\RegistroAuditoria;
 use App\Application\Contracts\UnidadTrabajo;
+use App\Application\Contracts\UrlTemporal;
 use App\Application\UseCases\Saga\EnvioComandos;
 use App\Application\UseCases\Saga\IniciarSaga;
 use App\Domain\FieldTask\CampaniaConsultada;
 use App\Domain\FieldTask\EstadoLabor;
 use App\Domain\FieldTask\LaborAgricola;
 use App\Domain\FieldTask\RepositorioLabor;
+use App\Domain\Incident\Incidencia;
+use App\Domain\Incident\RepositorioIncidencia;
 use App\Domain\Saga\ConfiguracionSaga;
 use App\Domain\Saga\Participante;
 use App\Domain\Saga\RepositorioSaga;
@@ -33,6 +37,9 @@ final class RepositorioLaborEnMemoria implements RepositorioLabor
     /** Simula otra solicitud que gana la carrera justo antes de guardar. */
     public ?LaborAgricola $ganadoraCarrera = null;
 
+    /** Ids cuya escritura falla como si DynamoDB no respondiera. */
+    public array $fallanAlGuardar = [];
+
     public function buscar(string $id): ?LaborAgricola
     {
         return isset($this->labores[$id]) ? clone $this->labores[$id] : null;
@@ -40,6 +47,9 @@ final class RepositorioLaborEnMemoria implements RepositorioLabor
 
     public function guardarNueva(LaborAgricola $labor): void
     {
+        if (in_array($labor->id, $this->fallanAlGuardar, true)) {
+            throw new \RuntimeException('DynamoDB no responde');
+        }
         if ($this->ganadoraCarrera !== null) {
             $this->labores[$this->ganadoraCarrera->id] = $this->ganadoraCarrera;
             $this->ganadoraCarrera = null;
@@ -200,5 +210,66 @@ final class PasarelaCampaniaFalsa implements PasarelaCampania
         }
 
         return $this->campanias[$idCampania] ?? null;
+    }
+}
+
+final class AlmacenamientoEnMemoria implements AlmacenamientoArchivos
+{
+    /** @var array<string, string> */
+    public array $objetos = [];
+
+    public function guardar(string $clave, string $contenido, string $tipoContenido): void
+    {
+        $this->objetos[$clave] = $contenido;
+    }
+
+    public function borrar(string $clave): void
+    {
+        unset($this->objetos[$clave]);
+    }
+
+    public function urlTemporal(string $clave, int $minutos): UrlTemporal
+    {
+        return new UrlTemporal("memoria://{$clave}", new DateTimeImmutable("+{$minutos} minutes"));
+    }
+}
+
+final class RepositorioIncidenciaEnMemoria implements RepositorioIncidencia
+{
+    /** @var array<string, Incidencia> */
+    public array $incidencias = [];
+
+    /** @var array<string, bool> */
+    public array $notificadas = [];
+
+    public ?Incidencia $ganadoraCarrera = null;
+
+    public bool $falla = false;
+
+    public function buscar(string $id): ?Incidencia
+    {
+        return $this->incidencias[$id] ?? null;
+    }
+
+    public function guardarNueva(Incidencia $incidencia): void
+    {
+        if ($this->falla) {
+            throw new \RuntimeException('DynamoDB no responde');
+        }
+        if ($this->ganadoraCarrera !== null) {
+            $this->incidencias[$this->ganadoraCarrera->id] = $this->ganadoraCarrera;
+            throw new ConflictoEscritura('incidencia');
+        }
+        $this->incidencias[$incidencia->id] = $incidencia;
+    }
+
+    public function marcarNotificada(string $id): void
+    {
+        $this->notificadas[$id] = true;
+    }
+
+    public function pendientesDeNotificar(DateTimeImmutable $antesDe, int $maximo): array
+    {
+        return array_values(array_filter($this->incidencias, fn (Incidencia $i) => ! isset($this->notificadas[$i->id]) && $i->fechaRecepcion <= $antesDe));
     }
 }

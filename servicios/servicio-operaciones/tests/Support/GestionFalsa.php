@@ -22,17 +22,22 @@ final class GestionFalsa
     /** Si no es null, el Gateway responde este código HTTP (5xx, 401, 403…). */
     private static ?int $estadoError = null;
 
+    /** Latencia simulada de cada consulta; con gestión caída, el tiempo que tarda en vencer el tiempo límite. */
+    private static int $demoraMs = 0;
+
     public static function instalar(): void
     {
         self::$campanias = [];
         self::$disponible = true;
         self::$consultas = 0;
         self::$estadoError = null;
+        self::$demoraMs = 0;
 
         Http::fake([
             config('keycloak.token_url') => Http::response(['access_token' => 'token-servicio', 'expires_in' => 300]),
             rtrim((string) config('servicios.api_gateway_url'), '/').'/api/gestion/v1/campanias/*' => function (Request $request) {
                 self::$consultas++;
+                usleep(self::$demoraMs * 1000);
                 if (! self::$disponible) {
                     throw new ConnectionException('cURL error 28: Operation timed out');
                 }
@@ -65,6 +70,11 @@ final class GestionFalsa
     public static function disponible(bool $disponible): void
     {
         self::$disponible = $disponible;
+    }
+
+    public static function demora(int $milisegundos): void
+    {
+        self::$demoraMs = $milisegundos;
     }
 
     public static function responderError(?int $estado): void

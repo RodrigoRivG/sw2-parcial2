@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-operaciones` |
 | Archivo | `specs/spec-sincronizacion.md` |
-| Estado | Spec en borrador (2026-11-02) |
+| Estado | Spec aprobada (2026-11-03) · Implementada (2026-11-03) |
 | Constitución | v2.8.0 (sección 5) |
 | Trazabilidad | CU-13 (prioridad media) · RF-14, RF-15, RF-16, RF-17 (lado servidor) · RN-10, RN-11, RN-12 · RNF-09, RNF-14 |
 | Depende de | `spec-labores.md`, `spec-incidencias.md` (y `spec-saga.md` para las labores con insumos) |
@@ -252,12 +252,20 @@ SincronizarOperacionesCasoUso.ejecutar(operaciones, fotos, usuario):
 | Integración | `tests/Integration/Http/SincronizacionIdempotenciaTest.php` | Historia 2 (CE-SIN-02) |
 | Integración | `tests/Integration/Http/SincronizacionRendimientoTest.php` | CE-SIN-03 con gestión simulada con demora |
 
+## 2.5 Ajustes respecto del plan original
+
+- `PasarelaCampaniaConCache` no se crea por solicitud: es un decorador único de `PasarelaCampania` que solo guarda respuestas mientras un lote lo activa (`activar()`/`desactivar()` en un `finally`). Crearlo por solicitud obligaba a reemplazar enlaces del contenedor desde el controlador; fuera de un lote deja pasar cada consulta, así que el registro individual y la revalidación no cambian.
+- En lugar de clases `Reglas*`, las reglas quedaron como métodos estáticos de cada `FormRequest` (`CrearLaborRequest::reglas()`, `RealizarLaborRequest::reglas()`, `RegistrarIncidenciaRequest::reglasDatos()`), y la conversión a la entrada del caso de uso en métodos estáticos de los controladores (`entradaCreacion`, `entradaRealizacion`, `entrada`). Los endpoints y el lote usan exactamente el mismo código.
+- El lote recorta los textos y convierte los vacíos en `null` antes de validar, como hacen los middleware `TrimStrings` y `ConvertEmptyStringsToNull` con una solicitud normal: si no, `" 2.5 "` pasaría en `POST /labores` y fallaría en el lote.
+- Una operación con `tipo` desconocido devuelve su `idOperacion` si se pudo leer de `datos`, para que la app sepa cuál falló.
+- Tests: `GestionFalsa::demora()` simula la latencia de gestión; con gestión caída, el lote de 50 labores de 5 campañas tarda unos 11 s (5 consultas de 2 s gracias a la caché), frente a unos 100 s sin ella.
+
 ---
 
 # 3. Tareas
 
-- [ ] **T01** — Extraer las reglas de los `FormRequest` de labores, realización e incidencias a `Reglas*` sin cambiar el comportamiento. *Hecho cuando:* los tests de `spec-labores.md` y `spec-incidencias.md` siguen en verde.
-- [ ] **T02** — Implementar `PasarelaCampaniaConCache` y `SincronizarOperacionesCasoUso`, con su test unitario.
-- [ ] **T03** — Implementar `POST /sincronizacion`. *Hecho cuando:* pasan `SincronizacionTest.php` y `SincronizacionIdempotenciaTest.php`.
-- [ ] **T04** [P] — Escribir `SincronizacionRendimientoTest.php` y documentar el endpoint en `openapi.yaml`.
-- [ ] **T05** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-SIN-01 a CE-SIN-04 cubiertos.
+- [x] **T01** — Extraer las reglas de los `FormRequest` de labores, realización e incidencias a `Reglas*` sin cambiar el comportamiento. *Hecho cuando:* los tests de `spec-labores.md` y `spec-incidencias.md` siguen en verde.
+- [x] **T02** — Implementar `PasarelaCampaniaConCache` y `SincronizarOperacionesCasoUso`, con su test unitario.
+- [x] **T03** — Implementar `POST /sincronizacion`. *Hecho cuando:* pasan `SincronizacionTest.php` y `SincronizacionIdempotenciaTest.php`.
+- [x] **T04** [P] — Escribir `SincronizacionRendimientoTest.php` y documentar el endpoint en `openapi.yaml`.
+- [x] **T05** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-SIN-01 a CE-SIN-04 cubiertos. Resultado: 381 tests, cobertura de `Domain` y `Application` 97,5 %; lote de 50 labores en 1,2 s con gestión respondiendo y en 11 s con gestión caída.

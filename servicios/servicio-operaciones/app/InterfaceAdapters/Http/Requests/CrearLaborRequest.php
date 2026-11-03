@@ -12,6 +12,16 @@ final class CrearLaborRequest extends SolicitudEstricta
 {
     public function rules(): array
     {
+        return self::reglas();
+    }
+
+    /**
+     * Reglas de POST /labores; las reutiliza la sincronización (spec-sincronizacion.md T01).
+     *
+     * @return array<string, mixed>
+     */
+    public static function reglas(): array
+    {
         return [
             'idOperacion' => ['required', 'uuid'],
             'fechaCreacion' => ['required', 'string', self::FECHA_HORA],

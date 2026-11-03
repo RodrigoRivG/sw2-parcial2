@@ -29,43 +29,69 @@ final class LaborControlador
 {
     public function crear(CrearLaborRequest $request, ProgramarLaborCasoUso $programar, RegistrarLaborCasoUso $registrar): JsonResponse
     {
-        $usuario = self::usuario($request);
-        $comun = [
-            'idOperacion' => (string) $request->input('idOperacion'),
-            'fechaCreacion' => SolicitudEstricta::fechaHora((string) $request->input('fechaCreacion')),
-            'tipoLabor' => TipoLabor::from((string) $request->input('tipoLabor')),
-            'idParcela' => (string) $request->input('idParcela'),
-            'idCampania' => (string) $request->input('idCampania'),
-        ];
-
-        $resultado = $request->esProgramacion()
-            ? $programar->ejecutar(new ProgramarLaborEntrada(
-                ...$comun,
-                fechaProgramada: (string) $request->input('fechaProgramada'),
-                observaciones: $request->input('observaciones'),
-            ), $usuario)
-            : $registrar->ejecutar(new RegistrarLaborEntrada(
-                ...$comun,
-                fechaEjecucion: SolicitudEstricta::fechaHora((string) $request->input('fechaEjecucion')),
-                observaciones: $request->input('observaciones'),
-                insumos: $request->input('insumos', []),
-            ), $usuario);
+        $entrada = self::entradaCreacion($request->all());
+        $resultado = $entrada instanceof ProgramarLaborEntrada
+            ? $programar->ejecutar($entrada, self::usuario($request))
+            : $registrar->ejecutar($entrada, self::usuario($request));
 
         return self::respuestaCreacion($resultado);
     }
 
     public function realizar(RealizarLaborRequest $request, string $id, RealizarLaborCasoUso $realizar): JsonResponse
     {
-        $resultado = $realizar->ejecutar(new RealizarLaborEntrada(
-            idLabor: $id,
-            idOperacion: (string) $request->input('idOperacion'),
-            fechaCreacion: SolicitudEstricta::fechaHora((string) $request->input('fechaCreacion')),
-            fechaEjecucion: SolicitudEstricta::fechaHora((string) $request->input('fechaEjecucion')),
-            observaciones: $request->input('observaciones'),
-            insumos: $request->input('insumos', []),
-        ), self::usuario($request));
+        $resultado = $realizar->ejecutar(self::entradaRealizacion($id, $request->all()), self::usuario($request));
 
         return new JsonResponse(LaborRecurso::aArreglo($resultado->labor));
+    }
+
+    /**
+     * Cuerpo ya validado de POST /labores → entrada del caso de uso. La usa también la sincronización.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    public static function entradaCreacion(array $datos): ProgramarLaborEntrada|RegistrarLaborEntrada
+    {
+        $comun = [
+            'idOperacion' => (string) $datos['idOperacion'],
+            'fechaCreacion' => SolicitudEstricta::fechaHora((string) $datos['fechaCreacion']),
+            'tipoLabor' => TipoLabor::from((string) $datos['tipoLabor']),
+            'idParcela' => (string) $datos['idParcela'],
+            'idCampania' => (string) $datos['idCampania'],
+        ];
+
+        return isset($datos['fechaProgramada'])
+            ? new ProgramarLaborEntrada(...$comun, fechaProgramada: (string) $datos['fechaProgramada'], observaciones: self::texto($datos['observaciones'] ?? null))
+            : new RegistrarLaborEntrada(
+                ...$comun,
+                fechaEjecucion: SolicitudEstricta::fechaHora((string) $datos['fechaEjecucion']),
+                observaciones: self::texto($datos['observaciones'] ?? null),
+                insumos: $datos['insumos'] ?? [],
+            );
+    }
+
+    /**
+     * Cuerpo ya validado de la realización → entrada del caso de uso. La usa también la sincronización.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    public static function entradaRealizacion(string $idLabor, array $datos): RealizarLaborEntrada
+    {
+        return new RealizarLaborEntrada(
+            idLabor: $idLabor,
+            idOperacion: (string) $datos['idOperacion'],
+            fechaCreacion: SolicitudEstricta::fechaHora((string) $datos['fechaCreacion']),
+            fechaEjecucion: SolicitudEstricta::fechaHora((string) $datos['fechaEjecucion']),
+            observaciones: self::texto($datos['observaciones'] ?? null),
+            insumos: $datos['insumos'] ?? [],
+        );
+    }
+
+    /** Laravel recorta y convierte en null los textos vacíos de una solicitud; dentro de un lote se hace aquí. */
+    private static function texto(mixed $valor): ?string
+    {
+        $texto = is_string($valor) ? trim($valor) : null;
+
+        return $texto === '' ? null : $texto;
     }
 
     public function resolver(ResolverRevisionRequest $request, string $id, ResolverRevisionCasoUso $resolver): JsonResponse

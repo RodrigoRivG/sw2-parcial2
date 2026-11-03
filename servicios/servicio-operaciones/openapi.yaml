@@ -187,6 +187,54 @@ paths:
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '403': { $ref: '#/components/responses/SinPermiso' }
         '404': { description: INCIDENCIA_NO_ENCONTRADA, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/operaciones/v1/sincronizacion:
+    post:
+      summary: Sincronizar operaciones offline por lotes (tecnico_campo; spec-sincronizacion.md)
+      description: |
+        multipart/form-data con la parte `operaciones` (lista JSON de 1 a 50 `{ tipo, datos }`) y una parte
+        `fotos[<idOperacion>]` por incidencia. Se procesan por `datos.fechaCreacion` ascendente con las mismas
+        reglas e idempotencia de cada endpoint; el fallo de una no aborta el lote. Cuerpo de hasta 40 MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [operaciones]
+              properties:
+                operaciones:
+                  type: string
+                  description: |
+                    JSON. tipo REGISTRAR_LABOR → datos de POST /labores; REALIZAR_LABOR → datos de la realización más idLabor;
+                    REGISTRAR_INCIDENCIA → la parte datos de POST /incidencias.
+                fotos: { type: object, additionalProperties: { type: string, format: binary } }
+      responses:
+        '200':
+          description: Un resultado por operación, en el orden de procesamiento
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resultados:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        idOperacion: { type: [string, 'null'] }
+                        tipo: { type: [string, 'null'], enum: [REGISTRAR_LABOR, REALIZAR_LABOR, REGISTRAR_INCIDENCIA, null] }
+                        resultado: { type: string, enum: [SINCRONIZADA, ERROR] }
+                        repetida: { type: boolean }
+                        idRecurso: { type: string }
+                        estado: { type: [string, 'null'] }
+                        codigo: { type: string }
+                        mensaje: { type: string }
+                        detalles: { type: array, items: { type: object } }
+                        reintentable: { type: boolean, description: Solo ERROR_INTERNO; la app la reenvía }
+                  resumen: { type: object, properties: { sincronizadas: { type: integer }, errores: { type: integer } } }
+        '400': { $ref: '#/components/responses/DatosInvalidos' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
   /api/operaciones/v1/sagas/{id}:
     get:
       summary: Estado de una Saga, con el detalle de cada paso (administrador, gerencia, lectura_operaciones)

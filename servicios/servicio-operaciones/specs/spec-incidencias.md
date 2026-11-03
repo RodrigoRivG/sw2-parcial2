@@ -365,4 +365,4 @@ Los tests usan el bucket `evidencias-pruebas` (README D-17), que crea el arranqu
 - [x] **T05** — Ampliar `PublicadorRabbitMq` con `publicarEvento`, conectar el evento y crear `incidencias:republicar-eventos`. *Hecho cuando:* pasa `EventoIncidenciaTest.php`.
 - [x] **T06** — Implementar `ConsultarIncidenciasCasoUso` y los dos `GET`. *Hecho cuando:* pasa la Historia 5.
 - [x] **T07** [P] — Escribir `IncidenciasRendimientoTest.php` y documentar los endpoints en `openapi.yaml`.
-- [x] **T08** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-INC-01 a CE-INC-04 cubiertos. Resultado: 353 tests, cobertura de `Domain` y `Application` 97,4 %; registro con foto de 5 MB y listado de 100 incidencias con sus URL, cada uno en menos de 3 s.
+- [x] **T08** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-INC-01 a CE-INC-04 cubiertos. Resultado: 353 tests, cobertura de `Domain` y `Application` 97,4 %; registro con foto de 5 MB y listado de 100 incidencias con sus URL, cada uno en menos de 3 s. Pipeline en verde en GitHub Actions (2026-11-03), con LocalStack como contenedor de servicio.

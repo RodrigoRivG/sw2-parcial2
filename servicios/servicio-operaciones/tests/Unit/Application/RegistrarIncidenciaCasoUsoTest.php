@@ -2,85 +2,21 @@
 
 require_once __DIR__.'/Dobles.php';
 
-use App\Application\Contracts\AlmacenamientoArchivos;
-use App\Application\Contracts\ConflictoEscritura;
-use App\Application\Contracts\UrlTemporal;
 use App\Application\Security\SinPermiso;
 use App\Application\Security\UsuarioAutenticado;
 use App\Application\UseCases\RegisterIncident\NotificacionIncidencia;
 use App\Application\UseCases\RegisterIncident\RegistrarIncidenciaCasoUso;
 use App\Application\UseCases\RegisterIncident\RegistrarIncidenciaEntrada;
 use App\Application\UseCases\RegisterIncident\RepublicarEventosIncidenciasCasoUso;
-use App\Domain\Incident\Incidencia;
-use App\Domain\Incident\RepositorioIncidencia;
 use App\Domain\Incident\TipoIncidencia;
 use App\Domain\Shared\ExcepcionDominio;
 use Psr\Log\NullLogger;
 use Tests\Support\RelojFijo;
+use Tests\Unit\Application\AlmacenamientoEnMemoria;
 use Tests\Unit\Application\AuditoriaEnMemoria;
 use Tests\Unit\Application\PublicadorEnMemoria;
+use Tests\Unit\Application\RepositorioIncidenciaEnMemoria;
 use Tests\Unit\Application\UnidadTrabajoDirecta;
-
-final class AlmacenamientoEnMemoria implements AlmacenamientoArchivos
-{
-    /** @var array<string, string> */
-    public array $objetos = [];
-
-    public function guardar(string $clave, string $contenido, string $tipoContenido): void
-    {
-        $this->objetos[$clave] = $contenido;
-    }
-
-    public function borrar(string $clave): void
-    {
-        unset($this->objetos[$clave]);
-    }
-
-    public function urlTemporal(string $clave, int $minutos): UrlTemporal
-    {
-        return new UrlTemporal("memoria://{$clave}", new DateTimeImmutable("+{$minutos} minutes"));
-    }
-}
-
-final class RepositorioIncidenciaEnMemoria implements RepositorioIncidencia
-{
-    /** @var array<string, Incidencia> */
-    public array $incidencias = [];
-
-    /** @var array<string, bool> */
-    public array $notificadas = [];
-
-    public ?Incidencia $ganadoraCarrera = null;
-
-    public bool $falla = false;
-
-    public function buscar(string $id): ?Incidencia
-    {
-        return $this->incidencias[$id] ?? null;
-    }
-
-    public function guardarNueva(Incidencia $incidencia): void
-    {
-        if ($this->falla) {
-            throw new RuntimeException('DynamoDB no responde');
-        }
-        if ($this->ganadoraCarrera !== null) {
-            $this->incidencias[$this->ganadoraCarrera->id] = $this->ganadoraCarrera;
-            throw new ConflictoEscritura('incidencia');
-        }
-        $this->incidencias[$incidencia->id] = $incidencia;
-    }
-
-    public function marcarNotificada(string $id): void
-    {
-        $this->notificadas[$id] = true;
-    }
-
-    public function pendientesDeNotificar(DateTimeImmutable $antesDe, int $maximo): array
-    {
-        return array_values(array_filter($this->incidencias, fn (Incidencia $i) => ! isset($this->notificadas[$i->id]) && $i->fechaRecepcion <= $antesDe));
-    }
-}
 
 beforeEach(function () {
     $this->repositorio = new RepositorioIncidenciaEnMemoria;
