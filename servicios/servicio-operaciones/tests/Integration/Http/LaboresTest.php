@@ -35,7 +35,7 @@ describe('Historia 1 — registrar una labor realizada', function () {
 
         $respuesta = $this->postJson(RUTA_LABORES, $cuerpo, $this->tecnico)
             ->assertCreated()
-            ->assertHeader('Location', url(RUTA_LABORES.'/'.$cuerpo['idOperacion']))
+            ->assertHeader('Location', RUTA_LABORES.'/'.$cuerpo['idOperacion'])
             ->assertJson([
                 'id' => $cuerpo['idOperacion'],
                 'estado' => 'CONFIRMADA',

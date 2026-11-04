@@ -268,4 +268,4 @@ SincronizarOperacionesCasoUso.ejecutar(operaciones, fotos, usuario):
 - [x] **T02** — Implementar `PasarelaCampaniaConCache` y `SincronizarOperacionesCasoUso`, con su test unitario.
 - [x] **T03** — Implementar `POST /sincronizacion`. *Hecho cuando:* pasan `SincronizacionTest.php` y `SincronizacionIdempotenciaTest.php`.
 - [x] **T04** [P] — Escribir `SincronizacionRendimientoTest.php` y documentar el endpoint en `openapi.yaml`.
-- [x] **T05** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-SIN-01 a CE-SIN-04 cubiertos. Resultado: 381 tests, cobertura de `Domain` y `Application` 97,5 %; lote de 50 labores en 1,2 s con gestión respondiendo y en 11 s con gestión caída.
+- [x] **T05** — Verificación final: `vendor/bin/pest --coverage --min=80` en verde y criterios CE-SIN-01 a CE-SIN-04 cubiertos. Resultado: 381 tests, cobertura de `Domain` y `Application` 97,5 %; lote de 50 labores en 1,2 s con gestión respondiendo y en 11 s con gestión caída. Pipeline en verde en GitHub Actions (2026-11-03).

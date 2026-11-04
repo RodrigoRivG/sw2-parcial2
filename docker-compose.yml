@@ -367,6 +367,8 @@ services:
       INVENTARIO_URL: http://servicio-inventario:3000
       OPERACIONES_URL: http://servicio-operaciones:8000
       IA_URL: http://servicio-ia:8000
+      # Orígenes de los microfrontends; provisional hasta crear la aplicación contenedora de single-spa
+      CORS_ORIGENES_PERMITIDOS: ${CORS_ORIGENES_PERMITIDOS:-http://localhost:9000}
     mem_limit: 1g
 
   graphql-server:

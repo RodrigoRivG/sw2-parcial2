@@ -32,7 +32,7 @@ final class IncidenciaControlador
         }
 
         return new JsonResponse(IncidenciaRecurso::aArreglo($conFoto), 201, [
-            'Location' => url("/api/operaciones/v1/incidencias/{$resultado->incidencia->id}"),
+            'Location' => "/api/operaciones/v1/incidencias/{$resultado->incidencia->id}",
         ]);
     }
 

@@ -17,7 +17,7 @@ describe('Historia 1 — registrar con fotografía', function () {
 
         $respuesta = DatosIncidencia::enviar($this, $datos, $foto, $this->tecnico)
             ->assertCreated()
-            ->assertHeader('Location', url(DatosIncidencia::RUTA.'/'.$datos['idOperacion']))
+            ->assertHeader('Location', DatosIncidencia::RUTA.'/'.$datos['idOperacion'])
             ->assertJson([
                 'id' => $datos['idOperacion'],
                 'tipo' => 'PLAGA',

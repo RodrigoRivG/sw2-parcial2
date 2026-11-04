@@ -1,0 +1,90 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  # Sin recursos estáticos: una ruta desconocida responde 404 RUTA_NO_ENCONTRADA
+  web:
+    resources:
+      add-mappings: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Las claves se descargan por la red interna; el emisor solo se compara con "iss".
+          # Sin "audiences": la audiencia la valida cada microservicio (constitución §5).
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI}
+          issuer-uri: ${KEYCLOAK_ISSUER}
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: ${GATEWAY_TIEMPO_LIMITE:10s}
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+      # Sin reescritura de rutas: cada servicio ya expone /api/<servicio>/v1/...
+      # "servicio" se usa como servicio destino en el log de acceso.
+      routes:
+        # Gana a la ruta general de operaciones: un lote puede tardar más de 10 s (spec-enrutamiento.md 2.2)
+        - id: operaciones-sincronizacion
+          uri: ${OPERACIONES_URL}
+          order: -1
+          predicates:
+            - Path=/api/operaciones/v1/sincronizacion
+          metadata:
+            servicio: servicio-operaciones
+            response-timeout: ${GATEWAY_TIEMPO_LIMITE_SINCRONIZACION:120000}
+        - id: servicio-gestion
+          uri: ${GESTION_URL}
+          predicates:
+            - Path=/api/gestion/**
+          metadata:
+            servicio: servicio-gestion
+        - id: servicio-inventario
+          uri: ${INVENTARIO_URL}
+          predicates:
+            - Path=/api/inventario/**
+          metadata:
+            servicio: servicio-inventario
+        - id: servicio-operaciones
+          uri: ${OPERACIONES_URL}
+          predicates:
+            - Path=/api/operaciones/**
+          metadata:
+            servicio: servicio-operaciones
+        - id: servicio-ia
+          uri: ${IA_URL}
+          predicates:
+            - Path=/api/ia/**
+          metadata:
+            servicio: servicio-ia
+
+gateway:
+  cors:
+    # Lista separada por comas; vacía = ningún origen permitido (nunca "*")
+    origenes-permitidos: ${CORS_ORIGENES_PERMITIDOS:}
+
+logging:
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      discovery:
+        enabled: false
+      path-mapping:
+        health: salud
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # La caída de un microservicio no saca de servicio al gateway (RNF-08)
+        readiness:
+          include: readinessState

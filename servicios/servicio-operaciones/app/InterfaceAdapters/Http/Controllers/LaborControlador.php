@@ -128,7 +128,7 @@ final class LaborControlador
         }
 
         return new JsonResponse(LaborRecurso::aArreglo($resultado->labor), 201, [
-            'Location' => url("/api/operaciones/v1/labores/{$resultado->labor->id}"),
+            'Location' => "/api/operaciones/v1/labores/{$resultado->labor->id}",
         ]);
     }
 
