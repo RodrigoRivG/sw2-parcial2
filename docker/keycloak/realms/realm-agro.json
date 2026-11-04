@@ -1,0 +1,238 @@
+{
+  "realm": "agro",
+  "displayName": "Sistema de campañas agrícolas",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "administrador", "description": "Gestiona parcelas, cultivos, campañas, insumos y usuarios (RN-15)" },
+      { "name": "gerencia", "description": "Consulta indicadores, inventario e IA y solicita reportes (RN-15)" },
+      { "name": "tecnico_campo", "description": "Registra labores, incidencias y clasificaciones (RN-15)" },
+      { "name": "lectura_gestion", "description": "Cuenta de servicio: lectura de gestión (servicio-ia, GraphQL)" },
+      { "name": "estado_campania", "description": "Cuenta de servicio: estado de campaña (servicio-operaciones, GraphQL)" },
+      { "name": "lectura_inventario", "description": "Cuenta de servicio: lectura de inventario (servicio-ia, GraphQL, n8n)" },
+      { "name": "lectura_operaciones", "description": "Cuenta de servicio: lectura de operaciones (servicio-ia, GraphQL, n8n)" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "agro-web",
+      "name": "Microfrontends (single-spa)",
+      "description": "Angular, React y Vue.js comparten esta sesión (Módulo 6)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": ["http://localhost:9000/*"],
+      "webOrigins": ["http://localhost:9000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:9000/*"
+      },
+      "protocolMappers": [
+        { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "agro-movil",
+      "name": "Aplicación Flutter",
+      "description": "flutter_appauth con Authorization Code y PKCE (Módulo 7)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": ["com.agrosystem.campo:/oauthredirect"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "com.agrosystem.campo:/oauthredirect"
+      },
+      "protocolMappers": [
+        { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "agro-pruebas",
+      "name": "Pruebas locales (solo desarrollo)",
+      "description": "Password grant para scripts y curl. No se crea en la nube (D-KC-04)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "servicio-operaciones",
+      "name": "Cuenta de servicio de servicio-operaciones",
+      "description": "Consulta el estado de campaña en servicio-gestion (operaciones D-10)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OPERACIONES_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "servicio-ia",
+      "name": "Cuenta de servicio de servicio-ia",
+      "description": "Solo lectura de los servicios de negocio (constitución de IA §6)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${IA_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "graphql-server",
+      "name": "Cuenta de servicio del servidor GraphQL",
+      "description": "Lectura consolidada para React (RF-27)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${GRAPHQL_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "n8n",
+      "name": "Cuenta de servicio de n8n",
+      "description": "Alertas, recordatorios y reportes; sin permisos en gestión (gestión AC-02)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${N8N_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-servicio-operaciones",
+      "enabled": true,
+      "serviceAccountClientId": "servicio-operaciones",
+      "realmRoles": ["estado_campania"]
+    },
+    {
+      "username": "service-account-servicio-ia",
+      "enabled": true,
+      "serviceAccountClientId": "servicio-ia",
+      "realmRoles": ["lectura_gestion", "lectura_inventario", "lectura_operaciones"]
+    },
+    {
+      "username": "service-account-graphql-server",
+      "enabled": true,
+      "serviceAccountClientId": "graphql-server",
+      "realmRoles": ["lectura_gestion", "estado_campania", "lectura_inventario", "lectura_operaciones"]
+    },
+    {
+      "username": "service-account-n8n",
+      "enabled": true,
+      "serviceAccountClientId": "n8n",
+      "realmRoles": ["lectura_inventario", "lectura_operaciones"]
+    },
+    {
+      "username": "admin.prueba",
+      "enabled": true,
+      "email": "admin.prueba@agro.local",
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Administradora",
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_CLAVE_USUARIOS_PRUEBA}", "temporary": false }],
+      "realmRoles": ["administrador"],
+      "clientRoles": { "realm-management": ["view-users", "query-users", "query-groups", "manage-users"] }
+    },
+    {
+      "username": "tecnico.prueba",
+      "enabled": true,
+      "email": "tecnico.prueba@agro.local",
+      "emailVerified": true,
+      "firstName": "Tomás",
+      "lastName": "Técnico",
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_CLAVE_USUARIOS_PRUEBA}", "temporary": false }],
+      "realmRoles": ["tecnico_campo"]
+    },
+    {
+      "username": "gerencia.prueba",
+      "enabled": true,
+      "email": "gerencia.prueba@agro.local",
+      "emailVerified": true,
+      "firstName": "Gloria",
+      "lastName": "Gerente",
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_CLAVE_USUARIOS_PRUEBA}", "temporary": false }],
+      "realmRoles": ["gerencia"]
+    },
+    {
+      "username": "multirol.prueba",
+      "enabled": true,
+      "email": "multirol.prueba@agro.local",
+      "emailVerified": true,
+      "firstName": "Mario",
+      "lastName": "Multirol",
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_CLAVE_USUARIOS_PRUEBA}", "temporary": false }],
+      "realmRoles": ["administrador", "gerencia"]
+    }
+  ]
+}

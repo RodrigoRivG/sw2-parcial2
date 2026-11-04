@@ -191,7 +191,35 @@ Keycloak está configurado para que el emisor (`iss`) sea siempre `http://localh
 
 En Spring Boot, eso significa configurar `jwk-set-uri` junto con `issuer-uri`: las claves se descargan de `jwk-set-uri` y el emisor solo se compara. Con `issuer-uri` solo, intentaría conectarse a `localhost:8180` desde dentro del contenedor.
 
-Para que los tokens incluyan la audiencia de cada servicio (`aud`), el realm necesita un **Audience mapper** por servicio. Cuando el realm esté listo, expórtalo como JSON a `docker/keycloak/realms/` para que se importe solo.
+El realm `agro` está en `docker/keycloak/realms/realm-agro.json` y Keycloak lo importa al arrancar (`specs/spec-keycloak-realm.md`). Trae los roles, un Audience mapper por servicio, las cuentas de servicio (`servicio-operaciones`, `servicio-ia`, `graphql-server`, `n8n`) y estos usuarios de prueba, con la contraseña `KEYCLOAK_CLAVE_USUARIOS_PRUEBA` del `.env`:
+
+| Usuario | Roles |
+|---|---|
+| `admin.prueba` | `administrador` (y gestión de usuarios, RF-32) |
+| `tecnico.prueba` | `tecnico_campo` |
+| `gerencia.prueba` | `gerencia` |
+| `multirol.prueba` | `administrador`, `gerencia` |
+
+El JSON no tiene secretos: usa `${VARIABLE}` y Keycloak los toma del `.env` al importar. Para un token de prueba con `curl`, usa el client `agro-pruebas` (solo desarrollo):
+
+```bash
+curl -s -d grant_type=password -d client_id=agro-pruebas -d username=tecnico.prueba -d password=prueba123 \
+  http://localhost:8180/realms/agro/protocol/openid-connect/token
+```
+
+Para verificar el realm (y, con `--saga`, la Saga de punta a punta con `--profile saga --profile gateway --profile auth`):
+
+```bash
+python3 scripts/verificar-realm.py --saga
+```
+
+La importación se omite si el realm ya existe. Para aplicar cambios del JSON, borra el realm y reinicia Keycloak:
+
+```bash
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh delete realms/agro \
+  --server http://localhost:8080 --realm master --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD"
+docker compose restart keycloak
+```
 
 ### Ollama (nativo en Windows)
 

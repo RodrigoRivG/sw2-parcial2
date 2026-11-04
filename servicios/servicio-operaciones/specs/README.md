@@ -184,7 +184,7 @@ Donde difieren, prevalece la constitución.
 - **AP-01** — Resuelta (constitución v2.8.0): el glosario incluye `TipoLabor`, `ValidacionCampania`, `EstadoSaga`, `PasoSaga`, `EstadoPaso`, `DecisionRevision`, `OrigenClasificacion`, `registros_auditoria`, las rutas de realización y resolución, los mensajes de la Saga, la DLQ de respuestas y el evento `IncidenciaRegistrada`.
 - **AP-02** — Resuelta (constitución v2.8.0): lectura para integración con el rol `lectura_operaciones`; "registrar labores" incluye la realización de una programada; la resolución incluye `REINTENTAR`.
 - **AP-03** — Resuelta (2026-11-02): las incidencias **no** validan la campaña contra `servicio-gestion`. La campaña es opcional e informativa (relación `0..*` "puede asociar" del modelo del documento), no tiene efectos de negocio como la labor y validar obligaría a una validación diferida más. La fotografía es obligatoria (RF-12 la lista entre los datos de la incidencia y la constitución §1 dice "incidencias con fotografía"), de hasta 10 MB.
-- **AP-04** — Informativa: `api-gateway` todavía no tiene código. Hasta que exista, en Docker Compose la consulta de campaña falla y las labores quedan `PENDIENTE` con validación diferida (es el comportamiento especificado ante la caída de gestión). Los tests simulan la respuesta de gestión.
+- **AP-04** — Resuelta (2026-11-04): `api-gateway` y el realm de Keycloak existen; la consulta de campaña pasa por el gateway con la cuenta de servicio y la Saga se probó de punta a punta (`specs/spec-keycloak-realm.md`, Resultado).
 - **AP-05** — Resuelta (2026-11-03): T10 de `spec-saga.md` verificó los contratos con inventario y gestión reales y cerró el T09 de `servicio-inventario/specs/spec-descuento-saga.md`.
 
 ## Historial de decisiones (2026-11-02)

@@ -404,6 +404,12 @@ services:
       KC_HOSTNAME: http://localhost:8180
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx512m"
+      # Placeholders del realm importado (specs/spec-keycloak-realm.md, RQ-KC-08): nada secreto en el JSON
+      OPERACIONES_CLIENT_SECRET: ${OPERACIONES_CLIENT_SECRET:-}
+      IA_CLIENT_SECRET: ${IA_CLIENT_SECRET:-}
+      GRAPHQL_CLIENT_SECRET: ${GRAPHQL_CLIENT_SECRET:-}
+      N8N_CLIENT_SECRET: ${N8N_CLIENT_SECRET:-}
+      KEYCLOAK_CLAVE_USUARIOS_PRUEBA: ${KEYCLOAK_CLAVE_USUARIOS_PRUEBA:-}
     volumes:
       - ./docker/keycloak/realms:/opt/keycloak/data/import:ro
     depends_on:
