@@ -17,7 +17,7 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | Orden | ID | Archivo | Funcionalidad | Prioridad | CU | RF |
 |---|---|---|---|---|---|---|
 | 1 | 001 | [spec-base.md](spec-base.md) | Base del servicio: seguridad, errores, correlación, salud, consulta a microservicios | Soporte | — | — |
-| 2 | 002 | `spec-trabajos.md` (pendiente) | Trabajos asíncronos: Firestore, cola, worker, estados | Soporte | CU-17, CU-18 | RF-24 |
+| 2 | 002 | [spec-trabajos.md](spec-trabajos.md) | Trabajos asíncronos: Firestore, cola, consumidor, estados | Soporte | CU-16, CU-17, CU-18, CU-25 | RF-22, RF-23, RF-24 |
 | 3 | 003 | `spec-prediccion.md` (pendiente) | Versionado de modelos, rendimiento, agrupación y anomalías | Baja | CU-14, CU-15 | RF-18, RF-19 |
 | 4 | 004 | `spec-vision.md` (pendiente) | Clasificación de imágenes y video, exportación al dispositivo | Media | CU-16 | RF-20, RF-21, RF-22 |
 | 5 | 005 | `spec-agentes.md` (pendiente) | Herramientas MCP y agentes LangGraph | Baja | CU-17 | RF-23 |
@@ -29,7 +29,8 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 
 | Ubicación | Nombre | Archivo |
 |---|---|---|
-| — | — | Se completa con `spec-trabajos.md` y las siguientes |
+| Firestore | Colección `trabajos` (TTL sobre `fechaExpiracion`) | spec-trabajos.md |
+| RabbitMQ | Cola `servicio-ia.trabajos` y su DLQ `servicio-ia.trabajos.dlq` | spec-trabajos.md |
 
 ## Mapa de endpoints
 
@@ -37,7 +38,7 @@ Prefijo `/api/ia/v1`. Se completa con cada spec.
 
 | Ruta | Métodos | Archivo |
 |---|---|---|
-| — | — | — |
+| `/trabajos/{id}` | `GET` | spec-trabajos.md |
 
 Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `/openapi.json` y `/docs` (spec-base.md).
 
@@ -59,6 +60,8 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-12 | **Tests:** unitarios sin red ni contenedores (dobles de los `Protocol` de `integracion`, `httpx.MockTransport` para HTTP, tokens firmados con una clave RSA local). Los de integración levantan la aplicación con el `TestClient` de FastAPI; desde `spec-trabajos.md` usan además los emuladores de Firestore y GCS y RabbitMQ de Docker Compose (en GitHub Actions, como contenedores de servicio). |
 | D-13 | **Cobertura:** `pytest-cov` sobre `app`, excluyendo `app/integracion` y `app/ml` (constitución §8). Incluye `comun`, `config` y `main` además de los módulos de capacidad: es más estricto que el mínimo de la constitución. Umbral 80 %. |
 | D-14 | **OpenAPI:** lo genera FastAPI desde el código (`/openapi.json`, `/docs`). Cada ruta declara sus respuestas de error con `RespuestaError`; un test falla si una ruta del prefijo no documenta las suyas. |
+| D-15 | **Cola de trabajos:** `servicio-ia.trabajos` (durable, dead-letter al exchange por defecto con routing key `servicio-ia.trabajos.dlq`) y `servicio-ia.trabajos.dlq` (durable). Reintentos de infraestructura en el propio proceso: 3, con espera de 1 s, 2 s y 4 s; agotados, `nack` sin reencolar. Misma convención que inventario (D-11, D-12) y operaciones (D-13, D-14). |
+| D-16 | **Consumidor en el mismo proceso que la API**, con `prefetch` = `TRABAJOS_CONCURRENCIA`, para no cargar los modelos dos veces (spec-trabajos.md AC-01). En Cloud Run: instancia mínima 1 y CPU siempre asignada. |
 
 ## Catálogo de códigos de error
 
@@ -68,10 +71,13 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 401 | `NO_AUTENTICADO` | Todos |
 | 403 | `SIN_PERMISO` | Todos |
 | 404 | `RECURSO_NO_ENCONTRADO` | Todos (ruta inexistente) |
+| 404 | `TRABAJO_NO_ENCONTRADO` | trabajos |
 | 405 | `METODO_NO_PERMITIDO` | Todos |
 | 500 | `ERROR_INTERNO` | Todos (sin exponer detalles) |
 | 503 | `AUTENTICACION_NO_DISPONIBLE` | Todos (no se pueden obtener las claves de Keycloak) |
-| 503 | `DEPENDENCIA_NO_DISPONIBLE` | Los que consultan otros microservicios |
+| 503 | `DEPENDENCIA_NO_DISPONIBLE` | Los que consultan otros microservicios, Firestore o RabbitMQ |
+
+Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md) y los de cada manejador (en su spec).
 
 Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas propias del servicio (por ejemplo, datos insuficientes para estimar).
 
@@ -83,9 +89,11 @@ Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas 
 | RN-16 | Permisos verificados en el servidor | base, todos |
 | RNF-02 | Validación del JWT en cada solicitud | base |
 | RNF-03 | Secretos por variables de entorno | base |
-| RNF-08 | La caída de otro servicio no tumba este | base |
+| RF-24 | Procesamiento asíncrono con polling | trabajos |
+| RNF-08 | La caída de otro servicio no tumba este | base, trabajos |
+| RNF-11 | Mensajes fallidos en Dead Letter Queue | trabajos |
 | RNF-18 | OpenAPI | base, todos |
-| RNF-19, RNF-20 | Docker Compose y pipeline propio | base |
+| RNF-19, RNF-20 | Docker Compose y pipeline propio | base, trabajos |
 | RNF-22 | Correlación | base, trabajos |
 
 Se completa con cada spec.
@@ -103,4 +111,5 @@ Donde difieren, prevalece la constitución.
 
 - Arquitectura por módulos de capacidad (constitución v3.0.0).
 - La base del servicio va en su propia spec, sin funcionalidad de negocio, porque la usan las cinco siguientes.
+- Trabajos: idempotencia por estado (transición condicional `EN_COLA → PROCESANDO`), sin reintentar manejadores, cierre de trabajos atascados a los 10 minutos (`EN_COLA`) o al pasar su `fechaLimite` (`PROCESANDO`), y solo el solicitante consulta su trabajo.
 - `DEPENDENCIA_NO_DISPONIBLE` en lugar de reutilizar `SERVICIO_NO_DISPONIBLE`, que es el código del gateway cuando este servicio está caído: así el cliente distingue "IA no responde" de "IA no pudo obtener los datos".
