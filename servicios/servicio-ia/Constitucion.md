@@ -40,17 +40,26 @@
 - Despliegue: imagen Docker en Google Cloud Run; Ollama en Google Compute Engine.
 - No se introducen lenguajes, frameworks, bases de datos ni proveedores de IA nuevos sin una enmienda.
 
-## 3. Arquitectura (capas con puertos y adaptadores)
+## 3. Arquitectura (módulos por capacidad)
 
-- Capas:
-  - `domain/`: conceptos y reglas propias de la IA (predicción, clasificación, reporte, versión de modelo). Python puro.
-  - `application/`: casos de uso y puertos (interfaces) hacia datos de negocio, modelos, almacenamiento, voz y modelo de lenguaje.
-  - `agents/`: grafos y agentes de LangGraph. Dependen de los puertos de `application`, nunca de clientes concretos.
-  - `mcp_server/`: servidor MCP y sus herramientas, todas de solo lectura.
+Este servicio casi no tiene lógica de negocio: su complejidad está en la integración (modelo de lenguaje, voz, microservicios, cola, almacenamiento) y en el ciclo de vida de los modelos. Por eso se organiza por capacidad, no en capas. El documento de requisitos no le asigna una arquitectura (RNF-17 solo asigna DDD, Hexagonal y Clean a los otros tres servicios).
+
+- Módulos:
+  - `comun/`: transversal. Seguridad JWT, formato de errores, `idCorrelacion`, logs y `/salud`.
+  - `integracion/`: todo borde externo. Clientes de los microservicios a través del Gateway (con token de cuenta de servicio), Ollama, Whisper, Firestore, Cloud Storage y RabbitMQ.
+  - Módulos de capacidad: `trabajos/`, `prediccion/`, `vision/`, `modelos/`, `agentes/`, `mcp_server/` y `reportes/`. Cada uno contiene su router, sus esquemas (Pydantic) y su servicio.
   - `ml/`: entrenamiento, evaluación y exportación de modelos. Se ejecuta fuera del ciclo de las solicitudes HTTP.
-  - `infrastructure/`: clientes HTTP de los microservicios, carga de modelos, Ollama, Whisper, generación de PDF/Excel, Firestore, Cloud Storage y RabbitMQ.
-  - `interfaces/`: rutas HTTP de FastAPI, esquemas de entrada y salida, seguridad y workers.
-- Las dependencias apuntan hacia `domain`. `domain` y `application` no importan FastAPI, LangGraph, TensorFlow, scikit-learn ni SDK de nube.
+- Interfaces solo en los bordes externos que deben reemplazarse en los tests: modelo de lenguaje, clientes de los microservicios, repositorio de trabajos, almacén de archivos y transcriptor. Se declaran como `Protocol` en `integracion/` y los servicios dependen de ellas, no del adaptador concreto. No se crean interfaces para nada más.
+- Sin capa de casos de uso ni de dominio: los resultados (predicción, clasificación, reporte, versión de modelo) son esquemas Pydantic. Las reglas propias del servicio son funciones puras dentro de su módulo y se prueban de forma aislada:
+  - transiciones de `EstadoTrabajo`;
+  - sin datos históricos suficientes no se estima (§5);
+  - no se publica una versión con métricas peores que la vigente (§5);
+  - toda cifra del texto generado existe en los datos consultados (§6);
+  - límites de pasos y de tiempo de los agentes (§6).
+- Regla de dependencias:
+  - `comun` e `integracion` no importan módulos de capacidad.
+  - Los módulos de capacidad no se importan entre sí, excepto `trabajos`, que todos pueden usar. `agentes` puede usar las herramientas de `mcp_server`, y `reportes` puede usar `agentes`.
+  - Nada del código HTTP importa `ml/`; `ml/` puede importar `integracion`.
 - Los modelos se cargan una vez al iniciar el proceso (o al publicar una nueva versión), nunca en cada solicitud.
 - Las operaciones largas (reportes, consultas a agentes, análisis de video) se procesan de forma asíncrona: la API crea un trabajo, devuelve su ID y el cliente consulta su estado (RF-24).
 
@@ -60,122 +69,27 @@
 servicio-ia/
 ├── app/
 │   ├── main.py
-│   ├── domain/                                  # Python puro
-│   │   ├── prediction/
-│   │   │   ├── prediccion_rendimiento.py
-│   │   │   ├── agrupacion.py
-│   │   │   └── anomalia.py
-│   │   ├── vision/
-│   │   │   └── clasificacion_imagen.py
-│   │   ├── report/
-│   │   │   ├── reporte.py
-│   │   │   ├── solicitud_reporte.py
-│   │   │   └── estado_trabajo.py
-│   │   ├── model/
-│   │   │   └── version_modelo.py
-│   │   └── shared/
-│   │       └── errores_dominio.py
-│   ├── application/
-│   │   ├── use_cases/
-│   │   │   ├── estimar_rendimiento.py
-│   │   │   ├── analizar_patrones.py
-│   │   │   ├── clasificar_imagen.py
-│   │   │   ├── clasificar_video.py
-│   │   │   ├── consultar_agente.py
-│   │   │   ├── solicitar_reporte.py
-│   │   │   ├── generar_reporte.py
-│   │   │   ├── consultar_estado_trabajo.py
-│   │   │   └── publicar_version_modelo.py
-│   │   └── ports/
-│   │       ├── datos_agricolas.py
-│   │       ├── datos_inventario.py
-│   │       ├── datos_operaciones.py
-│   │       ├── repositorio_modelos.py
-│   │       ├── repositorio_trabajos.py
-│   │       ├── almacen_archivos.py
-│   │       ├── transcriptor.py
-│   │       ├── modelo_lenguaje.py
-│   │       └── publicador_mensajes.py
-│   ├── agents/                                  # LangGraph
-│   │   ├── grafo_principal.py
-│   │   ├── estado_agente.py
-│   │   ├── agente_campanias.py
-│   │   ├── agente_inventario.py
-│   │   ├── agente_reportes.py
-│   │   └── prompts/
-│   ├── mcp_server/                              # herramientas MCP de solo lectura
-│   │   ├── servidor.py
-│   │   └── tools/
-│   │       ├── herramientas_agricolas.py
-│   │       ├── herramientas_inventario.py
-│   │       └── herramientas_operaciones.py
-│   ├── ml/                                      # fuera del ciclo HTTP
-│   │   ├── features/
-│   │   │   └── caracteristicas_campania.py
-│   │   ├── training/
-│   │   │   ├── entrenar_rendimiento.py
-│   │   │   ├── entrenar_agrupacion.py
-│   │   │   └── entrenar_clasificador.py
-│   │   ├── evaluation/
-│   │   │   └── evaluar_modelo.py
-│   │   └── export/
-│   │       ├── exportar_tflite.py
-│   │       └── exportar_tfjs.py
-│   ├── infrastructure/
-│   │   ├── clients/
-│   │   │   ├── autenticacion_servicio.py        # token de cuenta de servicio
-│   │   │   ├── cliente_gestion.py
-│   │   │   ├── cliente_inventario.py
-│   │   │   └── cliente_operaciones.py
-│   │   ├── inference/
-│   │   │   ├── cargador_sklearn.py
-│   │   │   └── cargador_tensorflow.py
-│   │   ├── llm/
-│   │   │   └── cliente_ollama.py
-│   │   ├── speech/
-│   │   │   └── transcriptor_whisper.py
-│   │   ├── reports/
-│   │   │   ├── generador_pdf.py
-│   │   │   ├── generador_excel.py
-│   │   │   └── templates/
-│   │   ├── persistence/
-│   │   │   ├── repositorio_trabajos_firestore.py
-│   │   │   └── repositorio_modelos_gcs.py
-│   │   ├── storage/
-│   │   │   └── almacen_gcs.py
-│   │   └── messaging/
-│   │       ├── conexion_rabbitmq.py
-│   │       └── publicador_rabbitmq.py
-│   ├── interfaces/
-│   │   ├── http/
-│   │   │   ├── routers/
-│   │   │   │   ├── prediccion.py
-│   │   │   │   ├── vision.py
-│   │   │   │   ├── agentes.py
-│   │   │   │   ├── reportes.py
-│   │   │   │   ├── trabajos.py
-│   │   │   │   └── modelos.py
-│   │   │   ├── schemas/
-│   │   │   ├── seguridad.py
-│   │   │   ├── id_correlacion.py
-│   │   │   └── manejador_errores.py
-│   │   └── workers/
-│   │       └── trabajador_trabajos.py            # consume la cola de trabajos
-│   └── config/
-│       └── configuracion.py
+│   ├── config.py
+│   ├── comun/          # seguridad, errores, correlación, logs, salud
+│   ├── integracion/    # Protocols + adaptadores: gateway, Ollama, Whisper, Firestore, GCS, RabbitMQ
+│   ├── trabajos/       # trabajo asíncrono, estados, /trabajos, worker de la cola
+│   ├── prediccion/     # rendimiento (Random Forest), agrupación (K-Means), anomalías (Isolation Forest)
+│   ├── vision/         # clasificación de imágenes (MobileNetV3) y fotogramas de video
+│   ├── modelos/        # versiones, publicación y descarga para el dispositivo
+│   ├── agentes/        # grafo LangGraph, agentes y prompts
+│   ├── mcp_server/     # servidor y herramientas MCP de solo lectura
+│   ├── reportes/       # solicitud y generación de PDF/Excel, plantillas
+│   └── ml/             # entrenamiento, evaluación y exportación (offline)
 ├── tests/
 │   ├── unit/
-│   │   ├── domain/
-│   │   ├── application/
-│   │   └── agents/
 │   ├── integration/
-│   └── fixtures/                                # imágenes, audios y datos pequeños
+│   └── fixtures/       # imágenes, audios y datos pequeños
 ├── Dockerfile
 ├── pyproject.toml
 └── Constitucion.md
 ```
 
-- Las carpetas de capa y su regla de dependencias son obligatorias. Los nombres concretos de archivos son de referencia y se definen en el plan.
+- Los módulos y su regla de dependencias son obligatorios. Los archivos dentro de cada módulo se definen en el plan.
 - La carpeta del servidor MCP se llama `mcp_server`, no `mcp`, para no ocultar el paquete del SDK.
 - Los tests replican la estructura de `app`.
 
@@ -228,12 +142,12 @@ servicio-ia/
 ## 8. Calidad
 
 - Todo endpoint tiene tests de integración.
-- Toda regla de `domain` y todo caso de uso tienen tests unitarios.
+- Toda regla propia del servicio (§3) y todo servicio de módulo tienen tests unitarios, con los bordes externos reemplazados por dobles.
 - Herramientas MCP: tests de contrato contra respuestas simuladas de los microservicios.
 - Agentes: tests con un modelo de lenguaje simulado que verifican qué herramientas se llaman y que las cifras del reporte salen de los datos.
 - Modelos: tests de humo con datos pequeños en `tests/fixtures` (carga, forma de la salida, etiquetas válidas).
 - Test que verifica que las versiones exportadas (TFLite, TF.js) tienen la misma lista de etiquetas que el modelo del servidor.
-- Cobertura mínima: 80 % de líneas en `domain`, `application`, `agents` y `mcp_server`. El pipeline falla si baja.
+- Cobertura mínima: 80 % de líneas en los módulos de capacidad (`trabajos`, `prediccion`, `vision`, `modelos`, `agentes`, `mcp_server`, `reportes`). Se excluyen `integracion` (cubierto por tests de integración) y `ml`. El pipeline falla si baja.
 - Ruff y mypy sin errores en el pipeline.
 - Ninguna tarea se da por terminada con tests fallando.
 
@@ -346,7 +260,7 @@ servicio-ia/
 
 ## Enmiendas
 
-- Versión: 2.7.0 (2026-11-02)
+- Versión: 3.0.0 (2026-11-04)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -361,3 +275,4 @@ servicio-ia/
 | 2.3.0 | 2026-11-01 | **[común]** El sistema vive en un solo repositorio: cada pipeline está en `.github/workflows/<servicio>.yml`, en la raíz, y se filtra por `servicios/<servicio>/**`. Se permite AMQP sin TLS solo en desarrollo local y tests con contenedores. Los cuatro servicios quedan en la misma versión. Sin cambios propios. |
 | 2.6.0 | 2026-11-02 | **[común]** Los eventos se publican en el exchange de tipo topic `eventos` (durable); cada consumidor crea su propia cola enlazada a él, para que n8n y los demás sepan dónde suscribirse. Sin cambios propios. |
 | 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. Sin cambios propios. |
+| 3.0.0 | 2026-11-04 | **Propio:** §3 redefinida. Se reemplaza la arquitectura en capas (`domain`, `application`, `agents`, `infrastructure`, `interfaces`) por módulos por capacidad con `comun` e `integracion`: el servicio casi no tiene lógica de negocio y las capas producían clases de dominio duplicadas de los esquemas y casos de uso que solo delegaban (§12). Se mantienen interfaces solo en los bordes externos que se reemplazan en tests, y las reglas propias pasan a ser funciones puras por módulo. §8: tests unitarios y cobertura se refieren a los nuevos módulos. Sin cambios comunes. |
