@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `api-gateway` |
 | Archivo | `specs/spec-enrutamiento.md` |
-| Estado | Implementada (2026-11-04) · T12 pendiente: necesita el realm de Keycloak |
+| Estado | Implementada (2026-11-04) |
 | Constitución | v1.0.0 |
 | Trazabilidad | Módulo 9 · procesos 2, 3 y 12 · RF-27, RF-28 · RN-16 · RNF-01, RNF-02, RNF-03, RNF-05, RNF-08, RNF-19, RNF-20, RNF-22 |
 | Depende de | Los tres servicios de negocio con su prefijo `/api/<servicio>/v1` (ya implementados). Keycloak solo para la prueba manual de punta a punta. |
@@ -59,7 +59,7 @@ Como usuario de un microfrontend, quiero que la caída de un microservicio no im
 
 **Escenarios de aceptación:**
 
-1. **Dado** que `servicio-inventario` no acepta conexiones, **cuando** se envía una solicitud a `/api/inventario/**`, **entonces** se responde `503 SERVICIO_NO_DISPONIBLE`, y una solicitud simultánea a `/api/gestion/**` responde normalmente.
+1. **Dado** que `servicio-inventario` no acepta conexiones (o, en Docker Compose, su contenedor está apagado y su nombre no se resuelve), **cuando** se envía una solicitud a `/api/inventario/**`, **entonces** se responde `503 SERVICIO_NO_DISPONIBLE`, y una solicitud simultánea a `/api/gestion/**` responde normalmente.
 2. **Dado** que un servicio tarda más que el tiempo límite, **entonces** se responde `504 TIEMPO_AGOTADO` en cuanto se cumple ese tiempo.
 4. **Dado** un lote de sincronización (`POST /api/operaciones/v1/sincronizacion`) que tarda 15 s porque `servicio-gestion` está caído, **entonces** el gateway no lo corta: esa ruta tiene su propio tiempo límite, más largo (ver 2.2).
 3. **Dado** que ningún microservicio está levantado, **entonces** `/salud/readiness` del gateway sigue respondiendo `UP`.
@@ -244,7 +244,7 @@ Si `KEYCLOAK_JWKS_URI` o `KEYCLOAK_ISSUER` faltan, la aplicación no arranca (RN
   | Excepción | HTTP | Código |
   |---|---|---|
   | `ResponseStatusException` 404 (sin ruta) o `NoResourceFoundException` | 404 | `RUTA_NO_ENCONTRADA` |
-  | `java.net.ConnectException` o `io.netty.channel.ConnectTimeoutException` (también si vienen como causa) | 503 | `SERVICIO_NO_DISPONIBLE` |
+  | `java.net.ConnectException`, `io.netty.channel.ConnectTimeoutException` o `java.net.UnknownHostException` (también si vienen como causa) | 503 | `SERVICIO_NO_DISPONIBLE` |
   | `ResponseStatusException` 504 (lo lanza el gateway al agotar `response-timeout`) | 504 | `TIEMPO_AGOTADO` |
   | `AuthenticationServiceException` | 503 | `AUTENTICACION_NO_DISPONIBLE` |
   | Cualquier otra | 500 | `ERROR_INTERNO` |
@@ -291,6 +291,7 @@ Todos en `src/test/java/com/agrosystem/gateway/integration/`, con `@SpringBootTe
 - **Log de acceso al confirmar la respuesta** (`beforeCommit`) y no al terminar la cadena de filtros: los errores del gateway (404, 503, 504) se resuelven fuera de esa cadena, y al terminarla el estado aún no estaba fijado.
 - **`ResponseStatusException` 4xx distintas de 404** (por ejemplo, una solicitud mal formada que rechaza Netty) responden con su mismo código HTTP y `codigo = DATOS_INVALIDOS`, el código común de los servicios para entradas inválidas.
 - **CORS rechazado:** el `403` de una verificación previa desde un origen no permitido lo escribe Spring sin cuerpo. Es una respuesta para el navegador, que no la expone al código del frontend.
+- **Nombre que no se resuelve → 503:** en Docker Compose, el nombre de un contenedor apagado deja de existir y el error es `UnknownHostException`, no `ConnectException`; respondía `500`. Lo detectó `scripts/verificar-realm.py` con los servicios apagados; lo cubre `ResilienciaIT`.
 - `CodigoError` y `EscritorRespuestaError` se agregaron al paquete `web` para no repetir códigos y mensajes entre el manejador de errores y el punto de entrada 401.
 
 ---
@@ -310,5 +311,5 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [x] **T09** [P] — Escribir `LatenciaIT` (CE-GW-02).
 - [x] **T10** — Escribir el `Dockerfile`, `.dockerignore` y `.github/workflows/api-gateway.yml`, con JaCoCo al 80 %. *Hecho cuando:* `mvn -B verify` pasa con la cobertura y `docker build` construye la imagen.
 - [x] **T11** — Actualizar `docker-compose.yml` (`CORS_ORIGENES_PERMITIDOS`) y `README.md`. *Hecho cuando:* `docker compose --profile gateway up -d api-gateway` arranca y `curl localhost:8080/salud` responde `UP`, y `curl localhost:8080/api/gestion/v1/parcelas` sin token responde `401 NO_AUTENTICADO`.
-- [ ] **T12** — Prueba manual de punta a punta (CE-GW-03, requiere el realm de Keycloak y la corrección del `Location` de operaciones, ver 1.6): con los perfiles `saga`, `gateway` y `auth`, un token de usuario obtenido de Keycloak llega a los tres servicios a través del gateway, y la consulta de `servicio-operaciones` a `GET /api/gestion/v1/campanias/{id}/estado` responde con el estado de la campaña. *Hecho cuando:* los dos casos quedan comprobados con `curl` y en los logs aparece el mismo `idCorrelacion` en el gateway y en el servicio.
-- [x] **T13** — Verificación final: `mvn -B verify` en verde, cobertura ≥ 80 % y los criterios CE-GW-01, CE-GW-02 y CE-GW-04 cubiertos por al menos un test. Resultado: 41 tests, cobertura de líneas 93,9 %.
+- [x] **T12** — Prueba manual de punta a punta (CE-GW-03, requiere el realm de Keycloak y la corrección del `Location` de operaciones, ver 1.6): con los perfiles `saga`, `gateway` y `auth`, un token de usuario obtenido de Keycloak llega a los tres servicios a través del gateway, y la consulta de `servicio-operaciones` a `GET /api/gestion/v1/campanias/{id}/estado` responde con el estado de la campaña. *Hecho cuando:* los dos casos quedan comprobados con `curl` y en los logs aparece el mismo `idCorrelacion` en el gateway y en el servicio.
+- [x] **T13** — Verificación final: `mvn -B verify` en verde, cobertura ≥ 80 % y los criterios CE-GW-01, CE-GW-02 y CE-GW-04 cubiertos por al menos un test. Resultado: 42 tests en verde y cobertura ≥ 80 %. T12 comprobada con `scripts/verificar-realm.py --saga` (`specs/spec-keycloak-realm.md`, Resultado).

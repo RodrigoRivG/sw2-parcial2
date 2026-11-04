@@ -22,6 +22,17 @@ class ResilienciaIT extends PruebaIntegracionBase {
         propiedades(registro);
         int cerrado = puertoCerrado();
         registro.add("INVENTARIO_URL", () -> "http://localhost:" + cerrado);
+        // Como un contenedor apagado en Docker Compose: su nombre no se resuelve (".invalid" nunca existe, RFC 2606)
+        registro.add("IA_URL", () -> "http://servicio-apagado.invalid:8000");
+    }
+
+    @Test
+    void nombreQueNoSeResuelveResponde503() {
+        cliente.get().uri("/api/ia/v1/predicciones").header("Authorization", "Bearer " + token())
+                .exchange()
+                .expectStatus().isEqualTo(503)
+                .expectBody()
+                .jsonPath("$.codigo").isEqualTo("SERVICIO_NO_DISPONIBLE");
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.agrosystem.gateway.web;
 
 import io.netty.channel.ConnectTimeoutException;
 import java.net.ConnectException;
+import java.net.UnknownHostException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
@@ -70,9 +71,14 @@ public class ManejadorErroresGateway implements ErrorWebExceptionHandler {
         return new Traduccion(HttpStatus.INTERNAL_SERVER_ERROR, CodigoError.ERROR_INTERNO);
     }
 
+    /**
+     * Conexión rechazada, sin respuesta al conectar o nombre que no se resuelve. Lo último es lo habitual en
+     * Docker Compose: el nombre de un contenedor apagado deja de existir en la red.
+     */
     private static boolean causadoPorConexion(Throwable error) {
         for (Throwable actual = error; actual != null; actual = actual.getCause()) {
-            if (actual instanceof ConnectException || actual instanceof ConnectTimeoutException) {
+            if (actual instanceof ConnectException || actual instanceof ConnectTimeoutException
+                    || actual instanceof UnknownHostException) {
                 return true;
             }
         }
