@@ -58,8 +58,8 @@ Este servicio casi no tiene lógica de negocio: su complejidad está en la integ
   - límites de pasos y de tiempo de los agentes (§6).
 - Regla de dependencias:
   - `comun` e `integracion` no importan módulos de capacidad.
-  - Los módulos de capacidad no se importan entre sí, excepto `trabajos`, que todos pueden usar. `agentes` puede usar las herramientas de `mcp_server`, y `reportes` puede usar `agentes`.
-  - Nada del código HTTP importa `ml/`; `ml/` puede importar `integracion`.
+  - Los módulos de capacidad no se importan entre sí, excepto `trabajos` y `modelos`, que todos pueden usar (encolar trabajos; obtener la versión vigente de un modelo). `agentes` puede usar las herramientas de `mcp_server`, y `reportes` puede usar `agentes`.
+  - Nada del código HTTP importa `ml/`; `ml/` puede importar `integracion` y los módulos de capacidad (por ejemplo, las variables de `prediccion`, para que el entrenamiento y la inferencia usen el mismo cálculo).
 - Los modelos se cargan una vez al iniciar el proceso (o al publicar una nueva versión), nunca en cada solicitud.
 - Las operaciones largas (reportes, consultas a agentes, análisis de video) se procesan de forma asíncrona: la API crea un trabajo, devuelve su ID y el cliente consulta su estado (RF-24).
 
@@ -260,7 +260,7 @@ servicio-ia/
 
 ## Enmiendas
 
-- Versión: 3.0.0 (2026-11-04)
+- Versión: 3.1.0 (2026-11-04)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -276,3 +276,4 @@ servicio-ia/
 | 2.6.0 | 2026-11-02 | **[común]** Los eventos se publican en el exchange de tipo topic `eventos` (durable); cada consumidor crea su propia cola enlazada a él, para que n8n y los demás sepan dónde suscribirse. Sin cambios propios. |
 | 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. Sin cambios propios. |
 | 3.0.0 | 2026-11-04 | **Propio:** §3 redefinida. Se reemplaza la arquitectura en capas (`domain`, `application`, `agents`, `infrastructure`, `interfaces`) por módulos por capacidad con `comun` e `integracion`: el servicio casi no tiene lógica de negocio y las capas producían clases de dominio duplicadas de los esquemas y casos de uso que solo delegaban (§12). Se mantienen interfaces solo en los bordes externos que se reemplazan en tests, y las reglas propias pasan a ser funciones puras por módulo. §8: tests unitarios y cobertura se refieren a los nuevos módulos. Sin cambios comunes. |
+| 3.1.0 | 2026-11-04 | **Propio:** §3, regla de dependencias. `modelos` se puede usar desde cualquier módulo, como `trabajos` (predicción, visión y agentes necesitan la versión vigente de su modelo), y `ml/` puede importar los módulos de capacidad (entrenamiento e inferencia comparten el cálculo de variables). Origen: `specs/spec-prediccion.md`. Sin cambios comunes. |
