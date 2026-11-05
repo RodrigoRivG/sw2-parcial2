@@ -19,7 +19,7 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | 1 | 001 | [spec-base.md](spec-base.md) | Base del servicio: seguridad, errores, correlación, salud, consulta a microservicios | Soporte | — | — |
 | 2 | 002 | [spec-trabajos.md](spec-trabajos.md) | Trabajos asíncronos: Firestore, cola, consumidor, estados | Soporte | CU-16, CU-17, CU-18, CU-25 | RF-22, RF-23, RF-24 |
 | 3 | 003 | [spec-prediccion.md](spec-prediccion.md) | Versionado de modelos, conjunto de referencia público, rendimiento, agrupación y anomalías | Baja | CU-14, CU-15 | RF-18, RF-19 |
-| 4 | 004 | `spec-vision.md` (pendiente) | Clasificación de imágenes y video, exportación al dispositivo | Media | CU-16 | RF-20, RF-21, RF-22 |
+| 4 | 004 | [spec-vision.md](spec-vision.md) | Clasificación de imágenes (MobileNetV3) y video, exportación TFLite y TF.js | Media | CU-16 | RF-20, RF-21, RF-22 |
 | 5 | 005 | `spec-agentes.md` (pendiente) | Herramientas MCP y agentes LangGraph | Baja | CU-17 | RF-23 |
 | 6 | 006 | `spec-reportes.md` (pendiente) | Reportes por texto o voz, PDF y Excel, reportes programados | Baja | CU-18, CU-25 | RF-24, RF-25, RF-34 |
 
@@ -34,6 +34,9 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | Firestore | Colecciones `versiones_modelo`, `predicciones` y `analisis` | spec-prediccion.md |
 | Cloud Storage | `modelos/<nombre>/<version>/` (`modelo.joblib`, `dataset.csv`, `metadatos.json`) | spec-prediccion.md |
 | Repositorio | `datos/referencia/` (conjunto de referencia del USDA ERS, fuentes e IPC) y `docs/modelos.md` | spec-prediccion.md |
+| Firestore | Colección `clasificaciones` (TTL de 90 días sobre `fechaExpiracion`) | spec-vision.md |
+| Cloud Storage | `modelos/clasificador/<version>/` (`modelo.keras`, `tflite/`, `tfjs/`), `datasets/imagenes/<sha256>.tar` y `temporales/videos/` (ciclo de vida de 1 día) | spec-vision.md |
+| Repositorio | `datos/imagenes/` (manifiesto y fuentes de ASDID y PlantVillage; sin las imágenes) | spec-vision.md |
 
 ## Mapa de endpoints
 
@@ -46,6 +49,9 @@ Prefijo `/api/ia/v1`. Se completa con cada spec.
 | `/analisis`, `/analisis/{id}` | `POST`, `GET` | spec-prediccion.md |
 | `/modelos` | `GET` | spec-prediccion.md |
 | `/modelos/{nombre}/versiones/{version}/publicacion` | `POST` | spec-prediccion.md |
+| `/clasificaciones` | `POST` | spec-vision.md |
+| `/clasificaciones/videos` | `POST` | spec-vision.md |
+| `/modelos/clasificador/dispositivo`, `/modelos/clasificador/dispositivo/archivos/{ruta}` | `GET` | spec-vision.md |
 
 Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `/openapi.json` y `/docs` (spec-base.md).
 
@@ -71,12 +77,16 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-16 | **Consumidor en el mismo proceso que la API**, con `prefetch` = `TRABAJOS_CONCURRENCIA`, para no cargar los modelos dos veces (spec-trabajos.md AC-01). En Cloud Run: instancia mínima 1 y CPU siempre asignada. |
 | D-17 | **Paginación de listados:** `pagina` (desde 0) y `tamanio` (por defecto 20, máximo 100); respuesta `{ items, pagina, tamanio, total }`, igual que `servicio-gestion`. |
 | D-18 | **Datos de entrenamiento:** conjunto de referencia público (USDA ERS, maíz, soya y sorgo, convertido a BOB/ha y kg/ha) más las campañas finalizadas de `servicio-gestion` cuando existan (spec-prediccion.md 1.1). Toda versión guarda el conjunto exacto usado. |
+| D-19 | **Archivos recibidos:** se validan por su contenido, no por extensión ni `Content-Type`, y se leen por bloques cortando al pasar el límite. Imágenes y videos no se conservan; solo el SHA-256 de la imagen (spec-vision.md). |
 
 ## Catálogo de códigos de error
 
 | HTTP | Código | Archivo |
 |---|---|---|
 | 400 | `DATOS_INVALIDOS` | Todos |
+| 400 | `IMAGEN_INVALIDA` | visión |
+| 400 | `VIDEO_INVALIDO` | visión |
+| 400 | `ARCHIVO_DEMASIADO_GRANDE` | visión, reportes (audio) |
 | 401 | `NO_AUTENTICADO` | Todos |
 | 403 | `SIN_PERMISO` | Todos |
 | 404 | `RECURSO_NO_ENCONTRADO` | Todos (ruta inexistente) |
@@ -84,6 +94,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 404 | `CAMPANIA_NO_ENCONTRADA` | predicción (lo reporta `servicio-gestion`) |
 | 404 | `ANALISIS_NO_ENCONTRADO` | predicción |
 | 404 | `VERSION_MODELO_NO_ENCONTRADA` | predicción (modelos) |
+| 404 | `ARCHIVO_MODELO_NO_ENCONTRADO` | visión |
 | 405 | `METODO_NO_PERMITIDO` | Todos |
 | 409 | `VERSION_NO_PUBLICABLE` | predicción (modelos) |
 | 422 | `DATOS_INSUFICIENTES` | predicción |
@@ -94,7 +105,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 503 | `MODELO_NO_DISPONIBLE` | predicción, visión |
 | 503 | `DEPENDENCIA_NO_DISPONIBLE` | Los que consultan otros microservicios, Firestore o RabbitMQ |
 
-Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md) y los de cada manejador (en su spec).
+Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md), `VIDEO_NO_DISPONIBLE` y `MODELO_NO_DISPONIBLE` (spec-vision.md) y los de cada manejador (en su spec).
 
 Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas propias del servicio (por ejemplo, datos insuficientes para estimar).
 
@@ -104,6 +115,10 @@ Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas 
 |---|---|---|
 | RF-18 | Estimación de rendimiento con Random Forest | predicción |
 | RF-19 | Agrupaciones y anomalías con K-Means e Isolation Forest | predicción |
+| RF-20 | Clasificación de imágenes con MobileNetV3 en el servidor | visión |
+| RF-21 | Modelos exportados para clasificar sin conexión | visión |
+| RF-22 | Clasificación de fotogramas de video | visión, trabajos |
+| RNF-06 | Clasificación en el servidor en menos de 3 s | visión |
 | RN-13 | Resultados orientativos | predicción, todos los de IA |
 | RN-14 | Los agentes y el servicio solo consultan | base (cliente de solo lectura) |
 | RN-16 | Permisos verificados en el servidor | base, todos |
@@ -138,4 +153,5 @@ Donde difieren, prevalece la constitución.
 - Dataset público: USDA ERS Commodity Costs and Returns (maíz, soya y sorgo, con costos por categoría). Se descartaron los de Kaggle (variables que el sistema no tiene, o sintéticos) y ANAPO (sin dataset descargable). Sin calibración a Bolivia; la limitación se documenta (RN-13).
 - Constitución v3.1.0: `modelos` se puede usar desde cualquier módulo y `ml/` puede importar los módulos de capacidad.
 - Rol de realm `lectura_ia` para la cuenta de servicio de GraphQL.
+- Clasificador: ASDID (soya, CC0) y las clases de maíz de PlantVillage (CC0), 12 etiquetas más `INDETERMINADO` por umbral; sin sorgo (no hay dataset abierto). MobileNetV3 Large con exportaciones TFLite (float16) y TF.js (uint8) de la misma versión. Los modelos para dispositivos se descargan a través de la API, no con URL firmadas.
 - `DEPENDENCIA_NO_DISPONIBLE` en lugar de reutilizar `SERVICIO_NO_DISPONIBLE`, que es el código del gateway cuando este servicio está caído: así el cliente distingue "IA no responde" de "IA no pudo obtener los datos".
