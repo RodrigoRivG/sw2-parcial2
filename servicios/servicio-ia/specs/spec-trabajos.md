@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-trabajos.md` |
-| Estado | Spec en borrador · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
 | Fecha | 2026-11-04 |
 | Constitución | v3.0.0 (secciones 3, 4, 7, 10 y 11) |
 | Trazabilidad | Soporte de CU-16 (video), CU-17, CU-18 y CU-25 · RF-22, RF-23, RF-24 · RNF-08, RNF-11, RNF-22 |

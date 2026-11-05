@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-vision.md` |
-| Estado | Spec en borrador · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 4, 5, 7, 8 y 9) |
 | Trazabilidad | CU-16 · RF-20, RF-21, RF-22 · RN-13 · RNF-06 · proceso 6 y Módulo 5 del documento de requisitos |

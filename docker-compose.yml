@@ -312,9 +312,16 @@ services:
     profiles: ["ia", "todo"]
     image: sw2/python-dev
     build: ./docker/fastapi
-    command: sh -c "pip install -q -e . && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c "pip install -q -e '.[dev]' && uvicorn --factory app.main:crear_app --host 0.0.0.0 --port 8000 --reload --reload-dir app --no-access-log"
     ports:
       - "8001:8000"
+    # Sin curl en la imagen; start_period cubre la primera instalación de dependencias
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/salud/liveness').status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
     volumes:
       - ./servicios/servicio-ia:/app
       - ia-venv:/venv           # dependencias de Python (no se reinstalan en cada arranque)

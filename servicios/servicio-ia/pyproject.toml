@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "servicio-ia"
+version = "0.1.0"
+description = "Servicio de inteligencia artificial del sistema de campañas agrícolas"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi~=0.162.0",
+    "uvicorn[standard]~=0.54.0",
+    "pydantic~=2.14.2",
+    "pydantic-settings~=2.16.2",
+    "httpx~=0.28.1",
+    "pyjwt[crypto]~=2.15.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=9.2.0",
+    "pytest-asyncio~=1.4.1",
+    "pytest-cov~=7.1.0",
+    "ruff~=0.17.3",
+    "mypy~=2.4.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI usa llamadas en los valores por defecto (Depends, Header, etc.)
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Header",
+    "fastapi.Query",
+    "fastapi.Security",
+    "app.comun.seguridad.requerir_roles",
+]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = [
+    # Starlette recomienda httpx2; la constitución §2 fija httpx para los tests
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/integracion/*", "app/ml/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

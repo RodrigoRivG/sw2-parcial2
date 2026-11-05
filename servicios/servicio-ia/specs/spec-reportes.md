@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-reportes.md` |
-| Estado | Spec en borrador · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
 | Fecha | 2026-11-04 |
 | Constitución | v4.0.0 (secciones 1, 2, 4, 6, 7, 9 y 10) |
 | Trazabilidad | CU-18, CU-25 · RF-24, RF-25, RF-34 · RN-14 · proceso 8 y 11 del documento de requisitos · Módulo 8 (n8n) |
@@ -265,7 +265,7 @@ CSV con el módulo `csv` de la biblioteca estándar.
 - Los agentes conversacionales (`campanias`, `inventario`) no ven `maximo`: `agentes/herramientas.py` lo quita del esquema que reciben, para que el modelo no pida 500 elementos a su contexto.
 - Se agrega el nodo del agente de reportes al paquete `agentes/` (2.5). La verificación de cifras se reutiliza sin cambios.
 
-Estos cambios se anotan también en `spec-agentes.md` (2.3) cuando se implementen.
+Estos cambios ya están anotados en `spec-agentes.md` 2.3 (parámetro `maximo`).
 
 ## 2.4 Transcripción (`integracion/transcriptor.py`)
 

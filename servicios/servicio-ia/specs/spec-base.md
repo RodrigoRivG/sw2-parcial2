@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-base.md` |
-| Estado | Spec en borrador · Plan y tareas en borrador |
+| Estado | Implementada (2026-11-05) |
 | Fecha | 2026-11-04 |
 | Constitución | v3.0.0 (secciones 2, 3, 7, 8, 9, 11, 12 y 13) |
 | Trazabilidad | Soporte de CU-14 a CU-18 y CU-25 · RN-14, RN-16 · RNF-02, RNF-03, RNF-08, RNF-18, RNF-19, RNF-20, RNF-22 |
@@ -215,7 +215,7 @@ Configuración de herramientas en `pyproject.toml`:
 ```text
 servicio-ia/
 ├── app/
-│   ├── main.py             # crear_app() y app = crear_app()
+│   ├── main.py             # crear_app(): fábrica para uvicorn --factory
 │   ├── config.py           # Configuracion (pydantic-settings)
 │   ├── comun/
 │   │   ├── esquemas.py     # ModeloBase, DecimalTexto, FechaHoraUtc
@@ -226,7 +226,8 @@ servicio-ia/
 │   │   └── salud.py        # RegistroSalud y router /salud
 │   └── integracion/
 │       ├── token_servicio.py  # TokenCuentaServicio
-│       └── gateway.py         # ClienteGateway, ErrorServicioRemoto, TipoErrorRemoto
+│       ├── errores.py         # ErrorServicioRemoto, TipoErrorRemoto
+│       └── gateway.py         # ClienteGateway y la dependencia cliente_gateway
 ├── tests/
 │   ├── conftest.py         # configuración de prueba, claves RSA, emisor de tokens, app de prueba
 │   ├── unit/
@@ -329,13 +330,13 @@ Las variables de Firestore, GCS, RabbitMQ, Ollama y Whisper que ya están en `do
 3. Registra `MiddlewareCorrelacion`, los manejadores de errores, el router de salud y el router del prefijo.
 4. En el `lifespan`: crea el `httpx.AsyncClient`, `ProveedorClavesJwks`, `TokenCuentaServicio`, `ClienteGateway` y `RegistroSalud`.
 
-`app = crear_app()` al final del módulo, para uvicorn.
+No se crea la aplicación al importar el módulo: uvicorn la arranca con `--factory app.main:crear_app`. Así los tests importan `app.main` sin variables de entorno. Si la configuración falla, `crear_app()` escribe el log `ERROR` con los nombres de las variables y termina con `SystemExit(1)`.
 
 ## 2.11 Empaquetado, entorno local y pipeline
 
-- **`Dockerfile`** del servicio (imagen de Cloud Run): `python:3.12-slim`; copia `pyproject.toml` y `app/`; `pip install --no-cache-dir .`; usuario sin privilegios; `CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --no-access-log"]` (Cloud Run define `PORT`). Las librerías del sistema que necesitan OpenCV y WeasyPrint se agregan en las specs que las usan.
+- **`Dockerfile`** del servicio (imagen de Cloud Run): `python:3.12-slim`; copia `pyproject.toml` y `app/`; `pip install --no-cache-dir .`; usuario sin privilegios; `CMD ["sh", "-c", "exec uvicorn --factory app.main:crear_app --host 0.0.0.0 --port ${PORT:-8080} --no-access-log"]` (Cloud Run define `PORT`). Las librerías del sistema que necesitan OpenCV y WeasyPrint se agregan en las specs que las usan.
 - **`docker-compose.yml`** (`servicio-ia`):
-  - comando: `pip install -q -e ".[dev]" && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app --no-access-log`;
+  - comando: `pip install -q -e '.[dev]' && uvicorn --factory app.main:crear_app --host 0.0.0.0 --port 8000 --reload --reload-dir app --no-access-log`;
   - `healthcheck` sin `curl` (la imagen no lo trae): `python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/salud/liveness').status == 200 else 1)"`, con `start_period` de 120 s por la primera instalación;
   - sin otros cambios: las variables de 2.3 ya están.
 - **`.github/workflows/servicio-ia.yml`** (en la raíz, filtrado por `servicios/servicio-ia/**` y por el propio archivo): `actions/setup-python` con 3.12 y caché de pip; `pip install -e ".[dev]"`; `ruff check .`; `ruff format --check .`; `mypy app`; `pytest --cov --cov-report=term-missing`; `docker build`. Sin contenedores de servicio en esta spec.
@@ -364,13 +365,13 @@ Las rutas de prueba se registran solo en `tests/conftest.py`, sobre una aplicaci
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Crear `pyproject.toml` con las dependencias y la configuración de herramientas de 2.1, y la estructura de 2.2. *Hecho cuando:* `pip install -e ".[dev]"`, `ruff check .` y `mypy app` funcionan en la imagen de desarrollo.
-- [ ] **T02** — Implementar `config.py` y `comun/esquemas.py`. *Hecho cuando:* pasan `test_config.py` y `test_esquemas.py`.
-- [ ] **T03** [P] — Implementar `comun/logs.py` y `comun/correlacion.py`. *Hecho cuando:* pasa `test_logs.py`.
-- [ ] **T04** — Implementar `comun/errores.py`, `main.py` (`crear_app`) y `tests/conftest.py` con la aplicación y las rutas de prueba. *Hecho cuando:* pasan `test_errores.py` (salvo el escenario 7 de la Historia 4) y `test_correlacion.py`.
-- [ ] **T05** — Implementar `comun/salud.py`. *Hecho cuando:* pasa `test_salud.py`.
-- [ ] **T06** — Implementar `comun/seguridad.py` y el emisor de tokens de prueba. *Hecho cuando:* pasan `test_seguridad_jwks.py` y `test_seguridad.py`.
-- [ ] **T07** — Implementar `integracion/token_servicio.py` e `integracion/gateway.py` y su manejo en `errores.py`. *Hecho cuando:* pasan `test_token_servicio.py`, `test_cliente_gateway.py` y el escenario 7 de la Historia 4.
-- [ ] **T08** — Escribir `test_openapi.py` y documentar las respuestas de error de las rutas. *Hecho cuando:* pasa, y la cobertura es ≥ 80 % (README D-13).
-- [ ] **T09** [P] — Escribir el `Dockerfile`, ajustar `docker-compose.yml` (2.11) y crear `.github/workflows/servicio-ia.yml`. *Hecho cuando:* se cumplen CE-BASE-03 y CE-BASE-05, y la imagen de producción responde `/salud/liveness`.
-- [ ] **T10** — Verificación manual de punta a punta (CE-BASE-04). *Hecho cuando:* los tres puntos responden lo esperado; se anota el resultado en esta tarea.
+- [x] **T01** — Crear `pyproject.toml` con las dependencias y la configuración de herramientas de 2.1, y la estructura de 2.2. *Hecho cuando:* `pip install -e ".[dev]"`, `ruff check .` y `mypy app` funcionan en la imagen de desarrollo.
+- [x] **T02** — Implementar `config.py` y `comun/esquemas.py`. *Hecho cuando:* pasan `test_config.py` y `test_esquemas.py`.
+- [x] **T03** [P] — Implementar `comun/logs.py` y `comun/correlacion.py`. *Hecho cuando:* pasa `test_logs.py`.
+- [x] **T04** — Implementar `comun/errores.py`, `main.py` (`crear_app`) y `tests/conftest.py` con la aplicación y las rutas de prueba. *Hecho cuando:* pasan `test_errores.py` (salvo el escenario 7 de la Historia 4) y `test_correlacion.py`.
+- [x] **T05** — Implementar `comun/salud.py`. *Hecho cuando:* pasa `test_salud.py`.
+- [x] **T06** — Implementar `comun/seguridad.py` y el emisor de tokens de prueba. *Hecho cuando:* pasan `test_seguridad_jwks.py` y `test_seguridad.py`.
+- [x] **T07** — Implementar `integracion/token_servicio.py` e `integracion/gateway.py` y su manejo en `errores.py`. *Hecho cuando:* pasan `test_token_servicio.py`, `test_cliente_gateway.py` y el escenario 7 de la Historia 4.
+- [x] **T08** — Escribir `test_openapi.py` y documentar las respuestas de error de las rutas. *Hecho cuando:* pasa, y la cobertura es ≥ 80 % (README D-13).
+- [x] **T09** [P] — Escribir el `Dockerfile`, ajustar `docker-compose.yml` (2.11) y crear `.github/workflows/servicio-ia.yml`. *Hecho cuando:* se cumplen CE-BASE-03 y CE-BASE-05, y la imagen de producción responde `/salud/liveness`.
+- [x] **T10** — Verificación manual de punta a punta (CE-BASE-04). *Hecho cuando:* los tres puntos responden lo esperado; se anota el resultado en esta tarea. Verificado en local (2026-11-05), con Keycloak, el gateway y `servicio-gestion` de Docker Compose: (1) el token de `servicio-ia` lee `GET /api/gestion/v1/campanias/historicos?tamanio=1` a través del gateway (`200`); (2) un token de `gerencia.prueba` en `GET {gateway}/api/ia/v1/inexistente` recibe `404 RECURSO_NO_ENCONTRADO` de este servicio con el `X-Correlation-Id` enviado; (3) con el JWKS real, un token de `servicio-operaciones` (sin `servicio-ia` en `aud`) recibe `401` y uno de `gerencia.prueba`, `200`. Observación fuera de este servicio: el gateway devuelve `X-Correlation-Id` duplicado (el suyo y el del servicio), igual con `servicio-gestion`.

@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-prediccion.md` |
-| Estado | Spec en borrador · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 4, 5, 7 y 9) |
 | Trazabilidad | CU-14, CU-15 · RF-18, RF-19 · RN-13 · proceso 9 y 10 del documento de requisitos · RNF-05 |

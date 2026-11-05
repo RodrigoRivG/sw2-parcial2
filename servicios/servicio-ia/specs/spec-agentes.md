@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-agentes.md` |
-| Estado | Spec en borrador · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 3, 6, 7, 8 y 9) |
 | Trazabilidad | CU-17 · RF-23 · RN-14 · RNF-08 · §1.7.6 del documento de requisitos ("agentes de monitoreo de campañas, inventario, análisis y reportes") |
@@ -237,6 +237,8 @@ Todas reciben y devuelven JSON; los decimales siguen como texto (README D-03); l
 | `obtener_insumo` | `idInsumo` | `GET /api/inventario/v1/insumos/{id}` | — |
 | `listar_labores` | `idCampania?`, `estado?`, `fechaDesde?`, `fechaHasta?` | `GET /api/operaciones/v1/labores?limite=50` | 50 (primera página del cursor) |
 | `listar_incidencias` | `idParcela?`, `idCampania?`, `tipo?`, `fechaDesde?`, `fechaHasta?` | `GET /api/operaciones/v1/incidencias?limite=50` | 50 |
+
+**Parámetro `maximo` (lo pide `spec-reportes.md` 2.3):** `listar_campanias`, `listar_historicos`, `consultar_estado_inventario`, `listar_labores` y `listar_incidencias` aceptan además `maximo` (1 a 500, por defecto 50) y paginan el servicio hasta alcanzarlo; `listar_labores` y `listar_incidencias` siguen el cursor de `servicio-operaciones`. Los agentes conversacionales (`campanias`, `inventario`) no lo ven: `agentes/herramientas.py` lo quita del esquema que reciben, para que el modelo no llene su contexto. Lo usa el agente de reportes con `maximo = 500`.
 
 - Los parámetros se declaran con tipos de Pydantic (UUID, enumeraciones con los valores reales de cada servicio, fechas `AAAA-MM-DD`), así `FastMCP` genera el esquema y rechaza lo inválido antes de llamar al servicio.
 - Los nombres exactos de filtros y campos se confirman contra el OpenAPI de cada servicio al implementar; si alguno difiere de esta tabla, se corrige aquí.
