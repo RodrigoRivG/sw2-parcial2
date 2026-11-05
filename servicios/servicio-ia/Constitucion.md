@@ -13,7 +13,7 @@
 - Entrenamiento, versionado y exportación de los modelos, incluidas las versiones TensorFlow Lite y TensorFlow.js que usan Flutter y Vue.js.
 - Agentes inteligentes (LangGraph) y servidor de herramientas MCP para consultar los demás microservicios.
 - Transcripción de solicitudes de voz (Faster-Whisper).
-- Generación de reportes en PDF y Excel, a pedido (React) o programados (n8n).
+- Generación de reportes en PDF, Excel y CSV, a pedido (React) o programados (n8n).
 
 **No es responsable de:**
 - Datos de negocio (parcelas, campañas, insumos, labores): solo los consulta, nunca los modifica (RN-14).
@@ -33,7 +33,7 @@
 - ML y Deep Learning: scikit-learn, TensorFlow/Keras, OpenCV, Pillow, pandas, NumPy, Joblib.
 - Agentes: LangGraph, MCP Python SDK y Ollama (modelo de lenguaje pequeño cuantizado).
 - Voz: Faster-Whisper.
-- Reportes: WeasyPrint (PDF) y OpenPyXL (Excel).
+- Reportes: WeasyPrint (PDF) con plantillas Jinja2, OpenPyXL (Excel) y el módulo `csv` de la biblioteca estándar (CSV).
 - Almacenamiento: Google Cloud Storage (modelos, conjuntos de entrenamiento y reportes) y Firestore (estado de trabajos y resultados).
 - Cola de trabajos asíncronos: RabbitMQ (el mismo broker del sistema).
 - Calidad: pytest + httpx, Ruff (lint y formato) y mypy.
@@ -78,7 +78,7 @@ servicio-ia/
 │   ├── modelos/        # versiones, publicación y descarga para el dispositivo
 │   ├── agentes/        # grafo LangGraph, agentes y prompts
 │   ├── mcp_server/     # servidor y herramientas MCP de solo lectura
-│   ├── reportes/       # solicitud y generación de PDF/Excel, plantillas
+│   ├── reportes/       # solicitud y generación de PDF, Excel y CSV, plantillas
 │   └── ml/             # entrenamiento, evaluación y exportación (offline)
 ├── tests/
 │   ├── unit/
@@ -105,7 +105,7 @@ servicio-ia/
 - Audios de voz: se eliminan después de transcribirlos; solo se conserva la transcripción.
 - Imágenes enviadas a clasificar: no se conservan, salvo que la spec lo pida para reentrenamiento.
 - Límites de entrada definidos en la spec: tamaño de imagen (`.jpg`, `.png`), duración de audio (`.wav`, `.mp3`) y de video.
-- Los reportes generados se entregan mediante URL firmadas de corta duración y se eliminan tras el plazo de retención definido en la spec.
+- Los reportes generados se descargan a través de la API, solo por su solicitante, y se eliminan tras el plazo de retención definido en la spec. No se usan URL firmadas: el navegador y n8n descargan con el token que ya tienen, y el bucket no se expone.
 
 ## 5. Modelos de IA
 
@@ -256,11 +256,11 @@ servicio-ia/
 | Enumeración | Valores |
 |---|---|
 | `EstadoTrabajo` | `EN_COLA` / `PROCESANDO` / `COMPLETADO` / `FALLIDO` |
-| Formato de reporte | `PDF` / `XLSX` |
+| Formato de reporte | `PDF` / `XLSX` / `CSV` |
 
 ## Enmiendas
 
-- Versión: 3.1.0 (2026-11-04)
+- Versión: 4.0.0 (2026-11-04)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -277,3 +277,4 @@ servicio-ia/
 | 2.7.0 | 2026-11-02 | **[común]** n8n recibe los eventos con su disparador de RabbitMQ, desde una cola propia enlazada al exchange `eventos`; ningún servicio llama webhooks de n8n. Así un evento no se pierde si n8n está caído y se respeta la regla de no hacer llamadas síncronas entre servicios. Es una diferencia intencional con el proceso 3 del documento de requisitos, que menciona un webhook. Sin cambios propios. |
 | 3.0.0 | 2026-11-04 | **Propio:** §3 redefinida. Se reemplaza la arquitectura en capas (`domain`, `application`, `agents`, `infrastructure`, `interfaces`) por módulos por capacidad con `comun` e `integracion`: el servicio casi no tiene lógica de negocio y las capas producían clases de dominio duplicadas de los esquemas y casos de uso que solo delegaban (§12). Se mantienen interfaces solo en los bordes externos que se reemplazan en tests, y las reglas propias pasan a ser funciones puras por módulo. §8: tests unitarios y cobertura se refieren a los nuevos módulos. Sin cambios comunes. |
 | 3.1.0 | 2026-11-04 | **Propio:** §3, regla de dependencias. `modelos` se puede usar desde cualquier módulo, como `trabajos` (predicción, visión y agentes necesitan la versión vigente de su modelo), y `ml/` puede importar los módulos de capacidad (entrenamiento e inferencia comparten el cálculo de variables). Origen: `specs/spec-prediccion.md`. Sin cambios comunes. |
+| 4.0.0 | 2026-11-04 | **Propio:** §4 redefinida: los reportes se descargan a través de la API (solo el solicitante) en lugar de URL firmadas, porque una URL firmada del emulador no resuelve a la vez desde el navegador y desde n8n, y en GCP exige permisos de firma. §1, §2 y glosario: se agrega el formato CSV (módulo `csv` de la biblioteca estándar) y Jinja2 para las plantillas del PDF. Origen: `specs/spec-reportes.md`. Sin cambios comunes. |
