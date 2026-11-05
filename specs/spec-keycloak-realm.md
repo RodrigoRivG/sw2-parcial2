@@ -91,7 +91,7 @@ Como administrador, quiero crear cuentas, asignar roles y activar o desactivar u
 ## 1.2 Requisitos
 
 - **RQ-KC-01:** realm `agro`, habilitado, con el login por usuario y contraseña de Keycloak, sin registro público de usuarios.
-- **RQ-KC-02:** roles de realm: `administrador`, `gerencia`, `tecnico_campo`, `lectura_gestion`, `estado_campania`, `lectura_inventario` y `lectura_operaciones`. Ninguno es compuesto. Los roles por defecto del realm (`default-roles-agro`) no incluyen ninguno de ellos.
+- **RQ-KC-02:** roles de realm: `administrador`, `gerencia`, `tecnico_campo`, `lectura_gestion`, `estado_campania`, `lectura_inventario`, `lectura_operaciones` y `lectura_ia`. Ninguno es compuesto. Los roles por defecto del realm (`default-roles-agro`) no incluyen ninguno de ellos.
 - **RQ-KC-03:** clients de usuario, públicos, con Authorization Code y PKCE (`S256`):
 
   | Client | Para | Redirecciones (desarrollo) |
@@ -107,10 +107,10 @@ Como administrador, quiero crear cuentas, asignar roles y activar o desactivar u
   |---|---|---|---|
   | `servicio-operaciones` | `estado_campania` | `servicio-gestion` | gestión RQ-INT-06, operaciones D-10 |
   | `servicio-ia` | `lectura_gestion`, `lectura_inventario`, `lectura_operaciones` | `servicio-gestion`, `servicio-inventario`, `servicio-operaciones` | constitución de IA §6 (solo lectura) |
-  | `graphql-server` | `lectura_gestion`, `estado_campania`, `lectura_inventario`, `lectura_operaciones` | `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia` | RF-27 |
+  | `graphql-server` | `lectura_gestion`, `estado_campania`, `lectura_inventario`, `lectura_operaciones`, `lectura_ia` | `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia` | RF-27; `lectura_ia`: `servicio-ia/specs/spec-prediccion.md` (lectura de predicciones y análisis) |
   | `n8n` | `lectura_inventario`, `lectura_operaciones` | `servicio-inventario`, `servicio-operaciones`, `servicio-ia` | inventario D-10, operaciones D-10, gestión AC-02 |
 
-  Los permisos de `servicio-ia` para GraphQL y n8n (lectura de resultados, reportes programados) se agregan cuando existan las specs de `servicio-ia`: hoy solo se fija la audiencia.
+  El permiso de `servicio-ia` para n8n (reportes programados) se agrega con `servicio-ia/specs/spec-reportes.md`: hoy solo se fija la audiencia. El de GraphQL es `lectura_ia`.
 
 - **RQ-KC-05:** el rol `administrador` permite gestionar usuarios con la API de administración de Keycloak (RF-32) mediante los roles del client `realm-management` `view-users`, `query-users`, `query-groups` y `manage-users`, asignados al usuario administrador de prueba (no como compuesto del rol de realm, para no darlos a cuentas de servicio).
 
