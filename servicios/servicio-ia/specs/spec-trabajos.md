@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-trabajos.md` |
-| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
+| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
 | Fecha | 2026-11-04 |
 | Constitución | v3.0.0 (secciones 3, 4, 7, 10 y 11) |
 | Trazabilidad | Soporte de CU-16 (video), CU-17, CU-18 y CU-25 · RF-22, RF-23, RF-24 · RNF-08, RNF-11, RNF-22 |
@@ -269,12 +269,15 @@ app/
 | `listar_vencidos(ahora, limite=100) -> list[Trabajo]` | Dos consultas: `estado == PROCESANDO and fechaLimite < ahora`; `estado == EN_COLA and fechaCreacion < ahora - 10 min` |
 
 - `RepositorioTrabajosFirestore` lo implementa con `firestore.AsyncClient`. Documentos en camelCase (como los JSON del sistema). Fechas como `Timestamp` de Firestore. Excepciones de `google.api_core` → `ErrorInfraestructura` (propia de `integracion`), que el consumidor reintenta y la API traduce a `503 DEPENDENCIA_NO_DISPONIBLE`.
+  - Todas las llamadas van con `retry=None` y tiempo límite de 5 s: con los reintentos internos del cliente, un Firestore caído tarda cerca de un minuto en fallar. Los reintentos los hace el consumidor (1 s, 2 s, 4 s).
+  - Si la transacción agota sus intentos por contención (la librería lanza `ValueError`), también es `ErrorInfraestructura`: el consumidor reintenta y ve el estado ya cambiado.
+  - El Protocol trabaja con documentos (diccionarios en camelCase) y `trabajos/` los convierte en `Trabajo`, para que `integracion` no importe un módulo de capacidad (constitución §3).
 - Índices compuestos (`estado` + `fechaLimite`, `estado` + `fechaCreacion`): el emulador no los exige; para GCP se versionan en `firestore.indexes.json` en la raíz del servicio, junto con la política TTL de `fechaExpiracion` documentada.
 - `RepositorioTrabajosMemoria` en `tests/` (doble de pruebas para los tests unitarios de `ServicioTrabajos`, el consumidor y la revisión).
 
 ## 2.6 Mensajería (`integracion/rabbitmq.py`)
 
-- `ConexionRabbitMq`: `aio_pika.connect_robust(RABBITMQ_URL)` en el `lifespan`; un canal para publicar (con confirmaciones del broker) y otro para consumir.
+- `ConexionRabbitMq`: conexión robusta de `aio_pika` iniciada en segundo plano desde el `lifespan`, con un reintento cada 5 s si RabbitMQ no está: el servicio arranca igual, con `rabbitmq` en `DOWN` en readiness (RNF-08). Un canal para publicar (con confirmaciones del broker) y otro para consumir. Se crea el `RobustConnection` y se llama a `connect()` por separado (no `connect_robust`), porque `connect_robust` deja viva su tarea interna de reconexión si se cancela a mitad de un intento, y el proceso no termina al apagarse.
 - Declaración idempotente al arrancar (README D-15):
   - `servicio-ia.trabajos`: durable, `x-dead-letter-exchange: ""`, `x-dead-letter-routing-key: servicio-ia.trabajos.dlq`.
   - `servicio-ia.trabajos.dlq`: durable, sin argumentos.
@@ -390,12 +393,12 @@ En `crear_app()` se registran como comprobaciones críticas (`spec-base.md` 2.8)
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Agregar las dependencias y variables de 2.1 y 2.2; crear `trabajos/estados.py` y `trabajos/esquemas.py`. *Hecho cuando:* pasa `test_estados.py`.
-- [ ] **T02** — Implementar `integracion/firestore.py` y `RepositorioTrabajosFirestore`; crear `firestore.indexes.json`. *Hecho cuando:* pasa `test_repositorio_trabajos_firestore.py` contra el emulador.
-- [ ] **T03** [P] — Implementar `integracion/rabbitmq.py` con la declaración de colas y la publicación confirmada. *Hecho cuando:* un test de integración publica y lee un mensaje de la cola de prueba.
-- [ ] **T04** — Implementar `trabajos/registro.py`, `trabajos/servicio.py` y `RepositorioTrabajosMemoria`. *Hecho cuando:* pasan `test_registro.py` y `test_servicio.py`.
-- [ ] **T05** — Implementar `trabajos/consumidor.py` y `trabajos/revision.py`, y arrancarlos en el `lifespan`. *Hecho cuando:* pasan `test_consumidor.py` y `test_revision.py`.
-- [ ] **T06** — Implementar `trabajos/router.py` y registrar las comprobaciones de salud. *Hecho cuando:* pasa `test_router_trabajos.py`.
-- [ ] **T07** — Escribir `test_flujo_trabajos.py` y `test_infraestructura.py`. *Hecho cuando:* pasan y se cumplen CE-TRA-02 a CE-TRA-04.
-- [ ] **T08** [P] — Actualizar `.github/workflows/servicio-ia.yml` (2.13). *Hecho cuando:* el pipeline corre en verde con Firestore y RabbitMQ.
-- [ ] **T09** — Verificación local: `docker compose --profile ia up -d` deja el servicio sano, la cola y la DLQ aparecen en el panel de RabbitMQ (`localhost:15672`) y `/salud/readiness` muestra `firestore` y `rabbitmq` en `UP`. *Hecho cuando:* se anota el resultado en esta tarea.
+- [x] **T01** — Agregar las dependencias y variables de 2.1 y 2.2; crear `trabajos/estados.py` y `trabajos/esquemas.py`. *Hecho cuando:* pasa `test_estados.py`.
+- [x] **T02** — Implementar `integracion/firestore.py` y `RepositorioTrabajosFirestore`; crear `firestore.indexes.json`. *Hecho cuando:* pasa `test_repositorio_trabajos_firestore.py` contra el emulador.
+- [x] **T03** [P] — Implementar `integracion/rabbitmq.py` con la declaración de colas y la publicación confirmada. *Hecho cuando:* un test de integración publica y lee un mensaje de la cola de prueba.
+- [x] **T04** — Implementar `trabajos/registro.py`, `trabajos/servicio.py` y `RepositorioTrabajosMemoria`. *Hecho cuando:* pasan `test_registro.py` y `test_servicio.py`.
+- [x] **T05** — Implementar `trabajos/consumidor.py` y `trabajos/revision.py`, y arrancarlos en el `lifespan`. *Hecho cuando:* pasan `test_consumidor.py` y `test_revision.py`.
+- [x] **T06** — Implementar `trabajos/router.py` y registrar las comprobaciones de salud. *Hecho cuando:* pasa `test_router_trabajos.py`.
+- [x] **T07** — Escribir `test_flujo_trabajos.py` y `test_infraestructura.py`. *Hecho cuando:* pasan y se cumplen CE-TRA-02 a CE-TRA-04.
+- [x] **T08** [P] — Actualizar `.github/workflows/servicio-ia.yml` (2.13). *Hecho cuando:* el pipeline corre en verde con Firestore y RabbitMQ. Escrito y con los mismos pasos verificados en local; falta confirmar la ejecución en GitHub Actions al hacer push.
+- [x] **T09** — Verificación local: `docker compose --profile ia up -d` deja el servicio sano, la cola y la DLQ aparecen en el panel de RabbitMQ (`localhost:15672`) y `/salud/readiness` muestra `firestore` y `rabbitmq` en `UP`. *Hecho cuando:* se anota el resultado en esta tarea. Verificado en local (2026-11-05): contenedor `healthy`; readiness `{"firestore":"UP","rabbitmq":"UP"}`; `servicio-ia.trabajos` durable con `x-dead-letter-routing-key: servicio-ia.trabajos.dlq` y 1 consumidor; `servicio-ia.trabajos.dlq` durable; los tests no dejan colas `pruebas-*` al terminar.

@@ -22,3 +22,12 @@ class ErrorServicioRemoto(Exception):
         self.codigo = codigo
         self.estado_http = estado_http
         super().__init__(f"{servicio}: {tipo.value} ({codigo or estado_http or 'sin respuesta'})")
+
+
+class ErrorInfraestructura(Exception):
+    """Falla de Firestore, Cloud Storage o RabbitMQ (se reintenta o se informa como 503)."""
+
+    def __init__(self, componente: str, motivo: str) -> None:
+        self.componente = componente
+        self.motivo = motivo
+        super().__init__(f"{componente}: {motivo}")

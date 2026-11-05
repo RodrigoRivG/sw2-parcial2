@@ -14,8 +14,16 @@ from app.comun.logs import configurar_logs
 from app.comun.salud import RegistroSalud, router_salud
 from app.comun.seguridad import ProveedorClavesJwks
 from app.config import Configuracion, ConfiguracionInvalida, cargar_configuracion
+from app.integracion.firestore import comprobar_firestore, crear_cliente_firestore
 from app.integracion.gateway import ClienteGateway
+from app.integracion.rabbitmq import ConexionRabbitMq
+from app.integracion.repositorio_trabajos import RepositorioTrabajosFirestore
 from app.integracion.token_servicio import TokenCuentaServicio
+from app.trabajos.consumidor import ConsumidorTrabajos
+from app.trabajos.registro import RegistroTipos
+from app.trabajos.revision import RevisionPeriodica
+from app.trabajos.router import router_trabajos
+from app.trabajos.servicio import ServicioTrabajos
 
 _logger = logging.getLogger("app")
 
@@ -46,8 +54,35 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
             app.state.cliente_gateway = ClienteGateway(
                 cliente, config.api_gateway_url, token, config.gateway_tiempo_limite_segundos
             )
+
+            # Trabajos asíncronos (spec-trabajos.md)
+            firestore = crear_cliente_firestore(config.google_cloud_project)
+            repositorio = RepositorioTrabajosFirestore(firestore)
+            conexion = ConexionRabbitMq(
+                config.rabbitmq_url.get_secret_value(), config.trabajos_cola
+            )
+            conexion.iniciar()
+            app.state.cliente_firestore = firestore
+            app.state.conexion_rabbitmq = conexion
+            app.state.servicio_trabajos = ServicioTrabajos(
+                repositorio, conexion, registro_tipos, config.trabajos_retencion_dias
+            )
+            consumidor = ConsumidorTrabajos(
+                repositorio, registro_tipos, config.trabajos_retencion_dias
+            )
+            revision = RevisionPeriodica(repositorio, config.trabajos_retencion_dias)
+            if config.trabajos_consumidor_activo:
+                consumidor.iniciar(conexion, config.trabajos_concurrencia)
+                revision.iniciar()
+
             _logger.info("Servicio iniciado")
-            yield
+            try:
+                yield
+            finally:
+                await consumidor.detener()
+                await revision.detener()
+                await conexion.cerrar()
+                firestore.close()  # type: ignore[no-untyped-call]
         _logger.info("Servicio detenido")
 
     app = FastAPI(
@@ -59,9 +94,18 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
         docs_url="/docs",
         redoc_url=None,
     )
+    registro_tipos = RegistroTipos()
     app.state.configuracion = config
+    app.state.registro_tipos = registro_tipos
     app.state.registro_salud = RegistroSalud()
+    app.state.registro_salud.registrar(
+        "firestore", lambda: comprobar_firestore(app.state.cliente_firestore), critica=True
+    )
+    app.state.registro_salud.registrar(
+        "rabbitmq", lambda: app.state.conexion_rabbitmq.comprobar(), critica=True
+    )
     app.add_middleware(MiddlewareCorrelacion, error_interno=error_interno_asgi)
     registrar_manejadores(app)
     app.include_router(router_salud)
+    app.include_router(router_trabajos)
     return app

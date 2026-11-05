@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.comun.correlacion import id_correlacion_actual
 from app.comun.esquemas import ModeloBase
-from app.integracion.errores import ErrorServicioRemoto, TipoErrorRemoto
+from app.integracion.errores import ErrorInfraestructura, ErrorServicioRemoto, TipoErrorRemoto
 
 _logger = logging.getLogger("app.errores")
 
@@ -162,6 +162,12 @@ async def _aplicacion(_: Request, error: Exception) -> JSONResponse:
     return respuesta_error(error.estado_http, error.codigo, error.mensaje, error.detalles)
 
 
+async def _infraestructura(_: Request, error: Exception) -> JSONResponse:
+    assert isinstance(error, ErrorInfraestructura)
+    _logger.warning("Infraestructura no disponible", extra={"componente": error.componente})
+    return respuesta_error(503, "DEPENDENCIA_NO_DISPONIBLE")
+
+
 async def _servicio_remoto(_: Request, error: Exception) -> JSONResponse:
     assert isinstance(error, ErrorServicioRemoto)
     if error.tipo is TipoErrorRemoto.NO_DISPONIBLE:
@@ -185,6 +191,7 @@ def registrar_manejadores(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, _validacion)
     app.add_exception_handler(ErrorAplicacion, _aplicacion)
     app.add_exception_handler(ErrorServicioRemoto, _servicio_remoto)
+    app.add_exception_handler(ErrorInfraestructura, _infraestructura)
     app.add_exception_handler(StarletteHTTPException, _http)
 
 

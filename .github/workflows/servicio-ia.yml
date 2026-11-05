@@ -16,8 +16,38 @@ jobs:
     defaults:
       run:
         working-directory: servicios/servicio-ia
+    # La misma imagen de RabbitMQ que Docker Compose (spec-trabajos.md 2.13)
+    services:
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        ports:
+          - 5672:5672
+        env:
+          RABBITMQ_DEFAULT_USER: sw2
+          RABBITMQ_DEFAULT_PASS: sw2pass
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: sw2-ci
+      RABBITMQ_URL: amqp://sw2:sw2pass@localhost:5672/
     steps:
       - uses: actions/checkout@v4
+      # Los contenedores de servicio no aceptan `command`; el emulador se levanta a mano
+      - name: Levantar el emulador de Firestore
+        run: |
+          docker run -d --name firestore -p 8080:8080 \
+            gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators \
+            gcloud emulators firestore start --host-port=0.0.0.0:8080 --project=sw2-ci
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/ >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs firestore
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -31,7 +31,15 @@ class Configuracion(BaseSettings):
     gateway_tiempo_limite_segundos: float = Field(default=5.0, gt=0)
     nivel_log: str = "INFO"
 
-    @field_validator("keycloak_client_secret")
+    # spec-trabajos.md 2.2
+    google_cloud_project: TextoObligatorio
+    rabbitmq_url: SecretStr
+    trabajos_cola: TextoObligatorio = "servicio-ia.trabajos"
+    trabajos_concurrencia: int = Field(default=2, ge=1, le=20)
+    trabajos_consumidor_activo: bool = True
+    trabajos_retencion_dias: int = Field(default=30, ge=1)
+
+    @field_validator("keycloak_client_secret", "rabbitmq_url")
     @classmethod
     def _secreto_no_vacio(cls, valor: SecretStr) -> SecretStr:
         if not valor.get_secret_value().strip():

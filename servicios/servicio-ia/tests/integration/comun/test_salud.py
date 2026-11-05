@@ -6,6 +6,8 @@ from collections.abc import Callable
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.comun.salud import RegistroSalud
+
 
 async def _sana() -> None:
     return None
@@ -26,7 +28,11 @@ def test_liveness_sin_token(cliente: TestClient) -> None:
     assert respuesta.json() == {"estado": "UP"}
 
 
-def test_readiness_sin_comprobaciones(cliente: TestClient) -> None:
+def test_readiness_sin_comprobaciones(crear_cliente: Callable[..., TestClient]) -> None:
+    def ajustar(app: FastAPI) -> None:
+        app.state.registro_salud = RegistroSalud()
+
+    cliente = crear_cliente(ajustar)
     for ruta in ("/salud/readiness", "/salud"):
         respuesta = cliente.get(ruta)
         assert respuesta.status_code == 200
@@ -35,6 +41,7 @@ def test_readiness_sin_comprobaciones(cliente: TestClient) -> None:
 
 def test_critica_caida_responde_503(crear_cliente: Callable[..., TestClient]) -> None:
     def ajustar(app: FastAPI) -> None:
+        app.state.registro_salud = RegistroSalud()
         app.state.registro_salud.registrar("firestore", _sana, critica=True)
         app.state.registro_salud.registrar("rabbitmq", _caida, critica=True)
 
@@ -52,6 +59,7 @@ def test_informativa_caida_o_lenta_no_cambia_el_estado(
     crear_cliente: Callable[..., TestClient],
 ) -> None:
     def ajustar(app: FastAPI) -> None:
+        app.state.registro_salud = RegistroSalud()
         app.state.registro_salud.registrar("firestore", _sana, critica=True)
         app.state.registro_salud.registrar("ollama", _lenta, critica=False)
 

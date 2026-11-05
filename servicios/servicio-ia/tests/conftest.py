@@ -3,6 +3,7 @@
 Las rutas `/api/ia/v1/prueba/...` existen solo en los tests.
 """
 
+import os
 import time
 import uuid
 from collections.abc import Callable, Iterator
@@ -36,17 +37,32 @@ _clave_privada = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 _otra_clave_privada = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
-def configuracion_de_prueba() -> Configuracion:
-    return Configuracion(
-        keycloak_issuer=EMISOR,
-        keycloak_jwks_uri="http://keycloak.prueba/certs",
-        keycloak_audience=AUDIENCIA,
-        keycloak_token_url="http://keycloak.prueba/token",
-        keycloak_client_id="servicio-ia",
-        keycloak_client_secret=SecretStr("secreto-de-prueba"),
-        api_gateway_url="http://gateway.prueba",
-        nivel_log="DEBUG",
-    )
+# Infraestructura local (Docker Compose) o la que defina el pipeline (README D-12)
+os.environ.setdefault("FIRESTORE_EMULATOR_HOST", "firestore:8080")
+RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://sw2:sw2pass@rabbitmq:5672/")
+
+
+def configuracion_de_prueba(**cambios: Any) -> Configuracion:
+    """Sin infraestructura real: RabbitMQ inalcanzable y consumidor apagado.
+
+    Los tests que usan Firestore y RabbitMQ pasan `google_cloud_project`, `rabbitmq_url`,
+    `trabajos_cola` y `trabajos_consumidor_activo` propios.
+    """
+    valores: dict[str, Any] = {
+        "keycloak_issuer": EMISOR,
+        "keycloak_jwks_uri": "http://keycloak.prueba/certs",
+        "keycloak_audience": AUDIENCIA,
+        "keycloak_token_url": "http://keycloak.prueba/token",
+        "keycloak_client_id": "servicio-ia",
+        "keycloak_client_secret": SecretStr("secreto-de-prueba"),
+        "api_gateway_url": "http://gateway.prueba",
+        "nivel_log": "DEBUG",
+        "google_cloud_project": "pruebas-sin-infraestructura",
+        "rabbitmq_url": SecretStr("amqp://invalido.prueba:5672/"),
+        "trabajos_consumidor_activo": False,
+    }
+    valores.update(cambios)
+    return Configuracion(**valores)
 
 
 def jwk_publico(clave: rsa.RSAPrivateKey = _clave_privada, kid: str = KID) -> dict[str, Any]:
@@ -136,8 +152,11 @@ def _router_de_prueba() -> Any:
 def crear_cliente() -> Iterator[Callable[..., TestClient]]:
     clientes: list[TestClient] = []
 
-    def crear(ajustar: Callable[[FastAPI], None] | None = None) -> TestClient:
-        app = crear_app(configuracion_de_prueba())
+    def crear(
+        ajustar: Callable[[FastAPI], None] | None = None,
+        configuracion: Configuracion | None = None,
+    ) -> TestClient:
+        app = crear_app(configuracion or configuracion_de_prueba())
         app.include_router(_router_de_prueba())
         app.dependency_overrides[proveedor_claves] = ProveedorClavesLocal
         if ajustar:
