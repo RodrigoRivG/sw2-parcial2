@@ -2,7 +2,7 @@
 
 Un archivo por funcionalidad, cada uno con tres partes: **Spec** (qué hace), **Plan** (cómo se construye) y **Tareas** (en qué orden se implementa).
 
-- Constitución de referencia: `servicio-ia` v3.1.0 (2026-11-04). Si un archivo la contradice, prevalece la constitución.
+- Constitución de referencia: `servicio-ia` v4.0.0 (2026-11-04). Si un archivo la contradice, prevalece la constitución.
 - Documento de requisitos: `SW2_Parcial_2.pdf` (CU, RF, RN y RNF).
 - Criterio: lo más simple que cumpla el documento de requisitos y la constitución. Es un proyecto de examen, no un sistema en producción.
 
@@ -21,7 +21,7 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | 3 | 003 | [spec-prediccion.md](spec-prediccion.md) | Versionado de modelos, conjunto de referencia público, rendimiento, agrupación y anomalías | Baja | CU-14, CU-15 | RF-18, RF-19 |
 | 4 | 004 | [spec-vision.md](spec-vision.md) | Clasificación de imágenes (MobileNetV3) y video, exportación TFLite y TF.js | Media | CU-16 | RF-20, RF-21, RF-22 |
 | 5 | 005 | [spec-agentes.md](spec-agentes.md) | Herramientas MCP de solo lectura, agentes LangGraph con Ollama y verificación de cifras | Baja | CU-17 | RF-23 |
-| 6 | 006 | `spec-reportes.md` (pendiente) | Reportes por texto o voz, PDF y Excel, reportes programados | Baja | CU-18, CU-25 | RF-24, RF-25, RF-34 |
+| 6 | 006 | [spec-reportes.md](spec-reportes.md) | Reportes por texto o voz (Whisper), catálogo fijo, PDF, Excel y CSV, reportes programados para n8n | Baja | CU-18, CU-25 | RF-24, RF-25, RF-34 |
 
 - La prioridad de los casos de uso sale de la sección 3.6.3 del documento de requisitos. Las specs de soporte van primero porque las demás las usan.
 
@@ -37,6 +37,8 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | Firestore | Colección `clasificaciones` (TTL de 90 días sobre `fechaExpiracion`) | spec-vision.md |
 | Cloud Storage | `modelos/clasificador/<version>/` (`modelo.keras`, `tflite/`, `tfjs/`), `datasets/imagenes/<sha256>.tar` y `temporales/videos/` (ciclo de vida de 1 día) | spec-vision.md |
 | Repositorio | `datos/imagenes/` (manifiesto y fuentes de ASDID y PlantVillage; sin las imágenes) | spec-vision.md |
+| Cloud Storage | `reportes/<idTrabajo>/` (ciclo de vida de 7 días) y `temporales/audios/` | spec-reportes.md |
+| RabbitMQ | Exchange `eventos` (topic, durable), routing key `ia.reporte.completado` (evento `ReporteCompletado`, salida) | spec-reportes.md |
 
 ## Mapa de endpoints
 
@@ -54,6 +56,9 @@ Prefijo `/api/ia/v1`. Se completa con cada spec.
 | `/modelos/clasificador/dispositivo`, `/modelos/clasificador/dispositivo/archivos/{ruta}` | `GET` | spec-vision.md |
 | `/consultas-agente` | `POST` | spec-agentes.md |
 | `/mcp` | MCP (*streamable HTTP*) | spec-agentes.md |
+| `/reportes` | `POST` | spec-reportes.md |
+| `/reportes/voz` | `POST` | spec-reportes.md |
+| `/reportes/{idTrabajo}/archivos/{formato}` | `GET` | spec-reportes.md |
 
 Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `/openapi.json` y `/docs` (spec-base.md).
 
@@ -67,7 +72,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-04 | **Fechas:** con hora en ISO 8601 UTC con `Z` (`2026-11-04T14:00:00Z`); sin hora como `AAAA-MM-DD`. |
 | D-05 | **Identificadores:** UUID v4 en minúsculas, generados por este servicio. |
 | D-06 | **JSON en camelCase:** todos los esquemas heredan de `ModeloBase` (alias camelCase, `populate_by_name`); los de entrada además prohíben campos desconocidos. El código Python usa snake_case (constitución §13). |
-| D-07 | **Roles:** `administrador`, `gerencia` y `tecnico_campo` para usuarios. `lectura_ia` para la cuenta de servicio de GraphQL (lectura de predicciones y análisis, spec-prediccion.md). El rol de n8n para reportes programados se define en `spec-reportes.md`. Los roles nuevos se agregan al realm (`docker/keycloak/realms/realm-agro.json` y `specs/spec-keycloak-realm.md`). La cuenta de servicio propia (`servicio-ia`) ya tiene `lectura_gestion`, `lectura_inventario` y `lectura_operaciones`. |
+| D-07 | **Roles:** `administrador`, `gerencia` y `tecnico_campo` para usuarios. `lectura_ia` para la cuenta de servicio de GraphQL (lectura de predicciones y análisis, spec-prediccion.md) y `reportes_ia` para la de n8n (reportes programados, spec-reportes.md). Los roles nuevos se agregan al realm (`docker/keycloak/realms/realm-agro.json` y `specs/spec-keycloak-realm.md`). La cuenta de servicio propia (`servicio-ia`) ya tiene `lectura_gestion`, `lectura_inventario` y `lectura_operaciones`. |
 | D-08 | **Consulta a otros microservicios:** siempre `GET {API_GATEWAY_URL}/api/<servicio>/v1/...` con token de cuenta de servicio (client credentials contra `KEYCLOAK_TOKEN_URL`, en caché hasta 30 s antes de vencer), tiempo límite por llamada (5 s por defecto) y un solo intento. Única excepción: un `401` renueva el token y repite una vez. El cliente solo expone lecturas (RN-14). |
 | D-09 | **Correlación:** `X-Correlation-Id` con el mismo formato que el gateway (`[A-Za-z0-9-]{1,64}`); si falta o no coincide, se genera un UUID. Se propaga a las respuestas, a las llamadas al gateway y, desde `spec-trabajos.md`, a los mensajes y trabajos. |
 | D-10 | **Logs:** JSON de una línea por registro en la salida estándar, con `fecha`, `nivel`, `logger`, `mensaje`, `idCorrelacion` y campos extra. Un log de acceso por solicitud propio (el de uvicorn se desactiva). Nunca tokens, secretos ni nombres; solo el `sub`. |
@@ -90,6 +95,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 400 | `IMAGEN_INVALIDA` | visión |
 | 400 | `VIDEO_INVALIDO` | visión |
 | 400 | `ARCHIVO_DEMASIADO_GRANDE` | visión, reportes (audio) |
+| 400 | `AUDIO_INVALIDO` | reportes |
 | 401 | `NO_AUTENTICADO` | Todos |
 | 403 | `SIN_PERMISO` | Todos |
 | 404 | `RECURSO_NO_ENCONTRADO` | Todos (ruta inexistente) |
@@ -98,8 +104,11 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 404 | `ANALISIS_NO_ENCONTRADO` | predicción |
 | 404 | `VERSION_MODELO_NO_ENCONTRADA` | predicción (modelos) |
 | 404 | `ARCHIVO_MODELO_NO_ENCONTRADO` | visión |
+| 404 | `REPORTE_NO_ENCONTRADO` | reportes |
+| 404 | `REPORTE_EXPIRADO` | reportes |
 | 405 | `METODO_NO_PERMITIDO` | Todos |
 | 409 | `VERSION_NO_PUBLICABLE` | predicción (modelos) |
+| 409 | `REPORTE_EN_PROCESO` | reportes |
 | 422 | `DATOS_INSUFICIENTES` | predicción |
 | 422 | `CULTIVO_NO_SOPORTADO` | predicción |
 | 422 | `METRICAS_INFERIORES` | predicción (modelos) |
@@ -109,7 +118,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 503 | `MODELO_LENGUAJE_NO_DISPONIBLE` | agentes, reportes |
 | 503 | `DEPENDENCIA_NO_DISPONIBLE` | Los que consultan otros microservicios, Firestore o RabbitMQ |
 
-Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md), `VIDEO_NO_DISPONIBLE` y `MODELO_NO_DISPONIBLE` (spec-vision.md), `MODELO_LENGUAJE_NO_DISPONIBLE` y `LIMITE_PASOS_AGENTE` (spec-agentes.md) y los de cada manejador (en su spec).
+Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md), `VIDEO_NO_DISPONIBLE` y `MODELO_NO_DISPONIBLE` (spec-vision.md), `MODELO_LENGUAJE_NO_DISPONIBLE` y `LIMITE_PASOS_AGENTE` (spec-agentes.md), `REPORTE_NO_SOPORTADO`, `CAMPANIA_NO_IDENTIFICADA`, `AUDIO_SIN_VOZ`, `TRANSCRIPTOR_NO_DISPONIBLE` y `EVENTO_NO_PUBLICADO` (spec-reportes.md) y los de cada manejador (en su spec).
 
 Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas propias del servicio (por ejemplo, datos insuficientes para estimar).
 
@@ -123,13 +132,15 @@ Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas 
 | RF-21 | Modelos exportados para clasificar sin conexión | visión |
 | RF-22 | Clasificación de fotogramas de video | visión, trabajos |
 | RNF-06 | Clasificación en el servidor en menos de 3 s | visión |
-| RF-23 | Agentes LangGraph con herramientas MCP y Ollama | agentes |
+| RF-23 | Agentes LangGraph con herramientas MCP y Ollama | agentes, reportes (agente de reportes) |
+| RF-24 | Reportes por voz (Faster-Whisper) o texto, asíncronos con polling | reportes, trabajos |
+| RF-25 | Exportación en PDF y Excel (más CSV) | reportes |
+| RF-34 | Reportes programados para n8n | reportes (solicitud estructurada, evento `ia.reporte.completado`) |
 | RN-13 | Resultados orientativos | predicción, todos los de IA |
 | RN-14 | Los agentes y el servicio solo consultan; el modelo de lenguaje no genera cifras | base (cliente de solo lectura), agentes (herramientas de lectura, verificación de cifras) |
 | RN-16 | Permisos verificados en el servidor | base, todos |
 | RNF-02 | Validación del JWT en cada solicitud | base |
 | RNF-03 | Secretos por variables de entorno | base |
-| RF-24 | Procesamiento asíncrono con polling | trabajos |
 | RNF-05 | Consultas REST en menos de 3 s | predicción |
 | RNF-08 | La caída de otro servicio no tumba este | base, trabajos, predicción, agentes (Ollama informativo) |
 | RNF-11 | Mensajes fallidos en Dead Letter Queue | trabajos |
@@ -146,6 +157,9 @@ Donde difieren, prevalece la constitución.
 | Documento de requisitos | Specs y constitución | Motivo |
 |---|---|---|
 | No menciona base de datos para el servicio de IA | Firestore (trabajos y resultados) y Cloud Storage (modelos y reportes) | Constitución §2 y §4; ambos en GCP, donde se despliega el servicio |
+| RF-25 pide PDF y Excel | PDF, Excel y CSV | Pedido del usuario (2026-11-04); CSV sin dependencias nuevas (constitución v4.0.0) |
+| Proceso 8: "el agente interpreta la solicitud" (libre) | Catálogo fijo de 5 tipos de reporte; el modelo elige tipo y filtros | Con un reporte libre el modelo decidiría columnas y cálculos, que RN-14 prohíbe |
+| Archivos de audio `.wav` y `.mp3` (§1.7.3) | También WebM y OGG | La MediaRecorder API de Chrome y Edge graba en WebM con Opus |
 | RNF-17 asigna arquitectura a tres servicios | Módulos por capacidad | Constitución v3.0.0 §3: el servicio casi no tiene lógica de negocio |
 | El modelo supervisado se entrena "con datos históricos de campañas proporcionados por Spring Boot" (proceso 9) | Conjunto de referencia público (USDA ERS) más los históricos de `servicio-gestion` cuando existan | El sistema empieza sin campañas finalizadas; sin la referencia no habría modelo |
 | K-Means e Isolation Forest "sobre los datos de parcelas y campañas" (proceso 10) | Entrenados sobre la referencia y aplicados a las campañas finalizadas del sistema | Con pocas campañas, agrupar solo entre ellas no tiene sentido (spec-prediccion.md AC-03) |
@@ -160,4 +174,6 @@ Donde difieren, prevalece la constitución.
 - Rol de realm `lectura_ia` para la cuenta de servicio de GraphQL.
 - Clasificador: ASDID (soya, CC0) y las clases de maíz de PlantVillage (CC0), 12 etiquetas más `INDETERMINADO` por umbral; sin sorgo (no hay dataset abierto). MobileNetV3 Large con exportaciones TFLite (float16) y TF.js (uint8) de la misma versión. Muestra de 50 fotos por clase, pedidas sueltas dentro de los zips de Zenodo con rangos de bytes (unos 2,4 GB en lugar de 43 GB); se revisa después de la primera versión. Los modelos para dispositivos se descargan a través de la API, no con URL firmadas.
 - Agentes: grafo con clasificación (`campanias`, `inventario`, `fuera_de_alcance`) en lugar de un solo agente con todas las herramientas (modelo de 3B); herramientas por MCP también dentro del proceso (transporte en memoria) y publicadas en `/api/ia/v1/mcp` para `gerencia`; oraciones con cifras sin respaldo se quitan; sin historial de conversación.
+- Reportes: catálogo fijo de 5 tipos (`CAMPANIAS_FINALIZADAS`, `COSTOS_CAMPANIA`, `INVENTARIO`, `LABORES`, `INCIDENCIAS`); formatos PDF, Excel y CSV; sin sumas ni promedios propios (RN-14); solicitud estructurada para n8n, que funciona sin Ollama (sin resumen); evento `ia.reporte.completado` para todos los reportes, con `origen`; archivos por 7 días.
+- Constitución v4.0.0: descarga de reportes a través de la API en lugar de URL firmadas.
 - `DEPENDENCIA_NO_DISPONIBLE` en lugar de reutilizar `SERVICIO_NO_DISPONIBLE`, que es el código del gateway cuando este servicio está caído: así el cliente distingue "IA no responde" de "IA no pudo obtener los datos".
