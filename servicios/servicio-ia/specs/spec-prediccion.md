@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-prediccion.md` |
-| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
+| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 4, 5, 7 y 9) |
 | Trazabilidad | CU-14, CU-15 · RF-18, RF-19 · RN-13 · proceso 9 y 10 del documento de requisitos · RNF-05 |
@@ -284,8 +284,8 @@ Pasos:
    | `OTRO` | Purchased irrigation water; Interest on operating capital; Taxes and insurance; General farm overhead |
    | Se excluyen | Opportunity cost of land; Opportunity cost of unpaid labor (costos implícitos que un productor no registra como gasto) |
 
-   Los nombres exactos de los ítems se toman del CSV al implementar; si alguno cambió, se ajusta la tabla en este archivo.
-4. Deflactar los montos a dólares del último año del dataset con el IPC de EE. UU. (BLS CPI-U, serie `CUUR0000SA0`, promedio anual), guardado como tabla pequeña en `datos/referencia/ipc_eeuu.csv` con su fuente.
+   Nombres verificados en los CSV (2026-11-05): algunos ítems traen espacios al final (`"Fertilizer  "`, `"Custom services  "`), así que se comparan sin espacios; en sorgo el interés se llama `Interest on operating inputs` (equivale a `Interest on operating capital`). `Size` siempre es `No specific size` (no se filtra). Años: maíz 1996-2025, soya 1997-2025, sorgo 1995-2025. Resultado: 485 filas (maíz 180, soya 203, sorgo 102), sin descartes.
+4. Deflactar los montos a dólares del último año del dataset con el IPC de EE. UU. (BLS CPI-U, serie `CUUR0000SA0`, promedio anual), guardado como tabla pequeña en `datos/referencia/ipc_eeuu.csv` con su fuente. Los valores se obtuvieron de la API pública del BLS (`api.bls.gov/publicAPI/v2`, campo `M13`), porque el servidor de archivos del BLS rechaza descargas automáticas; 2025 tiene promedio anual aunque falta octubre (cierre del gobierno).
 5. Convertir:
    - costos: USD por acre × 2,47105 (acres por hectárea) × 6,96 (BOB por USD) → BOB/ha, 2 decimales;
    - rendimiento: bushels por acre × kg por bushel (soya 27,2155; maíz y sorgo 25,4012) × 2,47105 → kg/ha, 2 decimales.
@@ -297,7 +297,7 @@ Columnas del CSV: `origen` (`ERS`), `cultivo` (`SOYA`, `MAIZ`, `SORGO`), `region
 
 Lo usan el entrenamiento y la inferencia. Va en `prediccion/` y `ml/` lo importa: nada del código HTTP importa `ml/`, pero `ml/` puede importar los módulos (constitución v3.1.0 §3).
 
-- `normalizar_cultivo(nombre) -> Cultivo | None`: sin tildes, minúsculas y espacios recortados; `soya`, `soja` → `SOYA`; `maiz`, `maiz amarillo`, `maiz duro` → `MAIZ`; `sorgo`, `sorgo granifero` → `SORGO`. Una variedad no cambia el cultivo.
+- `normalizar_cultivo(nombre) -> Cultivo | None`: sin tildes, minúsculas y espacios recortados; `soya`, `soja` → `SOYA`; `maiz`, `maiz amarillo`, `maiz duro` → `MAIZ`; `sorgo`, `sorgo granifero` → `SORGO`. Si el nombre completo no es un sinónimo, se usa la primera palabra ("Soya Munasqa", "Maíz amarillo duro"): una variedad no cambia el cultivo. Se agregó al probar con los cultivos reales de `servicio-gestion`, que tienen nombres como "Soya E2E 2515f4b4".
 - `vector_rendimiento(cultivo, costos_ha) -> list[float]`: one-hot del cultivo + los cuatro costos por hectárea.
 - `perfil_patrones(cultivo, costos_ha, rendimiento_ha, referencia) -> list[float]`: costo total por hectárea / mediana del cultivo, rendimiento / mediana del cultivo, y la participación de cada categoría en el costo total. Así el perfil es comparable entre cultivos.
 - `fuera_de_rango(cultivo, costos_ha, referencia) -> list[str]`: campos menores que la mitad del mínimo o mayores que el doble del máximo del cultivo en el entrenamiento.
@@ -311,28 +311,28 @@ Lo usan el entrenamiento y la inferencia. Va en `prediccion/` y `ml/` lo importa
 1. Carga `campanias_referencia.csv`. Con `--incluir-historicos`, pagina `GET /api/gestion/v1/campanias/historicos?tamanio=500` con el cliente de `spec-base.md`, convierte los decimales de texto a `Decimal` y luego a `float`, y agrega las campañas con `rendimientoPorHectarea` y cultivo admitido, con origen `SISTEMA`. Calcula los costos por hectárea como `costosPorCategoria / superficieHectareas`.
 2. **`rendimiento`:** `RandomForestRegressor(n_estimators=300, min_samples_leaf=3, random_state=semilla)`. Métricas con `KFold(5, shuffle=True, random_state=semilla)`: MAE, RMSE y R², en promedio y por cultivo. Se reentrena con todas las filas.
 3. **`patrones`:** `StandardScaler` sobre el perfil. `KMeans(n_init=10, random_state=semilla)` con `k` entre 3 y 6, eligiendo la mayor silueta. `IsolationForest(contamination=0.05, random_state=semilla)`. Descripción de cada grupo desde su centroide (en la escala original): costo relativo y rendimiento relativo "bajo" (< 0,85), "medio" o "alto" (> 1,15), por ejemplo "Costo alto · rendimiento medio". Métrica principal: silueta; también la proporción marcada como anómala.
-4. Sube a `gs://<bucket>/modelos/<nombre>/<version>/` `modelo.joblib`, `dataset.csv` y `metadatos.json`. Registra `VersionModelo` en Firestore como `CANDIDATA`, con `version` = última + 1 (en transacción).
+4. Sube a `gs://<bucket>/modelos/<nombre>/<idEntrenamiento>/` `modelo.joblib`, `dataset.csv` y `metadatos.json`, y después registra `VersionModelo` en Firestore como `CANDIDATA`, con `version` = última + 1 (en transacción). La carpeta usa un UUID propio del entrenamiento y no el número de versión: el número recién se conoce al registrar, y subir primero evita una versión registrada sin sus archivos.
 5. Imprime las métricas y la comparación con la vigente.
 
 ## 2.6 Módulo `modelos/`
 
 - **`integracion/almacen_archivos.py`:** `Protocol AlmacenArchivos` (`subir(ruta, datos, tipo)`, `descargar(ruta) -> bytes`) y `AlmacenGcs`. Es uno de los bordes de la constitución §3; las specs de visión y reportes lo reutilizan.
-- **`modelos/repositorio.py`:** `RepositorioVersiones` sobre Firestore (`versiones_modelo`): `registrar_candidata`, `obtener`, `listar(nombre)`, `vigente(nombre)` y `publicar(nombre, version, justificacion)`, que en una transacción verifica `CANDIDATA`, retira la vigente y marca la nueva.
+- **`integracion/repositorio_versiones.py`:** `RepositorioVersionesFirestore` sobre Firestore (`versiones_modelo`), con documentos en camelCase que `modelos/` convierte en `VersionModelo`. También `integracion/repositorio_resultados.py` para `predicciones` y `analisis`. Firestore es un borde externo y vive en `integracion/` (constitución §3): `registrar_candidata`, `obtener`, `listar(nombre)`, `vigente(nombre)` y `publicar(nombre, version, justificacion)`, que en una transacción verifica `CANDIDATA`, retira la vigente y marca la nueva.
 - **`modelos/reglas.py`** (funciones puras): `puede_publicar(candidata, vigente, justificacion)` con la métrica principal y su sentido (`MAE` menor es mejor; `silueta` mayor es mejor).
 - **`modelos/cargador.py`:** `CargadorModelos` en `app.state`. Al arrancar y cada `MODELOS_INTERVALO_REVISION_SEGUNDOS`, consulta la vigente de cada modelo registrado; si cambió, descarga y deserializa con `joblib` en un hilo (`asyncio.to_thread`) y reemplaza la referencia en memoria de una sola vez. `obtener(nombre) -> ModeloCargado` (modelo, versión, referencia) o `503 MODELO_NO_DISPONIBLE`.
-- Salud: comprobación **informativa** `modelos` con el estado de cada uno (`CARGADO`, `SIN_PUBLICAR`, `ERROR`). No es crítica: si se marcara crítica, una instalación nueva sin versiones publicadas nunca estaría lista (constitución §11 pide informar los modelos cargados; RNF-08).
+- Salud: una comprobación **informativa** por modelo (`modelo_rendimiento`, `modelo_patrones`), `UP` si está `CARGADO` y `DOWN` si está `SIN_PUBLICAR` o en `ERROR` (el detalle queda en el log). No es crítica: si se marcara crítica, una instalación nueva sin versiones publicadas nunca estaría lista (constitución §11 pide informar los modelos cargados; RNF-08).
 - **`modelos/router.py`:** `GET /modelos?nombre=` y `POST /modelos/{nombre}/versiones/{version}/publicacion` con `{ "justificacion": "..." }` opcional.
 
 ## 2.7 Módulo `prediccion/`
 
-- **`prediccion/datos_gestion.py`:** `Protocol DatosAgricolas` (borde externo, constitución §3) y su adaptador sobre `ClienteGateway`:
+- **`integracion/datos_agricolas.py`:** `Protocol DatosAgricolas` (borde externo; la constitución §3 pide declararlo en `integracion/`) y su adaptador `DatosAgricolasGateway` sobre `ClienteGateway`:
 
   | Método | Llamadas |
   |---|---|
   | `campania_para_prediccion(id)` | `GET /campanias/{id}` (superficie, estado, `idCultivo`), `GET /cultivos/{idCultivo}` (nombre), `GET /campanias/{id}/costos?tamanio=1` (`subtotalesPorCategoria`) y, si está `FINALIZADA`, `GET /campanias/{id}/indicadores` |
   | `historicos(filtros, maximo)` | `GET /campanias/historicos` paginado de 500 en 500 hasta `maximo` |
 
-  Un `NO_ENCONTRADO` con `CAMPANIA_NO_ENCONTRADA` se traduce a `404 CAMPANIA_NO_ENCONTRADA`. Las cuatro llamadas de una predicción se hacen en paralelo donde no dependen entre sí, para cumplir CE-PRE-02.
+  El adaptador deja pasar `ErrorServicioRemoto`; `prediccion/servicio.py` traduce un `NO_ENCONTRADO` con `CAMPANIA_NO_ENCONTRADA` a `404 CAMPANIA_NO_ENCONTRADA`. Las cuatro llamadas de una predicción se hacen en paralelo donde no dependen entre sí, para cumplir CE-PRE-02.
 - **`prediccion/servicio.py`:**
   - `estimar(id_campania, costos_simulados, solicitante)`: obtiene la campaña, normaliza el cultivo, elige los costos (simulados o registrados ÷ superficie), aplica las reglas de RQ-PRE-07, predice con el modelo cargado (en un hilo) y calcula el intervalo con los percentiles 10 y 90 de `estimators_`, la producción estimada y las advertencias. Guarda en `predicciones`.
   - `analizar(filtros, solicitante)`: obtiene hasta 1.000 históricos, separa los excluidos, arma los perfiles, aplica el escalador, K-Means (grupo) e Isolation Forest (`decision_function` como puntaje; anómala si `predict == -1`). Los motivos de cada anomalía son las variables del perfil con |z| > 2 respecto de la referencia, redactadas con plantillas fijas (sin modelo de lenguaje). Guarda en `analisis`.
@@ -460,12 +460,12 @@ Sin TTL: las predicciones y los análisis son pocos y los consulta GraphQL como 
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Agregar las dependencias y variables de 2.1 y 2.2. Implementar `app/ml/datos/preparar_ers.py` y `ipc_eeuu.csv`; generar y versionar `campanias_referencia.csv` y `fuentes.json`. *Hecho cuando:* pasa `test_preparar_ers.py` y el resumen muestra filas de los tres cultivos.
-- [ ] **T02** — Implementar `prediccion/variables.py`. *Hecho cuando:* pasa `test_variables.py`.
-- [ ] **T03** — Implementar `AlmacenGcs`, `modelos/repositorio.py` y `modelos/reglas.py`. *Hecho cuando:* pasan `test_reglas.py` y la parte de registro y publicación de `test_versiones.py`.
-- [ ] **T04** — Implementar `app/ml/entrenar.py`. *Hecho cuando:* pasa `test_entrenar.py`.
-- [ ] **T05** — Implementar `modelos/cargador.py`, su comprobación de salud y `modelos/router.py`. *Hecho cuando:* pasa `test_versiones.py` completo.
-- [ ] **T06** — Implementar `prediccion/datos_gestion.py` (contra el contrato real de `servicio-gestion`) y `prediccion/servicio.py`. *Hecho cuando:* pasa `test_servicio.py`.
-- [ ] **T07** — Implementar `prediccion/router.py` y los índices de `firestore.indexes.json`. *Hecho cuando:* pasan `test_router_prediccion.py` y `test_rendimiento.py`.
-- [ ] **T08** [P] — Cambiar el realm (2.11) en su propio commit. *Hecho cuando:* un token de `graphql-server` trae `lectura_ia` y lee `GET /predicciones` a través del gateway.
-- [ ] **T09** — Entrenar y publicar la versión 1 de `rendimiento` y `patrones` en el entorno local, y escribir `docs/modelos.md` con sus métricas. *Hecho cuando:* se cumplen CE-PRE-04 y CE-PRE-05, y una predicción real de una campaña de prueba de `servicio-gestion` responde a través del gateway; se anota el resultado en esta tarea.
+- [x] **T01** — Agregar las dependencias y variables de 2.1 y 2.2. Implementar `app/ml/datos/preparar_ers.py` y `ipc_eeuu.csv`; generar y versionar `campanias_referencia.csv` y `fuentes.json`. *Hecho cuando:* pasa `test_preparar_ers.py` y el resumen muestra filas de los tres cultivos.
+- [x] **T02** — Implementar `prediccion/variables.py`. *Hecho cuando:* pasa `test_variables.py`.
+- [x] **T03** — Implementar `AlmacenGcs`, `modelos/repositorio.py` y `modelos/reglas.py`. *Hecho cuando:* pasan `test_reglas.py` y la parte de registro y publicación de `test_versiones.py`.
+- [x] **T04** — Implementar `app/ml/entrenar.py`. *Hecho cuando:* pasa `test_entrenar.py`.
+- [x] **T05** — Implementar `modelos/cargador.py`, su comprobación de salud y `modelos/router.py`. *Hecho cuando:* pasa `test_versiones.py` completo.
+- [x] **T06** — Implementar `prediccion/datos_gestion.py` (contra el contrato real de `servicio-gestion`) y `prediccion/servicio.py`. *Hecho cuando:* pasa `test_servicio.py`.
+- [x] **T07** — Implementar `prediccion/router.py` y los índices de `firestore.indexes.json`. *Hecho cuando:* pasan `test_router_prediccion.py` y `test_rendimiento.py`.
+- [x] **T08** [P] — Cambiar el realm (2.11) en su propio commit. *Hecho cuando:* un token de `graphql-server` trae `lectura_ia` y lee `GET /predicciones` a través del gateway. Hecho (2026-11-05): `lectura_ia` en `realm-agro.json`, `scripts/verificar-realm.py` y `specs/spec-keycloak-realm.md`; en el Keycloak local se aplicó con la API de administración (crear el rol y asignarlo a la cuenta de `graphql-server`) para no borrar el realm. `verificar-realm.py`: 57 correctas. El token de `graphql-server` trae `lectura_ia` y lee `GET /predicciones` a través del gateway (`200`).
+- [x] **T09** — Entrenar y publicar la versión 1 de `rendimiento` y `patrones` en el entorno local, y escribir `docs/modelos.md` con sus métricas. *Hecho cuando:* se cumplen CE-PRE-04 y CE-PRE-05, y una predicción real de una campaña de prueba de `servicio-gestion` responde a través del gateway; se anota el resultado en esta tarea. Hecho (2026-11-05), con Docker Compose y el perfil `backend`: versión 1 de `rendimiento` (MAE 641,55 kg/ha; R² 0,915 global y 0,40 a 0,54 por cultivo) y de `patrones` (k = 5, silueta 0,276), entrenadas con `--incluir-historicos` (gestión no tenía campañas finalizadas: 0 filas `SISTEMA`) y publicadas por el gateway con `admin.prueba`; readiness muestra los dos modelos en `UP`. Con `gerencia.prueba` a través del gateway: predicción de una campaña real de soya en `201` en unos 0,26 s, con `FUERA_DE_RANGO` porque sus costos de prueba son casi nulos; costos simulados en `201`; una campaña de cultivo no admitido en `422 CULTIVO_NO_SOPORTADO`; análisis en `422 DATOS_INSUFICIENTES` (no hay campañas finalizadas; el análisis con 1.000 campañas se cubre en `test_router_prediccion.py`). CE-PRE-04: el R² global supera 0,6; por cultivo no, y queda documentado en `docs/modelos.md`.

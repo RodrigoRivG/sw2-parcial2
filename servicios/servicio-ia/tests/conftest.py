@@ -39,6 +39,7 @@ _otra_clave_privada = rsa.generate_private_key(public_exponent=65537, key_size=2
 
 # Infraestructura local (Docker Compose) o la que defina el pipeline (README D-12)
 os.environ.setdefault("FIRESTORE_EMULATOR_HOST", "firestore:8080")
+os.environ.setdefault("STORAGE_EMULATOR_HOST", "http://gcs:4443")
 RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://sw2:sw2pass@rabbitmq:5672/")
 
 
@@ -60,6 +61,7 @@ def configuracion_de_prueba(**cambios: Any) -> Configuracion:
         "google_cloud_project": "pruebas-sin-infraestructura",
         "rabbitmq_url": SecretStr("amqp://invalido.prueba:5672/"),
         "trabajos_consumidor_activo": False,
+        "gcs_bucket": "pruebas-sin-bucket",
     }
     valores.update(cambios)
     return Configuracion(**valores)

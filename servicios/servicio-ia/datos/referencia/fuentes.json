@@ -1,0 +1,45 @@
+{
+  "dataset": "USDA ERS, Commodity Costs and Returns (Recent Cost and Returns)",
+  "pagina": "https://www.ers.usda.gov/data-products/commodity-costs-and-returns",
+  "cita": "U.S. Department of Agriculture, Economic Research Service. Commodity Costs and Returns data.",
+  "licencia": "Publicación del gobierno federal de EE. UU. (dominio público en EE. UU.)",
+  "fechaPreparacion": "2026-11-05",
+  "archivos": {
+    "MAIZ": {
+      "archivo": "corn.csv",
+      "url": "https://www.ers.usda.gov/media/4962/corn.csv",
+      "sha256": "a42362ce2c9b8f6a5992ae11ef6cb1ed12e25ec59b694782572daea646113951"
+    },
+    "SOYA": {
+      "archivo": "soybeans.csv",
+      "url": "https://www.ers.usda.gov/media/4976/soybeans.csv",
+      "sha256": "c917b5f19620d1b82c289ce6cca5df270b004e5cd35368c13181efe7c55e1b86"
+    },
+    "SORGO": {
+      "archivo": "sorghum.csv",
+      "url": "https://www.ers.usda.gov/media/4972/sorghum.csv",
+      "sha256": "5af85d43128fab49edc48e0bbaa30afdf0e4173970748b0a6ead6bba6873c7ee"
+    }
+  },
+  "ipc": {
+    "serie": "BLS CPI-U, CUUR0000SA0, promedio anual (M13)",
+    "fuente": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "archivo": "ipc_eeuu.csv",
+    "anioBase": 2025
+  },
+  "conversiones": {
+    "acresPorHectarea": "2.47105",
+    "bobPorUsd": "6.96",
+    "kgPorBushel": {
+      "SOYA": "27.2155",
+      "MAIZ": "25.4012",
+      "SORGO": "25.4012"
+    }
+  },
+  "filas": {
+    "MAIZ": 180,
+    "SORGO": 102,
+    "SOYA": 203
+  },
+  "descartadas": {}
+}

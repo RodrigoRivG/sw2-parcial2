@@ -12,6 +12,7 @@ VARIABLES = {
     "API_GATEWAY_URL": "http://api-gateway:8080/",
     "GOOGLE_CLOUD_PROJECT": "sw2-local",
     "RABBITMQ_URL": "amqp://sw2:clave@rabbitmq:5672",
+    "GCS_BUCKET": "ia-artefactos",
 }
 
 

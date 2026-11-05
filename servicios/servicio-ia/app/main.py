@@ -14,11 +14,20 @@ from app.comun.logs import configurar_logs
 from app.comun.salud import RegistroSalud, router_salud
 from app.comun.seguridad import ProveedorClavesJwks
 from app.config import Configuracion, ConfiguracionInvalida, cargar_configuracion
+from app.integracion.almacen_archivos import AlmacenGcs
+from app.integracion.datos_agricolas import DatosAgricolasGateway
 from app.integracion.firestore import comprobar_firestore, crear_cliente_firestore
 from app.integracion.gateway import ClienteGateway
 from app.integracion.rabbitmq import ConexionRabbitMq
+from app.integracion.repositorio_resultados import RepositorioResultadosFirestore
 from app.integracion.repositorio_trabajos import RepositorioTrabajosFirestore
+from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
 from app.integracion.token_servicio import TokenCuentaServicio
+from app.modelos.cargador import CargadorModelos
+from app.modelos.router import router_modelos
+from app.modelos.servicio import ServicioModelos
+from app.prediccion.router import router_prediccion
+from app.prediccion.servicio import MODELO_PATRONES, MODELO_RENDIMIENTO, ServicioPrediccion
 from app.trabajos.consumidor import ConsumidorTrabajos
 from app.trabajos.registro import RegistroTipos
 from app.trabajos.revision import RevisionPeriodica
@@ -26,6 +35,7 @@ from app.trabajos.router import router_trabajos
 from app.trabajos.servicio import ServicioTrabajos
 
 _logger = logging.getLogger("app")
+MODELOS = (MODELO_RENDIMIENTO, MODELO_PATRONES)
 
 
 def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
@@ -75,10 +85,32 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
                 consumidor.iniciar(conexion, config.trabajos_concurrencia)
                 revision.iniciar()
 
+            # Modelos y predicción (spec-prediccion.md)
+            almacen = AlmacenGcs(config.google_cloud_project, config.gcs_bucket)
+            cargador = CargadorModelos(
+                RepositorioVersionesFirestore(firestore),
+                almacen,
+                config.modelos_intervalo_revision_segundos,
+            )
+            for nombre in MODELOS:
+                cargador.registrar(nombre)
+            cargador.iniciar()
+            app.state.almacen_archivos = almacen
+            app.state.cargador_modelos = cargador
+            app.state.servicio_modelos = ServicioModelos(
+                RepositorioVersionesFirestore(firestore), cargador
+            )
+            app.state.servicio_prediccion = ServicioPrediccion(
+                DatosAgricolasGateway(app.state.cliente_gateway),
+                cargador,
+                RepositorioResultadosFirestore(firestore),
+            )
+
             _logger.info("Servicio iniciado")
             try:
                 yield
             finally:
+                await cargador.detener()
                 await consumidor.detener()
                 await revision.detener()
                 await conexion.cerrar()
@@ -104,8 +136,16 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.state.registro_salud.registrar(
         "rabbitmq", lambda: app.state.conexion_rabbitmq.comprobar(), critica=True
     )
+    for nombre in MODELOS:
+        app.state.registro_salud.registrar(
+            f"modelo_{nombre}",
+            lambda n=nombre: app.state.cargador_modelos.comprobar(n),
+            critica=False,
+        )
     app.add_middleware(MiddlewareCorrelacion, error_interno=error_interno_asgi)
     registrar_manejadores(app)
     app.include_router(router_salud)
     app.include_router(router_trabajos)
+    app.include_router(router_modelos)
+    app.include_router(router_prediccion)
     return app

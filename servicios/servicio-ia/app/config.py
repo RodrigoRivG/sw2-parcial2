@@ -39,6 +39,10 @@ class Configuracion(BaseSettings):
     trabajos_consumidor_activo: bool = True
     trabajos_retencion_dias: int = Field(default=30, ge=1)
 
+    # spec-prediccion.md 2.2
+    gcs_bucket: TextoObligatorio
+    modelos_intervalo_revision_segundos: float = Field(default=60.0, gt=0)
+
     @field_validator("keycloak_client_secret", "rabbitmq_url")
     @classmethod
     def _secreto_no_vacio(cls, valor: SecretStr) -> SecretStr:
