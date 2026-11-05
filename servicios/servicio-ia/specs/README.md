@@ -20,7 +20,7 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | 2 | 002 | [spec-trabajos.md](spec-trabajos.md) | Trabajos asíncronos: Firestore, cola, consumidor, estados | Soporte | CU-16, CU-17, CU-18, CU-25 | RF-22, RF-23, RF-24 |
 | 3 | 003 | [spec-prediccion.md](spec-prediccion.md) | Versionado de modelos, conjunto de referencia público, rendimiento, agrupación y anomalías | Baja | CU-14, CU-15 | RF-18, RF-19 |
 | 4 | 004 | [spec-vision.md](spec-vision.md) | Clasificación de imágenes (MobileNetV3) y video, exportación TFLite y TF.js | Media | CU-16 | RF-20, RF-21, RF-22 |
-| 5 | 005 | `spec-agentes.md` (pendiente) | Herramientas MCP y agentes LangGraph | Baja | CU-17 | RF-23 |
+| 5 | 005 | [spec-agentes.md](spec-agentes.md) | Herramientas MCP de solo lectura, agentes LangGraph con Ollama y verificación de cifras | Baja | CU-17 | RF-23 |
 | 6 | 006 | `spec-reportes.md` (pendiente) | Reportes por texto o voz, PDF y Excel, reportes programados | Baja | CU-18, CU-25 | RF-24, RF-25, RF-34 |
 
 - La prioridad de los casos de uso sale de la sección 3.6.3 del documento de requisitos. Las specs de soporte van primero porque las demás las usan.
@@ -52,6 +52,8 @@ Prefijo `/api/ia/v1`. Se completa con cada spec.
 | `/clasificaciones` | `POST` | spec-vision.md |
 | `/clasificaciones/videos` | `POST` | spec-vision.md |
 | `/modelos/clasificador/dispositivo`, `/modelos/clasificador/dispositivo/archivos/{ruta}` | `GET` | spec-vision.md |
+| `/consultas-agente` | `POST` | spec-agentes.md |
+| `/mcp` | MCP (*streamable HTTP*) | spec-agentes.md |
 
 Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `/openapi.json` y `/docs` (spec-base.md).
 
@@ -78,6 +80,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-17 | **Paginación de listados:** `pagina` (desde 0) y `tamanio` (por defecto 20, máximo 100); respuesta `{ items, pagina, tamanio, total }`, igual que `servicio-gestion`. |
 | D-18 | **Datos de entrenamiento:** conjunto de referencia público (USDA ERS, maíz, soya y sorgo, convertido a BOB/ha y kg/ha) más las campañas finalizadas de `servicio-gestion` cuando existan (spec-prediccion.md 1.1). Toda versión guarda el conjunto exacto usado. |
 | D-19 | **Archivos recibidos:** se validan por su contenido, no por extensión ni `Content-Type`, y se leen por bloques cortando al pasar el límite. Imágenes y videos no se conservan; solo el SHA-256 de la imagen (spec-vision.md). |
+| D-20 | **Modelo de lenguaje:** Ollama con `OLLAMA_MODEL` (`qwen2.5:3b`), temperatura 0, detrás del `Protocol ModeloLenguaje`; sin LangChain. Toda cifra de un texto generado se verifica contra los datos consultados y la oración que no se puede verificar se quita (spec-agentes.md 2.6). Lo reutiliza `spec-reportes.md`. |
 
 ## Catálogo de códigos de error
 
@@ -103,9 +106,10 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | 500 | `ERROR_INTERNO` | Todos (sin exponer detalles) |
 | 503 | `AUTENTICACION_NO_DISPONIBLE` | Todos (no se pueden obtener las claves de Keycloak) |
 | 503 | `MODELO_NO_DISPONIBLE` | predicción, visión |
+| 503 | `MODELO_LENGUAJE_NO_DISPONIBLE` | agentes, reportes |
 | 503 | `DEPENDENCIA_NO_DISPONIBLE` | Los que consultan otros microservicios, Firestore o RabbitMQ |
 
-Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md), `VIDEO_NO_DISPONIBLE` y `MODELO_NO_DISPONIBLE` (spec-vision.md) y los de cada manejador (en su spec).
+Códigos del campo `error` de un trabajo `FALLIDO` (no son HTTP): `TIEMPO_AGOTADO`, `TRABAJO_NO_PROCESADO`, `COLA_NO_DISPONIBLE`, `ERROR_INTERNO` (spec-trabajos.md), `VIDEO_NO_DISPONIBLE` y `MODELO_NO_DISPONIBLE` (spec-vision.md), `MODELO_LENGUAJE_NO_DISPONIBLE` y `LIMITE_PASOS_AGENTE` (spec-agentes.md) y los de cada manejador (en su spec).
 
 Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas propias del servicio (por ejemplo, datos insuficientes para estimar).
 
@@ -119,14 +123,15 @@ Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas 
 | RF-21 | Modelos exportados para clasificar sin conexión | visión |
 | RF-22 | Clasificación de fotogramas de video | visión, trabajos |
 | RNF-06 | Clasificación en el servidor en menos de 3 s | visión |
+| RF-23 | Agentes LangGraph con herramientas MCP y Ollama | agentes |
 | RN-13 | Resultados orientativos | predicción, todos los de IA |
-| RN-14 | Los agentes y el servicio solo consultan | base (cliente de solo lectura) |
+| RN-14 | Los agentes y el servicio solo consultan; el modelo de lenguaje no genera cifras | base (cliente de solo lectura), agentes (herramientas de lectura, verificación de cifras) |
 | RN-16 | Permisos verificados en el servidor | base, todos |
 | RNF-02 | Validación del JWT en cada solicitud | base |
 | RNF-03 | Secretos por variables de entorno | base |
 | RF-24 | Procesamiento asíncrono con polling | trabajos |
 | RNF-05 | Consultas REST en menos de 3 s | predicción |
-| RNF-08 | La caída de otro servicio no tumba este | base, trabajos, predicción |
+| RNF-08 | La caída de otro servicio no tumba este | base, trabajos, predicción, agentes (Ollama informativo) |
 | RNF-11 | Mensajes fallidos en Dead Letter Queue | trabajos |
 | RNF-18 | OpenAPI | base, todos |
 | RNF-19, RNF-20 | Docker Compose y pipeline propio | base, trabajos |
@@ -154,4 +159,5 @@ Donde difieren, prevalece la constitución.
 - Constitución v3.1.0: `modelos` se puede usar desde cualquier módulo y `ml/` puede importar los módulos de capacidad.
 - Rol de realm `lectura_ia` para la cuenta de servicio de GraphQL.
 - Clasificador: ASDID (soya, CC0) y las clases de maíz de PlantVillage (CC0), 12 etiquetas más `INDETERMINADO` por umbral; sin sorgo (no hay dataset abierto). MobileNetV3 Large con exportaciones TFLite (float16) y TF.js (uint8) de la misma versión. Muestra de 50 fotos por clase, pedidas sueltas dentro de los zips de Zenodo con rangos de bytes (unos 2,4 GB en lugar de 43 GB); se revisa después de la primera versión. Los modelos para dispositivos se descargan a través de la API, no con URL firmadas.
+- Agentes: grafo con clasificación (`campanias`, `inventario`, `fuera_de_alcance`) en lugar de un solo agente con todas las herramientas (modelo de 3B); herramientas por MCP también dentro del proceso (transporte en memoria) y publicadas en `/api/ia/v1/mcp` para `gerencia`; oraciones con cifras sin respaldo se quitan; sin historial de conversación.
 - `DEPENDENCIA_NO_DISPONIBLE` en lugar de reutilizar `SERVICIO_NO_DISPONIBLE`, que es el código del gateway cuando este servicio está caído: así el cliente distingue "IA no responde" de "IA no pudo obtener los datos".
