@@ -205,7 +205,7 @@ Valores fijos:
 - Rutas en `spring.cloud.gateway.routes`, una por servicio, con el predicado `Path=/api/<servicio>/**` y sin filtros de reescritura. Ids de ruta: `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia` (se usan como "servicio destino" en el log).
 - Una quinta ruta, `operaciones-sincronizacion`, con `Path=/api/operaciones/v1/sincronizacion`, el mismo destino que `servicio-operaciones`, `order: -1` (para que gane a la ruta general) y su propio `response-timeout`. Motivo: un lote de 50 operaciones tarda unos 11 s con gestión caída (`spec-sincronizacion.md` CE-SIN-03 permite 15 s) y, en el peor caso de 50 campañas distintas, hasta 100 s (2 s por campaña). En el log, su servicio destino se informa como `servicio-operaciones`.
 - `spring.cloud.gateway.httpclient.connect-timeout: 2000` (ms).
-- `spring.cloud.gateway.default-filters: DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST` (caso borde de CORS duplicado).
+- `spring.cloud.gateway.default-filters: DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST` (caso borde de CORS duplicado y correlación, ver notas de implementación).
 - El tiempo límite general de 10 s cubre una foto de 10 MB (CE-INC-04 pide menos de 3 s) y deja margen sobre la meta de RNF-05. El de Reactor Netty empieza a contar cuando terminó de enviarse la solicitud, así que la subida lenta de un lote desde una red móvil no lo consume.
 - `logging.structured.format.console: ecs`.
 - Actuator igual que en `servicio-gestion`: `base-path: /`, `path-mapping.health: salud`, solo `health` expuesto y `probes.enabled: true`. La readiness incluye solo `readinessState` (RNF-08).
@@ -292,6 +292,7 @@ Todos en `src/test/java/com/agrosystem/gateway/integration/`, con `@SpringBootTe
 - **`ResponseStatusException` 4xx distintas de 404** (por ejemplo, una solicitud mal formada que rechaza Netty) responden con su mismo código HTTP y `codigo = DATOS_INVALIDOS`, el código común de los servicios para entradas inválidas.
 - **CORS rechazado:** el `403` de una verificación previa desde un origen no permitido lo escribe Spring sin cuerpo. Es una respuesta para el navegador, que no la expone al código del frontend.
 - **Nombre que no se resuelve → 503:** en Docker Compose, el nombre de un contenedor apagado deja de existir y el error es `UnknownHostException`, no `ConnectException`; respondía `500`. Lo detectó `scripts/verificar-realm.py` con los servicios apagados; lo cubre `ResilienciaIT`.
+- **`X-Correlation-Id` duplicado (2026-11-05):** el gateway agrega los headers de la respuesta del servicio a los suyos, no los reemplaza. Como los tres servicios devuelven el `X-Correlation-Id` que reciben, llegaba dos veces y un cliente podía leerlo unido (`id, id`). Se agregó al `DedupeResponseHeader` con `RETAIN_FIRST`, que conserva el del gateway (el que se envió al servicio). No se detectó antes porque WireMock no devolvía el header; ahora `CorrelacionIT` lo simula con el mismo valor y con otro. `Vary` también llega en varias líneas, pero es una lista y eso es válido en HTTP.
 - `CodigoError` y `EscritorRespuestaError` se agregaron al paquete `web` para no repetir códigos y mensajes entre el manejador de errores y el punto de entrada 401.
 
 ---

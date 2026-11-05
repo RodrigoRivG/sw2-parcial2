@@ -21,8 +21,11 @@ spring:
       httpclient:
         connect-timeout: 2000
         response-timeout: ${GATEWAY_TIEMPO_LIMITE:10s}
+      # El gateway agrega los headers del servicio a los suyos (no los reemplaza): sin esto, el
+      # X-Correlation-Id (que el servicio devuelve con el mismo valor) llegaría dos veces. RETAIN_FIRST
+      # conserva el del gateway, que es el que se envió al servicio.
       default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST
       # Sin reescritura de rutas: cada servicio ya expone /api/<servicio>/v1/...
       # "servicio" se usa como servicio destino en el log de acceso.
       routes:

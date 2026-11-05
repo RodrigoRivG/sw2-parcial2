@@ -9,6 +9,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.github.tomakehurst.wiremock.verification.LoggedRequest;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,6 +41,35 @@ class CorrelacionIT extends PruebaIntegracionBase {
                 .expectHeader().valueEquals("X-Correlation-Id", "abc-123");
 
         SERVICIOS.verify(anyRequestedFor(urlEqualTo(RUTA)).withHeader("X-Correlation-Id", equalTo("abc-123")));
+    }
+
+    @Test
+    void idDevueltoTambienPorElServicioLlegaUnaSolaVez() {
+        // Los tres servicios devuelven el X-Correlation-Id que reciben; el gateway no debe duplicarlo
+        SERVICIOS.stubFor(any(urlEqualTo(RUTA)).willReturn(aResponse().withStatus(200)
+                .withHeader("X-Correlation-Id", "abc-123")));
+
+        List<String> valores = cliente.get().uri(RUTA).header("Authorization", "Bearer " + token())
+                .header("X-Correlation-Id", "abc-123")
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(Void.class).getResponseHeaders().get("X-Correlation-Id");
+
+        assertThat(valores).containsExactly("abc-123");
+    }
+
+    @Test
+    void siElServicioDevuelveOtroIdSeConservaElDelGateway() {
+        SERVICIOS.stubFor(any(urlEqualTo(RUTA)).willReturn(aResponse().withStatus(200)
+                .withHeader("X-Correlation-Id", "otro-id")));
+
+        List<String> valores = cliente.get().uri(RUTA).header("Authorization", "Bearer " + token())
+                .header("X-Correlation-Id", "abc-123")
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(Void.class).getResponseHeaders().get("X-Correlation-Id");
+
+        assertThat(valores).containsExactly("abc-123");
     }
 
     @ParameterizedTest
