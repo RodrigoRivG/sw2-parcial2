@@ -36,8 +36,10 @@ El resultado no se guarda en la incidencia desde aquí. El cliente lo copia en l
 
 | Dataset | Cultivo | Clases usadas | Licencia |
 |---|---|---|---|
-| **ASDID** — Auburn Soybean Disease Image Dataset (Dryad, DOI `10.5061/dryad.41ns1rnj3`) | Soya | Sana, tizón bacteriano, tizón por Cercospora, mildiu, mancha ojo de rana, roya, mancha diana, deficiencia de potasio (unas 10.000 fotos de campo y de fondo controlado) | CC0 1.0 |
-| **PlantVillage** (Hughes y Salathé, 2015; Mendeley Data), solo las clases de maíz | Maíz | Sana, roya común, mancha gris (Cercospora), tizón foliar del norte (unas 3.800 fotos de laboratorio) | CC0 1.0 |
+| **ASDID** — Auburn Soybean Disease Image Dataset (Dryad y Zenodo, DOI `10.5061/dryad.41ns1rnj3`) | Soya | Sana, tizón bacteriano, tizón por Cercospora, mildiu, mancha ojo de rana, roya, mancha diana, deficiencia de potasio (unas 10.000 fotos de campo y de fondo controlado, de unos 5,9 MB cada una, en un zip por clase) | CC0 1.0 |
+| **PlantVillage** (Hughes y Salathé, 2015; Mendeley Data), solo las clases de maíz | Maíz | Sana, roya común, mancha gris (Cercospora), tizón foliar del norte (unas 3.800 fotos de laboratorio de 256 × 256) | CC0 1.0 |
+
+**Muestra, no el dataset completo.** ASDID pesa 43 GB por la resolución de sus fotos. Para no esperar horas de descarga, se usa una **muestra de 50 fotos por clase** en las 12 clases (600 fotos, unos 2,4 GB de descarga de ASDID y unos pocos MB de PlantVillage). Las fotos se piden sueltas dentro de cada zip de Zenodo con pedidos de rangos de bytes (verificado: Zenodo responde `206`), sin bajar el zip entero. Es un proyecto académico: con transfer learning sobre MobileNetV3, 50 por clase alcanzan para demostrar el flujo. La cantidad es un parámetro (`--por-clase`); si la exactitud no alcanza, se sube y se reentrena (AC-05).
 
 **Por qué estos:** la soya es el cultivo principal de la región, y ASDID trae la roya, la enfermedad que más preocupa en Santa Cruz, fotografiada en campo. PlantVillage es el dataset de referencia para maíz. Ambos son CC0, así que se pueden redistribuir sin restricciones.
 
@@ -151,16 +153,19 @@ Como administrador de TI, quiero entrenar el clasificador con los datasets públ
 
 ### Historia 5 — Preparar las imágenes de forma reproducible (Prioridad: P2)
 
-Como desarrollador, quiero regenerar el conjunto de imágenes desde los datasets públicos con un comando y saber de dónde sale cada imagen.
+Como desarrollador, quiero obtener la muestra de imágenes desde los datasets públicos con un comando, sin descargar los 43 GB de ASDID ni llenar el disco, y saber de dónde sale cada imagen.
 
 **Escenarios de aceptación:**
 
-1. **Dado** las carpetas descargadas de ASDID y PlantVillage, **cuando** se ejecuta `python -m app.ml.datos.preparar_imagenes`, **entonces**:
-   - cada imagen se reduce a 256 px por el lado menor, en JPEG de calidad 90;
-   - se escribe `datos/imagenes/manifiesto.csv` (ruta, etiqueta, fuente, partición, SHA-256), con partición entrenamiento, validación y prueba (70/15/15), estratificada por etiqueta y con semilla fija;
-   - se escribe `datos/imagenes/fuentes.json`, con DOI, licencia y fecha de descarga.
-2. **Dado** el conjunto preparado, **entonces** se sube una sola vez a Cloud Storage como `datasets/imagenes/<sha256>.tar`, y cada versión del clasificador guarda la referencia a ese archivo (constitución §5: el conjunto usado queda junto a la versión).
-3. **Dado** el manifiesto, **entonces** está en el repositorio; las imágenes no (son cientos de MB).
+1. **Dado** las URL de los zips de ASDID en Zenodo y la fuente de PlantVillage, **cuando** se ejecuta `python -m app.ml.datos.preparar_imagenes --por-clase 50`, **entonces**:
+   - de cada zip de ASDID se lee solo su índice y se descargan, con pedidos de rangos de bytes, 50 fotos elegidas al azar con semilla fija; de PlantVillage, 50 por clase de maíz;
+   - cada foto se reduce a 256 px por el lado menor (JPEG de calidad 90) apenas llega, y el original no se guarda en disco;
+   - se escribe `datos/imagenes/manifiesto.csv` (archivo de origen dentro del zip, etiqueta, fuente, partición, SHA-256 de la foto reducida), con partición entrenamiento, validación y prueba (70/15/15) estratificada por etiqueta y con semilla fija;
+   - se escribe `datos/imagenes/fuentes.json`, con DOI, URL, MD5 publicado de cada zip, licencia y fecha.
+2. **Dado** una ejecución que se corta, **cuando** se vuelve a ejecutar, **entonces** retoma: las fotos ya reducidas no se vuelven a descargar.
+3. **Dado** la misma semilla y `--por-clase`, **entonces** se eligen las mismas fotos.
+4. **Dado** el conjunto preparado, **entonces** se sube una sola vez a Cloud Storage como `datasets/imagenes/<sha256>.tar`, y cada versión del clasificador guarda la referencia a ese archivo (constitución §5: el conjunto usado queda junto a la versión).
+5. **Dado** el manifiesto, **entonces** está en el repositorio; las imágenes no.
 
 ### Casos borde
 
@@ -168,6 +173,7 @@ Como desarrollador, quiero regenerar el conjunto de imágenes desde los datasets
 - **PNG con transparencia o en escala de grises:** se convierte a RGB.
 - **Varias clasificaciones a la vez:** la inferencia corre en un hilo con un modelo ya cargado; TensorFlow admite llamadas concurrentes a `predict` sobre el mismo modelo.
 - **Se publica una versión nueva mientras un dispositivo descarga la anterior:** los archivos de cada versión viven en su propia carpeta y no se borran al retirarla, así la descarga en curso termina bien; el dispositivo verá la nueva versión en su próxima consulta.
+- **Clases balanceadas:** con 50 fotos por clase no hace falta compensar el desbalance; los pesos por clase de 2.4 quedan en 1 y solo actúan si se cambia `--por-clase` de forma distinta por fuente.
 - **Video con rotación en sus metadatos:** OpenCV la aplica al leer los fotogramas (comportamiento por defecto en las versiones recientes).
 - **El trabajo de video no encuentra el archivo temporal** (se borró a mano): `FALLIDO` con `VIDEO_NO_DISPONIBLE`.
 
@@ -221,14 +227,17 @@ Códigos del `error` de un trabajo `CLASIFICACION_VIDEO` `FALLIDO`: `VIDEO_NO_DI
 - **CE-VIS-01:** los escenarios de las historias 1 a 5 pasan como tests automáticos.
 - **CE-VIS-02:** `POST /clasificaciones` con una foto de 4 MB responde en menos de 3 s (RNF-06), medido en el contenedor local con `mem_limit: 3g`.
 - **CE-VIS-03:** el archivo TFLite pesa menos de 10 MB y el TF.js menos de 15 MB en total, para que la descarga en datos móviles sea razonable.
-- **CE-VIS-04:** la primera versión tiene F1 macro ≥ 0,80 en el conjunto de prueba. Si no se alcanza, se documenta el valor y se publica con justificación (umbral de referencia).
+- **CE-VIS-04:** la primera versión, entrenada con 50 fotos por clase, tiene F1 macro ≥ 0,70 en el conjunto de prueba. Si no se alcanza, se documenta el valor y se publica con justificación, o se sube `--por-clase` y se reentrena (umbral de referencia; con 90 fotos de prueba en total, la métrica es poco precisa).
+- **CE-VIS-08:** `preparar_imagenes --por-clase 50` descarga menos de 3 GB en total y no ocupa más de 500 MB de disco en ningún momento.
 - **CE-VIS-05:** un video de 60 s se procesa en menos de 60 s.
 - **CE-VIS-06:** `docs/modelos.md` agrega la sección del clasificador: datasets y licencias, etiquetas, preprocesamiento, entrenamiento, métricas por clase, limitaciones y cómo usar los archivos en los dispositivos.
 - **CE-VIS-07:** cobertura ≥ 80 % (README D-13), Ruff y mypy sin errores, pipeline en verde.
 
 ## 1.7 Supuestos
 
-- El entrenamiento completo se ejecuta en un equipo con GPU (el servidor de desarrollo del documento de requisitos, §1.7.1) o en cualquier máquina con TensorFlow; en CPU tarda horas. No corre en el pipeline: los tests usan un modelo pequeño.
+- Con 600 fotos, el entrenamiento se puede hacer en CPU en un tiempo razonable (del orden de decenas de minutos); con GPU es más rápido. No corre en el pipeline: los tests usan un modelo diminuto.
+- Las fotos de PlantVillage se pueden pedir sueltas desde una copia pública del dataset original (por ejemplo, el repositorio de los autores en GitHub), con la licencia CC0 de la publicación en Mendeley Data. La fuente exacta y su licencia se confirman en T02 y se anotan en `fuentes.json`. Si no es posible, se usa el zip de Mendeley (cerca de 1 GB) con el mismo procedimiento de rangos de bytes.
+- En WSL2, la carpeta temporal de trabajo puede estar en un disco de Windows (`--temporal /mnt/c/...`), para que lo que se borra libere espacio en Windows de inmediato (el disco virtual de WSL2 no se achica solo).
 - El RNF-06 offline (< 5 s en el dispositivo) depende de Flutter y Vue.js. Este servicio solo garantiza un modelo de tamaño apto (CE-VIS-03).
 - El gateway reenvía cuerpos grandes en streaming y sin límite propio (`api-gateway/specs/spec-enrutamiento.md`, casos borde).
 
@@ -238,6 +247,7 @@ Códigos del `error` de un trabajo `CLASIFICACION_VIDEO` `FALLIDO`: `VIDEO_NO_DI
 - **AC-02 — ¿Por qué los modelos se descargan a través de la API y no con URL firmadas de Cloud Storage?** El modelo TF.js son varios archivos que `model.json` referencia con rutas relativas: con una URL firmada por archivo, esas rutas no resuelven. Además, así la descarga pasa por la misma seguridad que el resto y no hace falta configurar CORS en el bucket.
 - **AC-03 — ¿Por qué el umbral lo aplican el servidor y los dispositivos, y no el modelo?** Así el modelo exportado es el mismo en los tres lugares, y el umbral se puede cambiar en una versión sin reentrenar.
 - **AC-04 — ¿Por qué el video es un trabajo y la foto no?** Una foto se clasifica en menos de un segundo. Un video de 60 s implica decodificarlo y clasificar 30 fotogramas: puede pasar el tiempo límite del gateway (10 s).
+- **AC-05 — ¿Por qué una muestra de 50 fotos por clase?** Resuelta (2026-11-04): es un proyecto académico y el costo que importa es el tiempo de descarga (43 GB de ASDID son horas). 50 por clase bajan unos 2,4 GB. Se revisa después de la primera versión: si la exactitud no alcanza, se sube `--por-clase` y se reentrena, sin cambiar nada más.
 
 ## 1.9 Fuera de alcance
 
@@ -277,14 +287,18 @@ El umbral de confianza no es una variable: viaja con cada versión del modelo.
 
 ## 2.3 Preparación de imágenes (`app/ml/datos/preparar_imagenes.py`)
 
-`python -m app.ml.datos.preparar_imagenes --asdid <carpeta> --plantvillage <carpeta> --salida <carpeta>`:
+`python -m app.ml.datos.preparar_imagenes --por-clase 50 [--semilla 42] [--salida <carpeta>] [--temporal <carpeta>]`:
 
-1. Recorre las carpetas descargadas a mano (ASDID desde Dryad, unos 43 GB; PlantVillage desde Mendeley, solo las carpetas de maíz) y asigna la etiqueta por el nombre de la carpeta, con una tabla fija de correspondencias en el script. Las carpetas de ASDID y PlantVillage que no están en la tabla se ignoran y se cuentan.
-2. Corrige la orientación EXIF, convierte a RGB, reduce a 256 px por el lado menor y guarda en JPEG de calidad 90.
-3. Descarta las imágenes duplicadas (mismo SHA-256 después de reducir).
-4. Particiona 70/15/15 estratificado por etiqueta con semilla 42.
-5. Escribe `datos/imagenes/manifiesto.csv`, `datos/imagenes/fuentes.json` y un resumen por etiqueta y partición.
-6. Empaqueta la carpeta de salida en un `.tar` y lo sube a `gs://<bucket>/datasets/imagenes/<sha256>.tar` (si ya existe, no lo vuelve a subir).
+1. **Fuentes fijas en el script:** las URL de los 8 zips de ASDID en Zenodo (`https://zenodo.org/records/7304859/files/<categoria>.zip?download=1`, sin los `unused_*`) con su MD5 publicado, y la fuente de las 4 clases de maíz de PlantVillage. Una tabla fija asigna cada carpeta de origen a su etiqueta.
+2. **Lectura remota de los zips:** un archivo de solo lectura sobre HTTP (`seek`, `tell` y `read` con el header `Range`) se le pasa a `zipfile.ZipFile`, que lee solo el directorio central al final del zip. Se listan las fotos (`.jpg`, `.jpeg`, `.png`) y se eligen `--por-clase` al azar con la semilla. Así se descarga solo lo de cada foto elegida.
+3. **Descarga y reducción:** 4 descargas en paralelo. Cada foto se lee en memoria, se corrige la orientación EXIF, se convierte a RGB, se reduce a 256 px por el lado menor y se guarda en JPEG de calidad 90 en `--salida`. El original no toca el disco. Errores de red: 3 reintentos con espera creciente por foto; si falla, se reemplaza por otra foto de la misma clase y se anota.
+4. **Retomar:** si la foto reducida ya existe en `--salida` (por nombre de origen), no se descarga de nuevo.
+5. **Duplicados:** se descartan fotos con el mismo SHA-256 después de reducir y se reemplazan por otra de la misma clase.
+6. **Particiones:** 70/15/15 estratificado por etiqueta con la semilla (35/7/8 fotos por clase con 50).
+7. **Salidas:** `datos/imagenes/manifiesto.csv`, `datos/imagenes/fuentes.json` y un resumen por etiqueta y partición, con los bytes descargados.
+8. **Subida:** empaqueta `--salida` en un `.tar` y lo sube a `gs://<bucket>/datasets/imagenes/<sha256>.tar` (si ya existe, no lo vuelve a subir).
+
+`--temporal` solo se usa si la fuente de PlantVillage obliga a bajar un zip entero (supuesto de 1.7).
 
 ## 2.4 Entrenamiento y exportación (`app/ml/entrenar.py`, opción `clasificador`)
 
@@ -429,7 +443,7 @@ Prefijo `/api/ia/v1`.
 | Unitario | `tests/unit/vision/test_clasificador.py` | Umbral e `INDETERMINADO`, top 3, redondeo de la confianza, con un modelo simulado que devuelve probabilidades fijas |
 | Unitario | `tests/unit/vision/test_video.py` | Con `tests/fixtures/video_5s.mp4` y uno de 61 s generado en el test: duración, 30 fotogramas como máximo, posiciones uniformes, archivo que no es video |
 | Unitario | `tests/unit/vision/test_manejador_video.py` | Agregación, todos `INDETERMINADO`, borrado del video en éxito y en error, `VIDEO_NO_DISPONIBLE` |
-| Unitario | `tests/unit/ml/test_preparar_imagenes.py` | Con carpetas pequeñas que imitan ASDID y PlantVillage: correspondencia de etiquetas, reducción, duplicados, particiones estratificadas y reproducibles |
+| Unitario | `tests/unit/ml/test_preparar_imagenes.py` | Con zips pequeños que imitan ASDID servidos por un servidor HTTP local con soporte de `Range`: solo se piden los rangos de las fotos elegidas, correspondencia de etiquetas, reducción, retomar sin volver a descargar, reemplazo de duplicados y de fallas, particiones estratificadas y reproducibles con la misma semilla |
 | Integración | `tests/integration/ml/test_exportacion_clasificador.py` | Entrena 1 época un modelo diminuto sobre `tests/fixtures/imagenes` (misma cabeza y exportaciones), exporta las tres variantes y verifica etiquetas, cantidad de salidas y misma categoría en Keras y TFLite (Historia 2, escenario 5; constitución §8). Requiere el grupo `[ml]` |
 | Integración | `tests/integration/vision/test_router_vision.py` | Endpoints con el modelo diminuto publicado en los emuladores: Historia 1 completa, Historia 2 (`ETag`, `304`, ruta ajena → 404), Historia 3 de punta a punta con RabbitMQ, permisos y OpenAPI |
 | Integración | `tests/integration/vision/test_rendimiento_vision.py` | CE-VIS-02 con una foto de 4 MB |
@@ -443,10 +457,10 @@ Las imágenes de `tests/fixtures/imagenes` son unas pocas por etiqueta, tomadas 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
 - [ ] **T01** — Agregar las dependencias y variables de 2.1 y 2.2, y `vision/etiquetas.py`. *Hecho cuando:* `pip install -e ".[dev,ml]"` funciona y se fija la combinación de `tensorflow` y `tensorflowjs`.
-- [ ] **T02** — Implementar `app/ml/datos/preparar_imagenes.py`. Descargar ASDID y las carpetas de maíz de PlantVillage, preparar el conjunto, versionar `manifiesto.csv` y `fuentes.json`, y subir el `.tar`. Crear `tests/fixtures/imagenes`. *Hecho cuando:* pasa `test_preparar_imagenes.py` y el resumen muestra las 12 etiquetas.
+- [ ] **T02** — Implementar `app/ml/datos/preparar_imagenes.py` con la lectura remota de los zips. Confirmar la fuente y la licencia de PlantVillage. Ejecutarlo con `--por-clase 50` (puede correr de fondo mientras se avanza con T03), versionar `manifiesto.csv` y `fuentes.json`, y subir el `.tar`. Crear `tests/fixtures/imagenes`. *Hecho cuando:* pasa `test_preparar_imagenes.py`, el resumen muestra 50 fotos en cada una de las 12 etiquetas y se cumple CE-VIS-08.
 - [ ] **T03** — Implementar `vision/imagenes.py` y `vision/clasificador.py`. *Hecho cuando:* pasan `test_imagenes.py` y `test_clasificador.py`.
 - [ ] **T04** — Agregar `clasificador` a `app/ml/entrenar.py` con las exportaciones y la verificación, y el cargador Keras en `CargadorModelos`. *Hecho cuando:* pasa `test_exportacion_clasificador.py`.
 - [ ] **T05** — Implementar `POST /clasificaciones` y la descarga para dispositivos. *Hecho cuando:* pasan las historias 1 y 2 de `test_router_vision.py`.
 - [ ] **T06** — Implementar `vision/video.py`, `POST /clasificaciones/videos` y el manejador `CLASIFICACION_VIDEO`. *Hecho cuando:* pasan `test_video.py`, `test_manejador_video.py` y la Historia 3 de `test_router_vision.py`.
 - [ ] **T07** [P] — Ajustar el `Dockerfile`, el `healthcheck` de Docker Compose y el pipeline (grupo `[ml]`). *Hecho cuando:* el pipeline corre en verde y se cumple CE-VIS-02 con `test_rendimiento_vision.py`.
-- [ ] **T08** — Entrenar la versión 1 del clasificador con GPU, publicarla y agregar su sección a `docs/modelos.md`. *Hecho cuando:* se cumplen CE-VIS-03 a CE-VIS-06 y una foto de `tests/fixtures` se clasifica a través del gateway con un token de `tecnico.prueba`; se anota el resultado en esta tarea.
+- [ ] **T08** — Entrenar la versión 1 del clasificador (CPU o GPU), publicarla y agregar su sección a `docs/modelos.md`. *Hecho cuando:* se cumplen CE-VIS-03 a CE-VIS-06 y una foto de `tests/fixtures` se clasifica a través del gateway con un token de `tecnico.prueba`; se anota el resultado en esta tarea.
