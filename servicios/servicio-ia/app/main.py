@@ -28,6 +28,7 @@ from app.integracion.repositorio_resultados import RepositorioResultadosFirestor
 from app.integracion.repositorio_trabajos import RepositorioTrabajosFirestore
 from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
 from app.integracion.token_servicio import TokenCuentaServicio
+from app.integracion.transcriptor import TranscriptorWhisper
 from app.mcp_server.http import RUTA as RUTA_MCP
 from app.mcp_server.http import EndpointMcp, preparar_http
 from app.mcp_server.servidor import crear_servidor_mcp
@@ -36,6 +37,10 @@ from app.modelos.router import router_modelos
 from app.modelos.servicio import ServicioModelos
 from app.prediccion.router import router_prediccion
 from app.prediccion.servicio import MODELO_PATRONES, MODELO_RENDIMIENTO, ServicioPrediccion
+from app.reportes.router import router_reportes
+from app.reportes.servicio import TIEMPO_LIMITE as TIEMPO_LIMITE_REPORTE
+from app.reportes.servicio import TIPO_TRABAJO as TIPO_TRABAJO_REPORTE
+from app.reportes.servicio import ServicioReportes
 from app.trabajos.consumidor import ConsumidorTrabajos
 from app.trabajos.registro import DefinicionTipo, RegistroTipos
 from app.trabajos.revision import RevisionPeriodica
@@ -147,11 +152,31 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
                 app.state.modelo_lenguaje, servidor_mcp, app.state.servicio_trabajos
             )
 
+            # Reportes (spec-reportes.md)
+            transcriptor = TranscriptorWhisper(
+                config.whisper_model,
+                config.whisper_device,
+                config.whisper_compute_type,
+                config.whisper_carpeta,
+            )
+            transcriptor.iniciar(config.whisper_activo)
+            app.state.transcriptor = transcriptor
+            app.state.servicio_reportes = ServicioReportes(
+                app.state.modelo_lenguaje,
+                servidor_mcp,
+                app.state.servicio_trabajos,
+                almacen,
+                conexion,
+                transcriptor,
+                config.reportes_retencion_dias,
+            )
+
             _logger.info("Servicio iniciado")
             try:
                 yield
             finally:
                 await cargador.detener()
+                await transcriptor.detener()
                 await consumidor.detener()
                 await revision.detener()
                 await conexion.cerrar()
@@ -194,6 +219,16 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.state.registro_salud.registrar(
         "ollama", lambda: app.state.modelo_lenguaje.comprobar(), critica=False
     )
+    registro_tipos.registrar(
+        DefinicionTipo(
+            TIPO_TRABAJO_REPORTE,
+            lambda trabajo: app.state.servicio_reportes.procesar(trabajo),
+            TIEMPO_LIMITE_REPORTE,
+        )
+    )
+    app.state.registro_salud.registrar(
+        "whisper", lambda: app.state.transcriptor.comprobar(), critica=False
+    )
     for nombre in (*MODELOS, MODELO_CLASIFICADOR):
         app.state.registro_salud.registrar(
             f"modelo_{nombre}",
@@ -208,6 +243,7 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.include_router(router_prediccion)
     app.include_router(router_vision)
     app.include_router(router_agentes)
+    app.include_router(router_reportes)
     app.router.add_route(
         RUTA_MCP,
         EndpointMcp(lambda: app.state),  # type: ignore[arg-type]

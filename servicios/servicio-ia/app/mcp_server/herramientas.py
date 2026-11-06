@@ -246,16 +246,17 @@ class HerramientasLectura:
     async def listar_parcelas(
         self,
         nombre: Annotated[str | None, Field(description="Parte del nombre de la parcela")] = None,
+        maximo: Maximo = MAXIMO_POR_DEFECTO,
     ) -> dict[str, Any]:
         """Lista las parcelas (nombre, superficie en hectáreas, ubicación)."""
         items, total, _ = await self._paginas(
-            f"{GESTION}/parcelas", _filtros(nombre=nombre), MAXIMO_POR_DEFECTO
+            f"{GESTION}/parcelas", _filtros(nombre=nombre), maximo
         )
         return _listado([_campos(p, PARCELA) for p in items], total, total > len(items))
 
-    async def listar_cultivos(self) -> dict[str, Any]:
+    async def listar_cultivos(self, maximo: Maximo = MAXIMO_POR_DEFECTO) -> dict[str, Any]:
         """Lista los cultivos registrados (nombre, variedad, unidad de producción)."""
-        items, total, _ = await self._paginas(f"{GESTION}/cultivos", {}, MAXIMO_POR_DEFECTO)
+        items, total, _ = await self._paginas(f"{GESTION}/cultivos", {}, maximo)
         return _listado([_campos(c, CULTIVO) for c in items], total, total > len(items))
 
     async def listar_campanias(
@@ -277,17 +278,17 @@ class HerramientasLectura:
         reducida["resumen"] = campania.get("resumen")
         return reducida
 
-    async def obtener_costos_campania(self, idCampania: IdCampania) -> dict[str, Any]:
+    async def obtener_costos_campania(
+        self, idCampania: IdCampania, maximo: Maximo = MAXIMO_POR_DEFECTO
+    ) -> dict[str, Any]:
         """Costos de una campaña con el costo total y el subtotal de cada categoría."""
-        datos = await self._obtener(
-            f"{GESTION}/campanias/{idCampania}/costos", {"tamanio": str(MAXIMO_POR_DEFECTO)}
+        items, total, primera = await self._paginas(
+            f"{GESTION}/campanias/{idCampania}/costos", {}, maximo
         )
-        items = [_campos(c, COSTO) for c in datos.get("items") or []]
-        total = int(datos.get("total") or 0)
         return {
-            "costoTotal": datos.get("costoTotal"),
-            "subtotalesPorCategoria": datos.get("subtotalesPorCategoria"),
-            **_listado(items, total, total > len(items)),
+            "costoTotal": primera.get("costoTotal"),
+            "subtotalesPorCategoria": primera.get("subtotalesPorCategoria"),
+            **_listado([_campos(c, COSTO) for c in items], total, total > len(items)),
         }
 
     async def obtener_indicadores_campania(self, idCampania: IdCampania) -> dict[str, Any]:

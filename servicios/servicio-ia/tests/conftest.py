@@ -64,6 +64,7 @@ def configuracion_de_prueba(**cambios: Any) -> Configuracion:
         "gcs_bucket": "pruebas-sin-bucket",
         "ollama_base_url": "http://ollama.prueba:11434",
         "ollama_model": "qwen2.5:3b",
+        "whisper_activo": False,
     }
     valores.update(cambios)
     return Configuracion(**valores)

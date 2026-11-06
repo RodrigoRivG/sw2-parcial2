@@ -39,6 +39,12 @@ def texto(contenido: str) -> RespuestaModelo:
     return RespuestaModelo(contenido)
 
 
+def plan_en_dos_pasos(plan: dict[str, Any]) -> tuple[RespuestaModelo, RespuestaModelo]:
+    """Respuestas del agente de reportes: primero las fuentes y después el plan."""
+    fuentes = list(dict.fromkeys(t["fuente"] for t in plan.get("tablas", [])))
+    return RespuestaModelo(json.dumps({"fuentes": fuentes})), RespuestaModelo(json.dumps(plan))
+
+
 class ModeloGuion:
     nombre = "modelo-guion"
 

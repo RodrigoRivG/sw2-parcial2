@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{{ d.titulo }}</title>
+<style>
+@page { size: A4 {{ "landscape" if apaisado else "portrait" }}; margin: 18mm 14mm 20mm 14mm;
+  @bottom-left { content: "{{ d.titulo | css_texto }}"; font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #6b7280; }
+  @bottom-right { content: "Página " counter(page) " de " counter(pages); font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #6b7280; }
+}
+{{ estilos | safe }}
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ d.titulo }}</h1>
+  <p class="meta">Generado el {{ fecha }}</p>
+  {% if d.solicitud %}
+  <p class="solicitud"><strong>Solicitud:</strong> {{ d.solicitud }}</p>
+  {% endif %}
+</header>
+
+{% if d.resumen %}
+<section class="resumen">
+  <h2>Resumen</h2>
+  <p>{{ d.resumen }}</p>
+  <p class="nota">Redactado por un modelo de lenguaje; sus cifras se verificaron contra las tablas.</p>
+</section>
+{% endif %}
+
+{% if d.advertencias %}
+<section class="advertencias">
+  {% for advertencia in d.advertencias %}
+  <p>{{ advertencia }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% for tabla, filtros in tablas %}
+<section class="tabla">
+  <h2>{{ tabla.titulo }}</h2>
+  <p class="meta">
+    {{ tabla.total_filas }} {{ "fila" if tabla.total_filas == 1 else "filas" }}
+    {% if filtros %} · {{ filtros | join("; ") }}{% endif %}
+  </p>
+  {% if tabla.filas %}
+  <table>
+    <thead>
+      <tr>{% for campo in tabla.columnas %}<th class="{{ campo.tipo | lower }}">{{ campo.etiqueta }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for fila in tabla.filas %}
+      <tr>{% for valor in fila %}{% set campo = tabla.columnas[loop.index0] %}<td class="{{ campo.tipo | lower }}">{{ valor | celda(campo) }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="vacio">No se encontraron registros para los filtros indicados.</p>
+  {% endif %}
+</section>
+{% endfor %}
+
+<footer>
+  <p>{{ d.aviso }}</p>
+  {% if d.servicios %}<p>Datos de: {{ d.servicios | join(", ") }}.</p>{% endif %}
+</footer>
+</body>
+</html>

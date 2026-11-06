@@ -1,0 +1,20 @@
+body { font-family: "DejaVu Sans", sans-serif; font-size: 9pt; color: #1f2937; }
+h1 { font-size: 16pt; margin: 0 0 2mm 0; color: #14532d; }
+h2 { font-size: 11pt; margin: 6mm 0 1.5mm 0; color: #14532d; }
+p { margin: 0 0 1.5mm 0; line-height: 1.35; }
+.meta { color: #6b7280; font-size: 8pt; }
+.solicitud { font-style: italic; }
+.resumen { background: #f0fdf4; border-left: 3px solid #16a34a; padding: 2mm 3mm; margin-top: 4mm; }
+.resumen h2 { margin-top: 0; }
+.nota { color: #6b7280; font-size: 7.5pt; }
+.advertencias { background: #fffbeb; border-left: 3px solid #d97706; padding: 2mm 3mm; margin-top: 3mm; }
+table { width: 100%; border-collapse: collapse; margin-top: 1.5mm; }
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+th { background: #14532d; color: #ffffff; text-align: left; padding: 1.5mm 2mm; font-size: 8pt; }
+td { border-bottom: 0.3pt solid #d1d5db; padding: 1.2mm 2mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f9fafb; }
+th.decimal, th.entero, td.decimal, td.entero { text-align: right; }
+td.decimal, td.entero { white-space: nowrap; }
+.vacio { color: #6b7280; font-style: italic; }
+footer { margin-top: 8mm; border-top: 0.3pt solid #d1d5db; padding-top: 2mm; color: #6b7280; font-size: 7.5pt; }

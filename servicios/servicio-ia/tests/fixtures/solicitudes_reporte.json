@@ -1,0 +1,86 @@
+[
+  {
+    "id": "parcelas",
+    "solicitud": "Lista de parcelas con su superficie, de mayor a menor, en PDF",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "PARCELAS", "columnas": ["nombre", "superficieHectareas"], "filtros": [], "orden": [["superficieHectareas", "desc"]], "limite": null}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "cultivos",
+    "solicitud": "Reporte de los cultivos registrados con su variedad en Excel",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "CULTIVOS", "columnas": ["nombre", "variedad"], "filtros": [], "orden": [], "limite": null}], "formatos": ["XLSX"]}
+  },
+  {
+    "id": "campanias-en-curso",
+    "solicitud": "Campañas en curso con su parcela y fecha de inicio",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "CAMPANIAS", "columnas": ["nombre", "nombreParcela", "fechaInicio"], "filtros": [["estado", "igual", "EN_CURSO"]], "orden": [], "limite": null}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "rendimiento-soya",
+    "solicitud": "Quiero una tabla con la parcela y el rendimiento de las campañas de soya finalizadas, de mayor a menor, en Excel",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "CAMPANIAS_FINALIZADAS", "columnas": ["nombreParcela", "rendimientoPorHectarea"], "filtros": [["nombreCultivo", "contiene", "soya"]], "orden": [["rendimientoPorHectarea", "desc"]], "limite": null}], "formatos": ["XLSX"]}
+  },
+  {
+    "id": "top-costo",
+    "solicitud": "Las 2 campañas finalizadas con mayor costo por hectárea, solo el nombre de la campaña y el costo por hectárea",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "CAMPANIAS_FINALIZADAS", "columnas": ["nombreCampania", "costoPorHectarea"], "filtros": [], "orden": [["costoPorHectarea", "desc"]], "limite": 2}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "rendimiento-mayor",
+    "solicitud": "Campañas finalizadas con rendimiento mayor a 2500 kilos por hectárea",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "CAMPANIAS_FINALIZADAS", "columnas": [], "filtros": [["rendimientoPorHectarea", "mayor", "2500"]], "orden": [], "limite": null}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "finalizadas-este-anio",
+    "solicitud": "Dame el reporte de las campañas finalizadas de este año en PDF y Excel.",
+    "audio": "voz_campanias",
+    "esperado": {"tablas": [{"fuente": "CAMPANIAS_FINALIZADAS", "columnas": [], "filtros": [["fechaFinalizacion", "entre", ["{anio}-01-01", "{anio}-12-31"]]], "orden": [], "limite": null}], "formatos": ["PDF", "XLSX"]}
+  },
+  {
+    "id": "costos-campania",
+    "solicitud": "Necesito el reporte de costos de la campaña Soya verano 2025-2026 Lote Norte en Excel.",
+    "audio": "voz_costos",
+    "esperado": {"tablas": [{"fuente": "COSTOS_CAMPANIA", "campania": "Soya verano 2025-2026 Lote Norte", "columnas": [], "filtros": [], "orden": [], "limite": null}], "formatos": ["XLSX"]}
+  },
+  {
+    "id": "subtotales",
+    "solicitud": "Costos por categoría de la campaña Soya verano 2025-2026 Lote Sur",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "SUBTOTALES_CAMPANIA", "campania": "Soya verano 2025-2026 Lote Sur", "columnas": [], "filtros": [], "orden": [], "limite": null}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "indicadores",
+    "solicitud": "Indicadores de la campaña Maíz invierno 2025 El Paraíso",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "INDICADORES_CAMPANIA", "campania": "Maíz invierno 2025 El Paraíso", "columnas": [], "filtros": [], "orden": [], "limite": null}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "stock-bajo",
+    "solicitud": "Reporte de insumos con stock bajo en PDF y Excel",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "INVENTARIO", "columnas": [], "filtros": [["stockBajo", "igual", true]], "orden": [], "limite": null}], "formatos": ["PDF", "XLSX"]}
+  },
+  {
+    "id": "fertilizantes",
+    "solicitud": "Solo la tabla de fertilizantes con su stock y nivel mínimo, sin resumen",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "INVENTARIO", "columnas": ["nombre", "stock", "nivelMinimo"], "filtros": [["categoria", "igual", "FERTILIZANTE"]], "orden": [], "limite": null}], "formatos": ["PDF"], "incluirResumen": false}
+  },
+  {
+    "id": "labores",
+    "solicitud": "Labores confirmadas con su responsable y los insumos usados",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "LABORES", "columnas": ["tipoLabor", "responsable", "insumos"], "filtros": [["estado", "igual", "CONFIRMADA"]], "orden": [], "limite": null}], "formatos": ["PDF"]}
+  },
+  {
+    "id": "incidencias",
+    "solicitud": "Incidencias de tipo plaga con su parcela y la clasificación de la IA",
+    "audio": null,
+    "esperado": {"tablas": [{"fuente": "INCIDENCIAS", "columnas": ["tipo", "nombreParcela", "clasificacion"], "filtros": [["tipo", "igual", "PLAGA"]], "orden": [], "limite": null}], "formatos": ["PDF"]}
+  }
+]

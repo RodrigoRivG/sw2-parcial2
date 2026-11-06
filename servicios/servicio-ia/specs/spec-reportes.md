@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-reportes.md` |
-| Estado | Spec aprobada (2026-11-06) · Plan y tareas aprobados |
+| Estado | En implementación (2026-11-06): falta T05 y la parte de voz de T11 (audios del usuario) |
 | Fecha | 2026-11-05 (versión anterior aprobada el 2026-11-04, con catálogo fijo de reportes y CSV) |
 | Constitución | v5.0.0 (secciones 1, 2, 4, 6, 7, 9 y 10) |
 | Trazabilidad | CU-18, CU-25 · RF-24, RF-25, RF-34 · RN-13, RN-14 · procesos 8 y 11 del documento de requisitos · Módulo 8 (n8n) |
@@ -265,7 +265,7 @@ Advertencias del resultado (el trabajo termina `COMPLETADO`): `CALCULO_NO_PERMIT
 - **CE-REP-01:** los escenarios de las historias 1 a 5 pasan como tests automáticos, sin Ollama ni Whisper reales.
 - **CE-REP-02:** un plan de inventario en los dos formatos se genera en menos de 15 s; un reporte por voz de 15 s de audio, en menos de 90 s en el equipo de desarrollo (Whisper `small` en CPU).
 - **CE-REP-03:** el PDF se abre en un lector estándar con tildes y ñ correctas; el XLSX se abre en Excel y LibreOffice con números en las celdas numéricas.
-- **CE-REP-04:** con Ollama (`qwen2.5:7b-instruct-q3_K_M`) y Whisper reales, las 12 solicitudes de `tests/fixtures/solicitudes_reporte.json` producen el plan esperado en 10 casos o más. Hay al menos una por fuente y varias con columnas, filtros, orden y límite; 2 son audios grabados por el usuario. Se considera esperado el plan con las mismas fuentes, columnas, filtros, orden y límite (prueba manual, ver T11).
+- **CE-REP-04:** con Ollama (`qwen2.5:7b-instruct-q3_K_M`) y Whisper reales, las 14 solicitudes de `tests/fixtures/solicitudes_reporte.json` producen el plan esperado en 12 casos o más (eran 12 y 10: hicieron falta 14 para tener una por fuente y cubrir columnas, filtros, orden y límite). Hay al menos una por fuente y varias con columnas, filtros, orden y límite; 2 son audios grabados por el usuario. Se considera esperado el plan con las mismas fuentes, columnas, filtros, orden y límite (prueba manual, ver T11).
 - **CE-REP-05:** cobertura ≥ 80 % (README D-13), Ruff y mypy sin errores, pipeline en verde.
 
 ## 1.7 Supuestos
@@ -541,20 +541,38 @@ Prefijo `/api/ia/v1`.
 | Integración | `tests/integration/reportes/test_router_reportes.py` | Endpoints con permisos (gerencia y `reportes_ia`), `origen`, plan inválido con detalles, `GET /reportes/fuentes`, validación de audio, flujo completo con RabbitMQ y los emuladores, evento en una cola de prueba enlazada a `eventos`, descarga con `ETag`, ajeno, en proceso y expirado, OpenAPI |
 | Integración | `tests/integration/reportes/test_transcriptor_whisper.py` | Con Whisper `tiny` (rápido) y el audio grabado por el usuario: texto no vacío en español. Marcado `lento`; corre en el pipeline |
 
+## 2.14 Notas de implementación (2026-11-06)
+
+- **Módulos.** La declaración del catálogo quedó en `reportes/catalogo.py`, separada de la obtención (`reportes/fuentes.py`), para que `plan.py` no dependa de MCP. El subgrafo quedó en `reportes/agente.py` y no en `agentes/`: la constitución (§3) permite que `reportes` use `agentes`, no al revés. Los mensajes de sistema están en `reportes/prompts/` y la plantilla en `reportes/plantillas/`.
+- **Interpretación en dos pasos** (cambio de 2.7). Con un solo mensaje que describía las 10 fuentes con sus campos, el modelo usaba campos de otra fuente o se olvidaba de la campaña: 4 a 5 de 12 planes correctos. Ahora son dos llamadas:
+  1. elegir las fuentes (`prompts/fuentes.md`, esquema con las 10 fuentes);
+  2. armar el plan con un esquema que solo contiene los campos de esas fuentes (`esquema_json(fuentes)`).
+
+  Así el modelo no puede escribir un campo inexistente. Resultado: 8 a 9 de 12, estable.
+- **Ajustes deterministas** del plan del modelo antes de validarlo (`agente.ajustar`):
+  - todas las columnas de la fuente equivalen a las columnas por defecto;
+  - en una fuente de una campaña, un filtro por su nombre pasa a `campania`;
+  - `noAtendido` se recorta a 5 textos de 300 caracteres.
+- **La transcripción la hace el manejador**, antes del grafo, porque es el que maneja el archivo temporal. `WHISPER_ACTIVO` (por defecto verdadero) permite que los tests no descarguen el modelo; desactivado, un reporte por voz falla con `TRANSCRIPTOR_NO_DISPONIBLE`. MediaRecorder graba WebM sin duración en la cabecera: se toma del último paquete.
+- **Protección contra fórmulas en Excel:** los textos se guardan con tipo texto explícito en vez de anteponer `'`, porque openpyxl escribiría el apóstrofo literal.
+- **PDF:** los estilos se insertan sin el autoescape de Jinja (rompía las comillas de la fuente dentro de `<style>`), y el título se escapa como texto CSS para que no pueda cerrar el `<style>`. Los filtros se describen como se muestran las celdas ("Stock bajo es «Sí»").
+- **Empaquetado:** además de lo previsto, `libharfbuzz-subset0` (WeasyPrint avisa que lo exigirá). El pipeline instala Pango, HarfBuzz y DejaVu en el runner para los tests del PDF.
+- **Tests:** `test_agente.py` y `test_manejador.py` quedaron en `tests/unit/reportes/`. La cola de prueba enlazada a `eventos` es durable: RabbitMQ 4 no admite colas transitorias compartidas.
+
 ---
 
 # 3. Tareas
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Agregar las dependencias y variables de 2.1 y 2.2; implementar `reportes/fuentes.py` (solo la declaración de campos) y `reportes/plan.py`. *Hecho cuando:* pasa `test_plan.py`.
-- [ ] **T02** — Aplicar los cambios de 2.3 en las herramientas MCP. *Hecho cuando:* pasa `test_maximo.py` y siguen pasando los tests de `spec-agentes.md`.
-- [ ] **T03** — Implementar la obtención de cada fuente (2.5). *Hecho cuando:* pasa `test_fuentes.py`.
-- [ ] **T04** [P] — Implementar `reportes/generadores.py` y las plantillas. *Hecho cuando:* pasa `test_generadores.py` y se cumple CE-REP-03 abriendo los archivos generados a mano.
+- [x] **T01** — Agregar las dependencias y variables de 2.1 y 2.2; implementar `reportes/fuentes.py` (solo la declaración de campos) y `reportes/plan.py`. *Hecho cuando:* pasa `test_plan.py`. Hecho (2026-11-06): 35 tests en `test_plan.py`.
+- [x] **T02** — Aplicar los cambios de 2.3 en las herramientas MCP. *Hecho cuando:* pasa `test_maximo.py` y siguen pasando los tests de `spec-agentes.md`. Hecho: `test_maximo.py`; siguen pasando los de agentes.
+- [x] **T03** — Implementar la obtención de cada fuente (2.5). *Hecho cuando:* pasa `test_fuentes.py`. Hecho: 10 tests en `test_fuentes.py`.
+- [x] **T04** [P] — Implementar `reportes/generadores.py` y las plantillas. *Hecho cuando:* pasa `test_generadores.py` y se cumple CE-REP-03 abriendo los archivos generados a mano. Hecho: `test_generadores.py`. CE-REP-03 verificado: el usuario abrió el PDF y el Excel de muestra.
 - [ ] **T05** — Implementar `Transcriptor`, `TranscriptorWhisper` y su comprobación de salud. *Hecho cuando:* pasa `test_transcriptor_whisper.py` con el audio grabado por el usuario.
-- [ ] **T06** — Implementar el subgrafo del agente de reportes y su mensaje de sistema. *Hecho cuando:* pasa `test_reportes.py`.
-- [ ] **T07** — Implementar el exchange `eventos` y `publicar_evento`, el manejador `REPORTE` y `reportes/servicio.py`. *Hecho cuando:* pasa `test_manejador.py`.
-- [ ] **T08** — Implementar `reportes/router.py`. *Hecho cuando:* pasa `test_router_reportes.py` y se cumple CE-REP-02.
-- [ ] **T09** [P] — Cambiar el realm (2.12) en su propio commit y ajustar el `Dockerfile` (2.11). *Hecho cuando:* un token de `n8n` trae `reportes_ia`, envía un plan a través del gateway y descarga el PDF; la imagen de producción transcribe sin descargar el modelo.
-- [ ] **T10** [P] — Escribir `tests/fixtures/solicitudes_reporte.json` (12 solicitudes con su plan esperado) y `docs/reportes.md` (fuentes, plan, ejemplos, límites y cómo usarlo desde React y n8n).
-- [ ] **T11** — Prueba manual con `qwen2.5:7b-instruct-q3_K_M`, Whisper `small` y el perfil `backend` con datos de demostración: las 12 solicitudes por el gateway con `gerencia.prueba`, 2 de ellas con los audios grabados. *Hecho cuando:* se cumple CE-REP-04; se anota el resultado de cada solicitud en esta tarea.
+- [x] **T06** — Implementar el subgrafo del agente de reportes y su mensaje de sistema. *Hecho cuando:* pasa `test_reportes.py`. Hecho, con la interpretación en dos pasos (2.14): `test_agente.py`.
+- [x] **T07** — Implementar el exchange `eventos` y `publicar_evento`, el manejador `REPORTE` y `reportes/servicio.py`. *Hecho cuando:* pasa `test_manejador.py`. Hecho: `test_manejador.py` (incluye WebM sin duración generado con PyAV).
+- [x] **T08** — Implementar `reportes/router.py`. *Hecho cuando:* pasa `test_router_reportes.py` y se cumple CE-REP-02. Hecho: `test_router_reportes.py`. CE-REP-02, parte del plan: el plan de inventario en PDF y Excel tarda menos de 15 s de punta a punta. La parte de voz se mide en T11.
+- [x] **T09** [P] — Cambiar el realm (2.12) en su propio commit y ajustar el `Dockerfile` (2.11). *Hecho cuando:* un token de `n8n` trae `reportes_ia`, envía un plan a través del gateway y descarga el PDF; la imagen de producción transcribe sin descargar el modelo. Hecho: `reportes_ia` en el realm, en `verificar-realm.py` (57 correctas) y en `spec-keycloak-realm.md`; aplicado al Keycloak local con la API de administración. Un token de `n8n` envió un plan por el gateway y descargó el PDF. `Dockerfile` con las librerías de WeasyPrint y el modelo de Whisper incluido; el pipeline construye la imagen.
+- [x] **T10** [P] — Escribir `tests/fixtures/solicitudes_reporte.json` (12 solicitudes con su plan esperado) y `docs/reportes.md` (fuentes, plan, ejemplos, límites y cómo usarlo desde React y n8n). Hecho: `tests/fixtures/solicitudes_reporte.json` (14 solicitudes) y `docs/reportes.md`.
+- [ ] **T11** — Prueba manual con `qwen2.5:7b-instruct-q3_K_M`, Whisper `small` y el perfil `backend` con datos de demostración: las 12 solicitudes por el gateway con `gerencia.prueba`, 2 de ellas con los audios grabados. *Hecho cuando:* se cumple CE-REP-04; se anota el resultado de cada solicitud en esta tarea. *Avance (2026-11-06):* las 12 solicitudes de texto dieron 8 a 9 planes iguales al esperado en tres corridas (detalle en `docs/reportes.md`). Faltan las 2 de voz.

@@ -86,12 +86,12 @@ async def test_obtener_campania_con_resumen() -> None:
 
 async def test_obtener_costos_con_totales() -> None:
     servicios = Servicios()
-    servicios.json(f"{G}/campanias/{ID}/costos", ejemplo("costos"))
+    servicios.json(f"{G}/campanias/{ID}/costos", {**ejemplo("costos"), "total": 1})
 
     async with conectar(servicios) as cliente:
         resultado = await llamar(cliente, "obtener_costos_campania", {"idCampania": ID})
 
-    assert servicios.parametros() == {"tamanio": "50"}
+    assert servicios.parametros() == {"pagina": "0", "tamanio": "50"}
     assert resultado["costoTotal"] == "2320.50"
     assert resultado["subtotalesPorCategoria"]["MANO_DE_OBRA"] == "1500.00"
     assert resultado["items"][0] == {
@@ -101,7 +101,7 @@ async def test_obtener_costos_con_totales() -> None:
         "descripcion": "Cosecha manual",
         "origen": "MANUAL",
     }
-    assert (resultado["total"], resultado["truncado"]) == (3, True)
+    assert (resultado["total"], resultado["truncado"]) == (1, False)
 
 
 async def test_obtener_indicadores() -> None:

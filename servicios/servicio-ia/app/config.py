@@ -52,6 +52,15 @@ class Configuracion(BaseSettings):
     ollama_model: TextoObligatorio
     agentes_num_ctx: int = Field(default=8192, ge=1024)
 
+    # spec-reportes.md 2.2
+    whisper_model: TextoObligatorio = "small"
+    whisper_device: TextoObligatorio = "cpu"
+    whisper_compute_type: TextoObligatorio = "int8"
+    whisper_carpeta: TextoObligatorio = "/cache/whisper"
+    whisper_activo: bool = True  # falso en los tests: no descarga el modelo
+    reportes_retencion_dias: int = Field(default=7, ge=1)
+    reportes_tamanio_maximo_audio_mb: float = Field(default=10.0, gt=0)
+
     @field_validator("keycloak_client_secret", "rabbitmq_url")
     @classmethod
     def _secreto_no_vacio(cls, valor: SecretStr) -> SecretStr:

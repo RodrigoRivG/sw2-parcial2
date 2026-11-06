@@ -28,6 +28,10 @@ dependencies = [
     "mcp~=2.3.0",
     "langgraph~=1.2.20",
     "ollama~=0.6.3",
+    "faster-whisper~=1.2.1",
+    "weasyprint~=70.0",
+    "openpyxl~=3.1.5",
+    "jinja2~=3.1.6",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +42,8 @@ dev = [
     "ruff~=0.17.3",
     "mypy~=2.4.1",
     "pandas-stubs~=3.1.0",
+    "pypdf~=7.0.0",
+    "types-openpyxl~=3.1.5",
 ]
 
 # Entrenamiento y exportación del clasificador (spec-vision.md 2.1). Además, aparte:
@@ -56,7 +62,7 @@ include = ["app*"]
 
 [tool.setuptools.package-data]
 # Mensajes de sistema de los agentes (spec-agentes.md 2.5)
-app = ["agentes/prompts/*.md"]
+app = ["agentes/prompts/*.md", "reportes/plantillas/*", "reportes/prompts/*.md"]
 
 [tool.ruff]
 line-length = 100
@@ -82,7 +88,14 @@ packages = ["app"]
 
 [[tool.mypy.overrides]]
 # Librerías sin anotaciones de tipos publicadas
-module = ["joblib", "sklearn.*", "tensorflow.*", "tensorflowjs.*"]
+module = [
+    "joblib",
+    "sklearn.*",
+    "tensorflow.*",
+    "tensorflowjs.*",
+    "weasyprint.*",
+    "faster_whisper.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

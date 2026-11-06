@@ -60,6 +60,12 @@ jobs:
           done
           docker logs firestore
           exit 1
+      # WeasyPrint (PDF de los reportes) y la fuente que usan sus tests (spec-reportes.md 2.11)
+      - name: Instalar librerías del sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 fonts-dejavu-core
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

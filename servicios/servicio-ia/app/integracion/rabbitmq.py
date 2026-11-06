@@ -13,7 +13,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import aio_pika
-from aio_pika.abc import AbstractChannel, AbstractQueue, AbstractRobustConnection
+from aio_pika.abc import (
+    AbstractChannel,
+    AbstractExchange,
+    AbstractQueue,
+    AbstractRobustConnection,
+)
 from aio_pika.connection import make_url
 from aio_pika.robust_connection import RobustConnection
 
@@ -22,6 +27,7 @@ from app.integracion.errores import ErrorInfraestructura
 _logger = logging.getLogger("app.integracion.rabbitmq")
 _TIEMPO_LIMITE_PUBLICACION = 3.0
 _ESPERA_RECONEXION = 5.0
+EXCHANGE_EVENTOS = "eventos"  # topic, durable (constitución §10, v2.6.0)
 
 
 def crear_sobre(tipo: str, datos: dict[str, Any], id_correlacion: str | None) -> dict[str, Any]:
@@ -43,6 +49,7 @@ class ConexionRabbitMq:
         self.cola_trabajos = cola_trabajos
         self._conexion: AbstractRobustConnection | None = None
         self._canal_publicacion: AbstractChannel | None = None
+        self._eventos: AbstractExchange | None = None
         self._lista = asyncio.Event()
         self._tarea: asyncio.Task[None] | None = None
 
@@ -91,6 +98,9 @@ class ConexionRabbitMq:
             return
 
     async def _declarar(self, canal: AbstractChannel) -> None:
+        self._eventos = await canal.declare_exchange(
+            EXCHANGE_EVENTOS, aio_pika.ExchangeType.TOPIC, durable=True
+        )
         await canal.declare_queue(self.cola_dlq, durable=True)
         await canal.declare_queue(
             self.cola_trabajos,
@@ -101,6 +111,17 @@ class ConexionRabbitMq:
     async def publicar(self, cola: str, sobre: dict[str, Any]) -> None:
         if not self.disponible or self._canal_publicacion is None:
             raise ErrorInfraestructura("rabbitmq", "sin conexión")
+        await self._enviar(self._canal_publicacion.default_exchange, cola, sobre)
+
+    async def publicar_evento(self, routing_key: str, sobre: dict[str, Any]) -> None:
+        """Evento en el exchange `eventos`, con confirmación del broker (constitución §10)."""
+        if not self.disponible or self._eventos is None:
+            raise ErrorInfraestructura("rabbitmq", "sin conexión")
+        await self._enviar(self._eventos, routing_key, sobre)
+
+    async def _enviar(
+        self, exchange: AbstractExchange, routing_key: str, sobre: dict[str, Any]
+    ) -> None:
         mensaje = aio_pika.Message(
             body=json.dumps(sobre, ensure_ascii=False).encode(),
             content_type="application/json",
@@ -111,7 +132,7 @@ class ConexionRabbitMq:
         )
         try:
             await asyncio.wait_for(
-                self._canal_publicacion.default_exchange.publish(mensaje, routing_key=cola),
+                exchange.publish(mensaje, routing_key=routing_key),
                 _TIEMPO_LIMITE_PUBLICACION,
             )
         except Exception as error:
@@ -138,6 +159,7 @@ class ConexionRabbitMq:
 
     async def _cerrar_conexion(self) -> None:
         conexion, self._conexion, self._canal_publicacion = self._conexion, None, None
+        self._eventos = None
         if conexion is not None:
             with contextlib.suppress(Exception):
                 await asyncio.shield(conexion.close())
