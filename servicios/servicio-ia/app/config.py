@@ -43,6 +43,10 @@ class Configuracion(BaseSettings):
     gcs_bucket: TextoObligatorio
     modelos_intervalo_revision_segundos: float = Field(default=60.0, gt=0)
 
+    # spec-vision.md 2.2
+    vision_tamanio_maximo_imagen_mb: float = Field(default=10.0, gt=0)
+    vision_tamanio_maximo_video_mb: float = Field(default=50.0, gt=0)
+
     @field_validator("keycloak_client_secret", "rabbitmq_url")
     @classmethod
     def _secreto_no_vacio(cls, valor: SecretStr) -> SecretStr:

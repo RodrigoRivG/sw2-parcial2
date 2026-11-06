@@ -50,7 +50,8 @@ async def test_versiones_incrementales_y_publicacion_con_regla_de_metricas(
     publicada = await servicio.publicar("rendimiento", 1, None)
     assert publicada.estado.value == "VIGENTE"
     assert publicada.fecha_publicacion is not None
-    assert cargador.estado("rendimiento") is EstadoCarga.CARGADO  # se carga de inmediato
+    await cargador.esperar_pendientes()  # carga en segundo plano, sin esperar el ciclo
+    assert cargador.estado("rendimiento") is EstadoCarga.CARGADO
     assert cargador.obtener("rendimiento").version.version == 1
 
     with pytest.raises(ErrorAplicacion) as error:
@@ -61,6 +62,7 @@ async def test_versiones_incrementales_y_publicacion_con_regla_de_metricas(
     assert publicada.justificacion == JUSTIFICACION
     estados = {v.version: v.estado.value for v in await servicio.listar("rendimiento")}
     assert estados == {1: "RETIRADA", 2: "VIGENTE"}
+    await cargador.esperar_pendientes()
     assert cargador.obtener("rendimiento").version.version == 2
 
 
@@ -125,6 +127,7 @@ async def test_cargador_sin_version_o_con_artefacto_faltante(
     )
     await repositorio.registrar_candidata(documento)
     await servicio.publicar("rendimiento", 1, None)
+    await cargador.esperar_pendientes()  # la publicación carga en segundo plano
     assert cargador.estado("rendimiento") is EstadoCarga.ERROR
 
 

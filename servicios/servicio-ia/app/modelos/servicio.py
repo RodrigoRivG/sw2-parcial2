@@ -66,7 +66,7 @@ class ServicioModelos:
             raise ErrorAplicacion(
                 404, "VERSION_MODELO_NO_ENCONTRADA", "La versión del modelo no existe."
             )
-        await self._cargador.revisar()  # esta instancia la carga de inmediato
+        self._cargador.revisar_en_segundo_plano(nombre)  # esta instancia, sin esperar el ciclo
         return VersionModelo.desde_documento(documento)
 
 

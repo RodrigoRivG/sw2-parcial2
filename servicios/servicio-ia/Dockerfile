@@ -1,6 +1,11 @@
 # Imagen de servicio-ia para Google Cloud Run (spec-base.md 2.11).
-# Las librerías del sistema de OpenCV y WeasyPrint se agregan en las specs que las usan.
+# Las librerías del sistema de WeasyPrint se agregan con spec-reportes.md.
 FROM python:3.12-slim
+
+# OpenCV (headless) para leer video (spec-vision.md 2.9)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

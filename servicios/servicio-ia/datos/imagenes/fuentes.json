@@ -1,0 +1,91 @@
+{
+  "fechaPreparacion": "2026-11-06",
+  "porClase": 50,
+  "semilla": 42,
+  "bytesDescargadosEnEstaEjecucion": 10776350,
+  "reemplazadas": {},
+  "fotosPorEtiqueta": {
+    "MAIZ_MANCHA_GRIS": 50,
+    "MAIZ_ROYA_COMUN": 50,
+    "MAIZ_SANO": 50,
+    "MAIZ_TIZON_NORTENO": 50,
+    "SOYA_DEFICIENCIA_POTASIO": 50,
+    "SOYA_MANCHA_DIANA": 50,
+    "SOYA_MANCHA_OJO_RANA": 50,
+    "SOYA_MILDIU": 50,
+    "SOYA_ROYA": 50,
+    "SOYA_SANA": 50,
+    "SOYA_TIZON_BACTERIANO": 50,
+    "SOYA_TIZON_CERCOSPORA": 50
+  },
+  "fotosPorParticion": {
+    "entrenamiento": 420,
+    "prueba": 96,
+    "validacion": 84
+  },
+  "conjunto": {
+    "archivo": "datasets/imagenes/c703c3da2165c7f0b72f912f946e5b99e89f250ea87084a98fc1ee92b8a8a3d4.tar",
+    "sha256": "c703c3da2165c7f0b72f912f946e5b99e89f250ea87084a98fc1ee92b8a8a3d4"
+  },
+  "fuentes": [
+    {
+      "nombre": "ASDID",
+      "referencia": "Auburn Soybean Disease Image Dataset, DOI 10.5061/dryad.41ns1rnj3 (Zenodo 7304859)",
+      "licencia": "CC0 1.0",
+      "zips": [
+        {
+          "url": "https://zenodo.org/records/7304859/files/bacterial_blight.zip?download=1",
+          "suma": "md5:31cd576c7b4681eb77942b7fbae59308",
+          "tamanio": 2847639377
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/cercospora_leaf_blight.zip?download=1",
+          "suma": "md5:0e62c4d31beea7f62f091045f224487c",
+          "tamanio": 7091853681
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/downey_mildew.zip?download=1",
+          "suma": "md5:c13cbb0771be3edc25d4f1a144bb7f5f",
+          "tamanio": 2929109463
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/frogeye.zip?download=1",
+          "suma": "md5:4dd9b491bdb90f471c0358f4843dee79",
+          "tamanio": 5898670550
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/healthy.zip?download=1",
+          "suma": "md5:0c3e217c230bbcb4f011d9586a40061f",
+          "tamanio": 7104782104
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/potassium_deficiency.zip?download=1",
+          "suma": "md5:a753aa36070fcdf2f86ef9673d3c6036",
+          "tamanio": 3393324790
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/soybean_rust.zip?download=1",
+          "suma": "md5:7eb6e827efe25deeeabe0a33d1d069a9",
+          "tamanio": 8375658860
+        },
+        {
+          "url": "https://zenodo.org/records/7304859/files/target_spot.zip?download=1",
+          "suma": "md5:5cb8799f4ecfc437439afbf39886e87d",
+          "tamanio": 4254380310
+        }
+      ]
+    },
+    {
+      "nombre": "PlantVillage",
+      "referencia": "Data for: Identification of Plant Leaf Diseases Using a 9-layer Deep CNN, Mendeley Data tywbtsjrjv v1 (imágenes de PlantVillage sin aumento)",
+      "licencia": "CC0 1.0",
+      "zips": [
+        {
+          "url": "https://data.mendeley.com/public-files/datasets/tywbtsjrjv/files/d5652a28-c1d8-4b76-97f3-72fb80f94efc/file_downloaded",
+          "suma": "sha256:ac3432453984",
+          "tamanio": 868032562
+        }
+      ]
+    }
+  ]
+}

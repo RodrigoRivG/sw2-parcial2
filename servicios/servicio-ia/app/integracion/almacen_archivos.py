@@ -25,6 +25,10 @@ class AlmacenArchivos(Protocol):
         """Contenido del archivo, o `None` si no existe."""
         ...
 
+    async def borrar(self, ruta: str) -> None:
+        """Borra el archivo; no falla si ya no existe."""
+        ...
+
 
 class AlmacenGcs:
     def __init__(self, proyecto: str, nombre_bucket: str) -> None:
@@ -54,3 +58,12 @@ class AlmacenGcs:
         except _ERRORES as error:
             raise ErrorInfraestructura("gcs", type(error).__name__) from None
         return datos
+
+    async def borrar(self, ruta: str) -> None:
+        blob = self._bucket.blob(ruta)
+        try:
+            await asyncio.to_thread(blob.delete, timeout=TIEMPO_LIMITE, retry=None)
+        except excepciones_google.NotFound:
+            return
+        except _ERRORES as error:
+            raise ErrorInfraestructura("gcs", type(error).__name__) from None

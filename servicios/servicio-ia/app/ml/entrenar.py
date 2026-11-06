@@ -1,9 +1,10 @@
-"""Entrenamiento de los modelos `rendimiento` y `patrones` (spec-prediccion.md 2.5).
+"""Entrenamiento de los modelos (spec-prediccion.md 2.5 y spec-vision.md 2.4).
 
 Se ejecuta fuera del ciclo HTTP, dentro del contenedor del servicio:
 
     python -m app.ml.entrenar rendimiento [--incluir-historicos] [--semilla 42]
     python -m app.ml.entrenar patrones [--incluir-historicos] [--semilla 42]
+    python -m app.ml.entrenar clasificador [--imagenes /cache/imagenes] [--semilla 42]
 
 Registra la versión como CANDIDATA; se publica con POST /modelos/{nombre}/versiones/{v}/publicacion.
 """
@@ -361,6 +362,13 @@ async def registrar(
 
 
 async def principal(opciones: argparse.Namespace) -> int:
+    if opciones.modelo == "clasificador":
+        # TensorFlow solo se importa para este modelo
+        from app.ml import clasificador
+
+        return await clasificador.principal(
+            opciones.imagenes, clasificador.Configuracion(semilla=opciones.semilla)
+        )
     filas = leer_referencia()
     if opciones.incluir_historicos:
         historicos = await leer_historicos()
@@ -382,8 +390,9 @@ def main(argumentos: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("modelo", choices=sorted(ENTRENADORES))
+    parser.add_argument("modelo", choices=[*sorted(ENTRENADORES), "clasificador"])
     parser.add_argument("--incluir-historicos", action="store_true")
+    parser.add_argument("--imagenes", type=Path, default=Path("/cache/imagenes"))
     parser.add_argument("--semilla", type=int, default=42)
     return asyncio.run(principal(parser.parse_args(argumentos)))
 

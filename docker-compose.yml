@@ -316,11 +316,12 @@ services:
     ports:
       - "8001:8000"
     # Sin curl en la imagen; start_period cubre la primera instalación de dependencias
+    # (TensorFlow tarda varios minutos, spec-vision.md 2.9)
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/salud/liveness').status == 200 else 1)"]
       interval: 15s
       timeout: 5s
-      start_period: 120s
+      start_period: 300s
       retries: 5
     volumes:
       - ./servicios/servicio-ia:/app

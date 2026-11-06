@@ -60,6 +60,8 @@ class CargadorModelos:
         self._cargados: dict[str, ModeloCargado] = {}
         self._estados: dict[str, EstadoCarga] = {}
         self._tarea: asyncio.Task[None] | None = None
+        self._candados: dict[str, asyncio.Lock] = {}
+        self._pendientes: set[asyncio.Task[None]] = set()
 
     def registrar(
         self,
@@ -69,6 +71,22 @@ class CargadorModelos:
     ) -> None:
         self._registros[nombre] = _Registro(deserializar, archivo)
         self._estados[nombre] = EstadoCarga.SIN_PUBLICAR
+        self._candados[nombre] = asyncio.Lock()
+
+    def revisar_en_segundo_plano(self, nombre: str) -> None:
+        """Tras publicar: carga ya, sin esperar el ciclo ni demorar la respuesta.
+
+        Cargar el clasificador (descarga, deserialización y calentamiento) supera el tiempo
+        límite del gateway.
+        """
+        if nombre not in self._registros:
+            return
+        tarea = asyncio.create_task(self._revisar(nombre), name=f"cargar-{nombre}")
+        self._pendientes.add(tarea)
+        tarea.add_done_callback(self._pendientes.discard)
+
+    async def esperar_pendientes(self) -> None:
+        await asyncio.gather(*self._pendientes)
 
     def obtener(self, nombre: str) -> ModeloCargado:
         cargado = self._cargados.get(nombre)
@@ -89,6 +107,10 @@ class CargadorModelos:
             await self._revisar(nombre)
 
     async def _revisar(self, nombre: str) -> None:
+        async with self._candados[nombre]:  # el ciclo y una publicación no cargan dos veces
+            await self._revisar_sin_candado(nombre)
+
+    async def _revisar_sin_candado(self, nombre: str) -> None:
         try:
             documento = await self._repositorio.vigente(nombre)
             if documento is None:
@@ -126,7 +148,9 @@ class CargadorModelos:
             await asyncio.sleep(self._intervalo)
 
     async def detener(self) -> None:
-        if self._tarea is not None and not self._tarea.done():
-            self._tarea.cancel()
+        tareas = [t for t in (self._tarea, *self._pendientes) if t is not None and not t.done()]
+        for tarea in tareas:
+            tarea.cancel()
+        for tarea in tareas:
             with contextlib.suppress(asyncio.CancelledError):
-                await self._tarea
+                await tarea

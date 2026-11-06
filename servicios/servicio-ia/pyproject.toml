@@ -21,6 +21,10 @@ dependencies = [
     "numpy~=2.5.4",
     "joblib~=1.6.0",
     "google-cloud-storage~=3.17.1",
+    "pillow~=13.0.0",
+    "opencv-python-headless~=5.0.0",
+    "python-multipart~=0.0.33",
+    "tensorflow-cpu~=2.21.0",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +35,17 @@ dev = [
     "ruff~=0.17.3",
     "mypy~=2.4.1",
     "pandas-stubs~=3.1.0",
+]
+
+# Entrenamiento y exportación del clasificador (spec-vision.md 2.1). Además, aparte:
+#   pip install --no-deps tensorflowjs==4.22.0
+# (sus dependencias declaradas arrastran tensorflow-decision-forests, que fija otra versión de
+# TensorFlow; el conversor no la usa y app/ml/exportar.py la reemplaza por un módulo vacío).
+ml = [
+    "jax~=0.12.0",
+    "tensorflow-hub~=0.16.1",
+    "tf-keras~=2.21.0",
+    "setuptools<81",
 ]
 
 [tool.setuptools.packages.find]
@@ -60,7 +75,7 @@ packages = ["app"]
 
 [[tool.mypy.overrides]]
 # Librerías sin anotaciones de tipos publicadas
-module = ["joblib", "sklearn.*"]
+module = ["joblib", "sklearn.*", "tensorflow.*", "tensorflowjs.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

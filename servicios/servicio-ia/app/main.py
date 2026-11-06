@@ -29,10 +29,20 @@ from app.modelos.servicio import ServicioModelos
 from app.prediccion.router import router_prediccion
 from app.prediccion.servicio import MODELO_PATRONES, MODELO_RENDIMIENTO, ServicioPrediccion
 from app.trabajos.consumidor import ConsumidorTrabajos
-from app.trabajos.registro import RegistroTipos
+from app.trabajos.registro import DefinicionTipo, RegistroTipos
 from app.trabajos.revision import RevisionPeriodica
 from app.trabajos.router import router_trabajos
 from app.trabajos.servicio import ServicioTrabajos
+from app.vision.router import router_vision
+from app.vision.servicio import (
+    MODELO as MODELO_CLASIFICADOR,
+)
+from app.vision.servicio import (
+    TIEMPO_LIMITE_VIDEO,
+    TIPO_TRABAJO_VIDEO,
+    ServicioVision,
+    deserializar_keras,
+)
 
 _logger = logging.getLogger("app")
 MODELOS = (MODELO_RENDIMIENTO, MODELO_PATRONES)
@@ -94,6 +104,7 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
             )
             for nombre in MODELOS:
                 cargador.registrar(nombre)
+            cargador.registrar(MODELO_CLASIFICADOR, deserializar_keras, "modelo.keras")
             cargador.iniciar()
             app.state.almacen_archivos = almacen
             app.state.cargador_modelos = cargador
@@ -104,6 +115,14 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
                 DatosAgricolasGateway(app.state.cliente_gateway),
                 cargador,
                 RepositorioResultadosFirestore(firestore),
+            )
+
+            # Visión (spec-vision.md)
+            app.state.servicio_vision = ServicioVision(
+                cargador,
+                RepositorioResultadosFirestore(firestore),
+                almacen,
+                app.state.servicio_trabajos,
             )
 
             _logger.info("Servicio iniciado")
@@ -136,7 +155,14 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.state.registro_salud.registrar(
         "rabbitmq", lambda: app.state.conexion_rabbitmq.comprobar(), critica=True
     )
-    for nombre in MODELOS:
+    registro_tipos.registrar(
+        DefinicionTipo(
+            TIPO_TRABAJO_VIDEO,
+            lambda trabajo: app.state.servicio_vision.procesar_video(trabajo),
+            TIEMPO_LIMITE_VIDEO,
+        )
+    )
+    for nombre in (*MODELOS, MODELO_CLASIFICADOR):
         app.state.registro_salud.registrar(
             f"modelo_{nombre}",
             lambda n=nombre: app.state.cargador_modelos.comprobar(n),
@@ -148,4 +174,5 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.include_router(router_trabajos)
     app.include_router(router_modelos)
     app.include_router(router_prediccion)
+    app.include_router(router_vision)
     return app

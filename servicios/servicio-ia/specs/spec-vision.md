@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-vision.md` |
-| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
+| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 4, 5, 7, 8 y 9) |
 | Trazabilidad | CU-16 · RF-20, RF-21, RF-22 · RN-13 · RNF-06 · proceso 6 y Módulo 5 del documento de requisitos |
@@ -236,7 +236,7 @@ Códigos del `error` de un trabajo `CLASIFICACION_VIDEO` `FALLIDO`: `VIDEO_NO_DI
 ## 1.7 Supuestos
 
 - Con 600 fotos, el entrenamiento se puede hacer en CPU en un tiempo razonable (del orden de decenas de minutos); con GPU es más rápido. No corre en el pipeline: los tests usan un modelo diminuto.
-- Las fotos de PlantVillage se pueden pedir sueltas desde una copia pública del dataset original (por ejemplo, el repositorio de los autores en GitHub), con la licencia CC0 de la publicación en Mendeley Data. La fuente exacta y su licencia se confirman en T02 y se anotan en `fuentes.json`. Si no es posible, se usa el zip de Mendeley (cerca de 1 GB) con el mismo procedimiento de rangos de bytes.
+- Fuente de PlantVillage confirmada (2026-11-05): `Plant_leaf_diseases_dataset_without_augmentation.zip` de Mendeley Data `tywbtsjrjv` v1 (868 MB, licencia CC0 1.0 según la API de Mendeley, sin imágenes aumentadas), leído con el mismo procedimiento de rangos de bytes. El repositorio de los autores en GitHub se descartó porque no declara licencia. Mendeley redirige a S3, que acepta `Range` pero no `HEAD`, y rechaza el agente por defecto de Python: el tamaño se obtiene con un `GET` de 1 byte y se envía un `User-Agent` propio.
 - En WSL2, la carpeta temporal de trabajo puede estar en un disco de Windows (`--temporal /mnt/c/...`), para que lo que se borra libere espacio en Windows de inmediato (el disco virtual de WSL2 no se achica solo).
 - El RNF-06 offline (< 5 s en el dispositivo) depende de Flutter y Vue.js. Este servicio solo garantiza un modelo de tamaño apto (CE-VIS-03).
 - El gateway reenvía cuerpos grandes en streaming y sin límite propio (`api-gateway/specs/spec-enrutamiento.md`, casos borde).
@@ -247,7 +247,7 @@ Códigos del `error` de un trabajo `CLASIFICACION_VIDEO` `FALLIDO`: `VIDEO_NO_DI
 - **AC-02 — ¿Por qué los modelos se descargan a través de la API y no con URL firmadas de Cloud Storage?** El modelo TF.js son varios archivos que `model.json` referencia con rutas relativas: con una URL firmada por archivo, esas rutas no resuelven. Además, así la descarga pasa por la misma seguridad que el resto y no hace falta configurar CORS en el bucket.
 - **AC-03 — ¿Por qué el umbral lo aplican el servidor y los dispositivos, y no el modelo?** Así el modelo exportado es el mismo en los tres lugares, y el umbral se puede cambiar en una versión sin reentrenar.
 - **AC-04 — ¿Por qué el video es un trabajo y la foto no?** Una foto se clasifica en menos de un segundo. Un video de 60 s implica decodificarlo y clasificar 30 fotogramas: puede pasar el tiempo límite del gateway (10 s).
-- **AC-05 — ¿Por qué una muestra de 50 fotos por clase?** Resuelta (2026-11-04): es un proyecto académico y el costo que importa es el tiempo de descarga (43 GB de ASDID son horas). 50 por clase bajan unos 2,4 GB. Se revisa después de la primera versión: si la exactitud no alcanza, se sube `--por-clase` y se reentrena, sin cambiar nada más.
+- **AC-05 — ¿Por qué una muestra de 50 fotos por clase?** Resuelta (2026-11-04): es un proyecto académico y el costo que importa es el tiempo de descarga (43 GB de ASDID son horas). 50 por clase bajan unos 2,4 GB. Se revisa después de la primera versión: si la exactitud no alcanza, se sube `--por-clase` y se reentrena, sin cambiar nada más. *Resultado (2026-11-05):* la descarga real fue de 1.777,5 MB y la versión 1 llegó a F1 macro 0,893 en prueba, así que se mantienen las 50 fotos por clase.
 
 ## 1.9 Fuera de alcance
 
@@ -276,6 +276,8 @@ Criterio general: lo mínimo que cumple la spec y la constitución. Reutiliza `m
 
 El grupo `[ml]` se instala en la máquina de entrenamiento y en el pipeline (para el test de exportación). Si `tensorflowjs` exige otra versión de TensorFlow, se fija la combinación compatible en `pyproject.toml` y se anota aquí.
 
+**Combinación verificada (2026-11-05):** `tensorflow-cpu` 2.21 es la única versión de TensorFlow, en el grupo principal (sirve también para entrenar en CPU). `tensorflowjs` 4.22.0 (la última) declara `tensorflow-decision-forests`, que fija otra versión de TensorFlow, y `packaging~=23.1`: se instala aparte con `pip install --no-deps tensorflowjs==4.22.0`. El grupo `[ml]` trae solo lo que el conversor importa al cargarse: `jax`, `tensorflow-hub`, `tf-keras` y `setuptools<81` (por `pkg_resources`). `app/ml/exportar.py` reemplaza `tensorflow_decision_forests` por un módulo vacío antes de importar el conversor (solo lo usa para modelos de ese tipo). Probado: MobileNetV3 Large exporta a TF.js *graph model* uint8 (unos 3 MB) y a TFLite float16 (unos 5,8 MB), ambos con 12 salidas.
+
 ## 2.2 Configuración
 
 | Variable | Obligatoria | Uso |
@@ -290,7 +292,7 @@ El umbral de confianza no es una variable: viaja con cada versión del modelo.
 `python -m app.ml.datos.preparar_imagenes --por-clase 50 [--semilla 42] [--salida <carpeta>] [--temporal <carpeta>]`:
 
 1. **Fuentes fijas en el script:** las URL de los 8 zips de ASDID en Zenodo (`https://zenodo.org/records/7304859/files/<categoria>.zip?download=1`, sin los `unused_*`) con su MD5 publicado, y la fuente de las 4 clases de maíz de PlantVillage. Una tabla fija asigna cada carpeta de origen a su etiqueta.
-2. **Lectura remota de los zips:** un archivo de solo lectura sobre HTTP (`seek`, `tell` y `read` con el header `Range`) se le pasa a `zipfile.ZipFile`, que lee solo el directorio central al final del zip. Se listan las fotos (`.jpg`, `.jpeg`, `.png`) y se eligen `--por-clase` al azar con la semilla. Así se descarga solo lo de cada foto elegida.
+2. **Lectura remota de los zips:** un archivo de solo lectura sobre HTTP (`seek`, `tell` y `read` con el header `Range` y un búfer de 256 KB) se le pasa a `zipfile.ZipFile`, que lee solo el directorio central al final del zip. Se listan las fotos (`.jpg`, `.jpeg`, `.png`) y se eligen `--por-clase` al azar con la semilla. El contenido de cada foto no se lee con `zipfile` (pide de a 4 KB: más de mil pedidos por foto de ASDID): se lee su cabecera local (30 bytes) y se piden sus bytes comprimidos en un solo pedido exacto, descomprimidos con `zlib` si hace falta. Así se descarga solo lo de cada foto elegida, sin sobrante. *Implementado:* el directorio central se lee con un búfer de 256 KB y cada foto en un solo rango exacto. Los zips de ASDID traen copias `__MACOSX/._*` (metadatos de macOS que no son imágenes); se descartan después de barajar, así la selección no cambia, y una foto que no se puede abrir se reemplaza sin reintentar. Mendeley rechaza `HEAD` y el agente de usuario por defecto de Python: el tamaño se obtiene con un `GET` de 1 byte y se envía `User-Agent: servicio-ia`.
 3. **Descarga y reducción:** 4 descargas en paralelo. Cada foto se lee en memoria, se corrige la orientación EXIF, se convierte a RGB, se reduce a 256 px por el lado menor y se guarda en JPEG de calidad 90 en `--salida`. El original no toca el disco. Errores de red: 3 reintentos con espera creciente por foto; si falla, se reemplaza por otra foto de la misma clase y se anota.
 4. **Retomar:** si la foto reducida ya existe en `--salida` (por nombre de origen), no se descarga de nuevo.
 5. **Duplicados:** se descartan fotos con el mismo SHA-256 después de reducir y se reemplazan por otra de la misma clase.
@@ -302,7 +304,7 @@ El umbral de confianza no es una variable: viaja con cada versión del modelo.
 
 ## 2.4 Entrenamiento y exportación (`app/ml/entrenar.py`, opción `clasificador`)
 
-1. Descarga el `.tar` del manifiesto vigente (o usa la carpeta local con `--imagenes`).
+1. Descarga el `.tar` del manifiesto vigente (o usa la carpeta local con `--imagenes`). *Implementado:* solo la carpeta local (`--imagenes`, por defecto `/cache/imagenes`, la salida de `preparar_imagenes`); el `.tar` subido queda como respaldo reproducible y se referencia en el documento de la versión.
 2. `tf.keras.utils.set_random_seed(semilla)` y `tf.config.experimental.enable_op_determinism()`.
 3. Modelo: `MobileNetV3Large(input_shape=(224, 224, 3), include_top=False, weights="imagenet", include_preprocessing=True)`, `GlobalAveragePooling2D`, `Dropout(0.2)` y `Dense(12, softmax)`.
 4. Aumento de datos solo al entrenar (capas `RandomFlip`, `RandomRotation(0.1)`, `RandomZoom(0.1)`, `RandomContrast(0.1)`, `RandomBrightness(0.1)`), recorte aleatorio de 256 a 224; en validación y prueba, recorte central.
@@ -311,13 +313,14 @@ El umbral de confianza no es una variable: viaja con cada versión del modelo.
 7. Exportaciones desde el mismo modelo entrenado:
    - `modelo.keras` (servidor);
    - `tflite/modelo.tflite` con `TFLiteConverter.from_keras_model` y cuantización float16;
-   - `tfjs/model.json` y sus archivos de pesos con `tensorflowjs.converters.save_keras_model` → convertidos a *graph model* con cuantización uint8.
-8. Verificación antes de registrar (falla si no se cumple): las tres variantes tienen 12 salidas; Keras y TFLite eligen la misma categoría para las imágenes de prueba de `tests/fixtures`.
+   - `tfjs/model.json` y sus archivos de pesos con `tensorflowjs.converters.save_keras_model` → convertidos a *graph model* con cuantización uint8. *Implementado:* `modelo.export` (SavedModel) y `convert_tf_saved_model`, que da el *graph model* directamente (`app/ml/exportar.py`).
+8. Verificación antes de registrar (falla si no se cumple): las tres variantes tienen 12 salidas; Keras y TFLite eligen la misma categoría para las imágenes de prueba de `tests/fixtures`. *Implementado:* con las imágenes de la partición de prueba del conjunto preparado (más que las de `tests/fixtures`).
+10. *Nota de implementación:* en Keras 3 el tercer argumento posicional de `compile` es `loss_weights`, no `metrics`; se pasa todo con nombre.
 9. Sube todo a `gs://<bucket>/modelos/clasificador/<version>/` con `etiquetas.json` y `metadatos.json`, calcula tamaños y SHA-256 de cada archivo exportado y registra la `CANDIDATA` (`spec-prediccion.md` 2.5).
 
 ## 2.5 Carga en el servidor
 
-`CargadorModelos` (`spec-prediccion.md` 2.6) pasa a tener un cargador por tipo de artefacto: `joblib` para `rendimiento` y `patrones`, `tf.keras.models.load_model` para `clasificador`. Ambos en un hilo. Después de cargar el clasificador, hace una inferencia de calentamiento con una imagen negra para que la primera solicitud no pague la inicialización.
+`CargadorModelos` (`spec-prediccion.md` 2.6) pasa a tener un cargador por tipo de artefacto: `joblib` para `rendimiento` y `patrones`, `tf.keras.models.load_model` para `clasificador`. Ambos en un hilo. Después de cargar el clasificador, hace una inferencia de calentamiento con una imagen negra para que la primera solicitud no pague la inicialización. *Implementado:* la publicación ya no espera la carga, porque el clasificador tarda unos 14 s (descarga, deserialización y calentamiento) y el gateway corta a los 10 s. `ServicioModelos.publicar` lanza la revisión de ese modelo en segundo plano y responde. Un candado por modelo evita que el ciclo periódico y la publicación lo carguen dos veces. Afecta también a `spec-prediccion.md` 2.6: la instancia que publica ya no carga el modelo antes de responder.
 
 ## 2.6 Módulo `vision/`
 
@@ -346,7 +349,9 @@ app/vision/
   - Manejador `CLASIFICACION_VIDEO` (registrado en `crear_app()` con tiempo límite de 3 minutos): descarga a un archivo temporal, extrae, clasifica en un hilo, agrega (probabilidad promedio por categoría entre los fotogramas que no son `INDETERMINADO`; si todos lo son, `INDETERMINADO`) y en un `finally` borra el video de GCS y el archivo local.
 - El bucket tiene una regla de ciclo de vida que borra `temporales/` a 1 día, por si un borrado falla. Se documenta para GCP; el emulador no la aplica.
 
-## 2.7 Descarga para dispositivos (en `modelos/router.py`)
+## 2.7 Descarga para dispositivos (en `vision/router.py`)
+
+Va en `vision/` y no en `modelos/router.py`: necesita las etiquetas de `vision/etiquetas.py`, y `modelos` no puede importar módulos de capacidad (constitución §3). Las rutas son las mismas.
 
 - `GET /modelos/clasificador/dispositivo`: lee la vigente de `versiones_modelo` y arma la respuesta de 2.8. Las rutas de descarga son relativas al prefijo de la API.
 - `GET /modelos/clasificador/dispositivo/archivos/{ruta:path}`: solo acepta rutas que están en `exportaciones` de la vigente (evita recorrer el bucket con `..`). Compara `If-None-Match` con el SHA-256 y responde `304`, o descarga de GCS y responde en streaming con `Content-Type` (`application/octet-stream` para `.tflite` y `.bin`, `application/json` para `model.json`), `Content-Length`, `ETag` y `Cache-Control`.
@@ -441,12 +446,12 @@ Prefijo `/api/ia/v1`.
 |---|---|---|
 | Unitario | `tests/unit/vision/test_imagenes.py` | Formatos por contenido, imagen dañada, tamaño mínimo, megapíxeles, EXIF, transparencia y grises |
 | Unitario | `tests/unit/vision/test_clasificador.py` | Umbral e `INDETERMINADO`, top 3, redondeo de la confianza, con un modelo simulado que devuelve probabilidades fijas |
-| Unitario | `tests/unit/vision/test_video.py` | Con `tests/fixtures/video_5s.mp4` y uno de 61 s generado en el test: duración, 30 fotogramas como máximo, posiciones uniformes, archivo que no es video |
+| Unitario | `tests/unit/vision/test_video.py` | Con videos MP4 generados en el test con OpenCV (en lugar de un binario en `tests/fixtures`), de 5 s y de 61 s: duración, 30 fotogramas como máximo, posiciones uniformes, archivo que no es video |
 | Unitario | `tests/unit/vision/test_manejador_video.py` | Agregación, todos `INDETERMINADO`, borrado del video en éxito y en error, `VIDEO_NO_DISPONIBLE` |
 | Unitario | `tests/unit/ml/test_preparar_imagenes.py` | Con zips pequeños que imitan ASDID servidos por un servidor HTTP local con soporte de `Range`: solo se piden los rangos de las fotos elegidas, correspondencia de etiquetas, reducción, retomar sin volver a descargar, reemplazo de duplicados y de fallas, particiones estratificadas y reproducibles con la misma semilla |
 | Integración | `tests/integration/ml/test_exportacion_clasificador.py` | Entrena 1 época un modelo diminuto sobre `tests/fixtures/imagenes` (misma cabeza y exportaciones), exporta las tres variantes y verifica etiquetas, cantidad de salidas y misma categoría en Keras y TFLite (Historia 2, escenario 5; constitución §8). Requiere el grupo `[ml]` |
 | Integración | `tests/integration/vision/test_router_vision.py` | Endpoints con el modelo diminuto publicado en los emuladores: Historia 1 completa, Historia 2 (`ETag`, `304`, ruta ajena → 404), Historia 3 de punta a punta con RabbitMQ, permisos y OpenAPI |
-| Integración | `tests/integration/vision/test_rendimiento_vision.py` | CE-VIS-02 con una foto de 4 MB |
+| Integración | `tests/integration/vision/test_router_vision.py::test_foto_de_4_mb_en_menos_de_3_segundos` | CE-VIS-02 con una foto de 4 MB (quedó junto a los demás endpoints para reutilizar el modelo publicado) |
 
 Las imágenes de `tests/fixtures/imagenes` son unas pocas por etiqueta, tomadas del conjunto preparado (CC0), reducidas a 256 px.
 
@@ -456,11 +461,11 @@ Las imágenes de `tests/fixtures/imagenes` son unas pocas por etiqueta, tomadas 
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Agregar las dependencias y variables de 2.1 y 2.2, y `vision/etiquetas.py`. *Hecho cuando:* `pip install -e ".[dev,ml]"` funciona y se fija la combinación de `tensorflow` y `tensorflowjs`.
-- [ ] **T02** — Implementar `app/ml/datos/preparar_imagenes.py` con la lectura remota de los zips. Confirmar la fuente y la licencia de PlantVillage. Ejecutarlo con `--por-clase 50` (puede correr de fondo mientras se avanza con T03), versionar `manifiesto.csv` y `fuentes.json`, y subir el `.tar`. Crear `tests/fixtures/imagenes`. *Hecho cuando:* pasa `test_preparar_imagenes.py`, el resumen muestra 50 fotos en cada una de las 12 etiquetas y se cumple CE-VIS-08.
-- [ ] **T03** — Implementar `vision/imagenes.py` y `vision/clasificador.py`. *Hecho cuando:* pasan `test_imagenes.py` y `test_clasificador.py`.
-- [ ] **T04** — Agregar `clasificador` a `app/ml/entrenar.py` con las exportaciones y la verificación, y el cargador Keras en `CargadorModelos`. *Hecho cuando:* pasa `test_exportacion_clasificador.py`.
-- [ ] **T05** — Implementar `POST /clasificaciones` y la descarga para dispositivos. *Hecho cuando:* pasan las historias 1 y 2 de `test_router_vision.py`.
-- [ ] **T06** — Implementar `vision/video.py`, `POST /clasificaciones/videos` y el manejador `CLASIFICACION_VIDEO`. *Hecho cuando:* pasan `test_video.py`, `test_manejador_video.py` y la Historia 3 de `test_router_vision.py`.
-- [ ] **T07** [P] — Ajustar el `Dockerfile`, el `healthcheck` de Docker Compose y el pipeline (grupo `[ml]`). *Hecho cuando:* el pipeline corre en verde y se cumple CE-VIS-02 con `test_rendimiento_vision.py`.
-- [ ] **T08** — Entrenar la versión 1 del clasificador (CPU o GPU), publicarla y agregar su sección a `docs/modelos.md`. *Hecho cuando:* se cumplen CE-VIS-03 a CE-VIS-06 y una foto de `tests/fixtures` se clasifica a través del gateway con un token de `tecnico.prueba`; se anota el resultado en esta tarea.
+- [x] **T01** — Agregar las dependencias y variables de 2.1 y 2.2, y `vision/etiquetas.py`. *Hecho cuando:* `pip install -e ".[dev,ml]"` funciona y se fija la combinación de `tensorflow` y `tensorflowjs`. Hecho (2026-11-05): `tensorflow-cpu` 2.21 en el grupo principal y `tensorflowjs` 4.22.0 aparte con `--no-deps` (combinación anotada en 2.1).
+- [x] **T02** — Implementar `app/ml/datos/preparar_imagenes.py` con la lectura remota de los zips. Confirmar la fuente y la licencia de PlantVillage. Ejecutarlo con `--por-clase 50` (puede correr de fondo mientras se avanza con T03), versionar `manifiesto.csv` y `fuentes.json`, y subir el `.tar`. Crear `tests/fixtures/imagenes`. *Hecho cuando:* pasa `test_preparar_imagenes.py`, el resumen muestra 50 fotos en cada una de las 12 etiquetas y se cumple CE-VIS-08. Hecho (2026-11-05): PlantVillage desde Mendeley Data (versión sin aumento, CC0). 600 fotos (50 por etiqueta; 420/84/96). La primera corrida descargó 1.777,5 MB y en disco quedan 15,7 MB de fotos reducidas más el `.tar` de 15 MB, porque los originales nunca tocan el disco (CE-VIS-08). Al retomar, solo leyó 10,8 MB. `.tar` de 15 MB en `datasets/imagenes/c703c3da….tar`. Fixtures: 36 fotos (3 por etiqueta).
+- [x] **T03** — Implementar `vision/imagenes.py` y `vision/clasificador.py`. *Hecho cuando:* pasan `test_imagenes.py` y `test_clasificador.py`. Hecho.
+- [x] **T04** — Agregar `clasificador` a `app/ml/entrenar.py` con las exportaciones y la verificación, y el cargador Keras en `CargadorModelos`. *Hecho cuando:* pasa `test_exportacion_clasificador.py`. Hecho. El conversor a TF.js parte de `modelo.export` (ver 2.4).
+- [x] **T05** — Implementar `POST /clasificaciones` y la descarga para dispositivos. *Hecho cuando:* pasan las historias 1 y 2 de `test_router_vision.py`. Hecho.
+- [x] **T06** — Implementar `vision/video.py`, `POST /clasificaciones/videos` y el manejador `CLASIFICACION_VIDEO`. *Hecho cuando:* pasan `test_video.py`, `test_manejador_video.py` y la Historia 3 de `test_router_vision.py`. Hecho.
+- [x] **T07** [P] — Ajustar el `Dockerfile`, el `healthcheck` de Docker Compose y el pipeline (grupo `[ml]`). *Hecho cuando:* el pipeline corre en verde y se cumple CE-VIS-02 con `test_rendimiento_vision.py`. Hecho en local: `libglib2.0-0`, `start_period: 300s`, pipeline con `.[dev,ml]` y `tensorflowjs --no-deps`. CE-VIS-02 se verifica en `test_router_vision.py`. El pipeline en GitHub queda pendiente de confirmar.
+- [x] **T08** — Entrenar la versión 1 del clasificador (CPU o GPU), publicarla y agregar su sección a `docs/modelos.md`. *Hecho cuando:* se cumplen CE-VIS-03 a CE-VIS-06 y una foto de `tests/fixtures` se clasifica a través del gateway con un token de `tecnico.prueba`; se anota el resultado en esta tarea. Hecho (2026-11-05): versión 1 entrenada en CPU, en unos 8 minutos, con la imagen de desarrollo. Dentro del contenedor del servicio se pasaba de los 3 GB al convertir a TF.js; ver `docs/modelos.md`. Resultados: F1 macro 0,893 y exactitud 0,896 en 96 fotos de prueba (CE-VIS-04); TFLite de 5,8 MB y TF.js de 3,1 MB (CE-VIS-03). Publicada como `admin.prueba` a través del gateway. Con `tecnico.prueba`, a través del gateway: `SOYA_ROYA/ASDID_soybean_rust_1139.jpg` dio `SOYA_ROYA` con 0,7863; la foto de maíz, `MAIZ_ROYA_COMUN` con 0,9994; la foto de 4,2 MB respondió en 0,58 s (CE-VIS-02). Un video de 60 s se procesó en 2,5 s (CE-VIS-05). El archivo TFLite responde `304` con su `ETag`. La sección del clasificador está en `docs/modelos.md` (CE-VIS-06). Suite: 262 tests, Ruff y mypy sin errores.
