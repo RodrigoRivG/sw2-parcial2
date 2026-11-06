@@ -2,7 +2,7 @@
 
 Un archivo por funcionalidad, cada uno con tres partes: **Spec** (qué hace), **Plan** (cómo se construye) y **Tareas** (en qué orden se implementa).
 
-- Constitución de referencia: `servicio-ia` v4.0.0 (2026-11-04). Si un archivo la contradice, prevalece la constitución.
+- Constitución de referencia: `servicio-ia` v5.0.0 (2026-11-05). Si un archivo la contradice, prevalece la constitución.
 - Documento de requisitos: `SW2_Parcial_2.pdf` (CU, RF, RN y RNF).
 - Criterio: lo más simple que cumpla el documento de requisitos y la constitución. Es un proyecto de examen, no un sistema en producción.
 
@@ -21,7 +21,7 @@ Los demás servicios, el API Gateway y el realm de Keycloak ya están implementa
 | 3 | 003 | [spec-prediccion.md](spec-prediccion.md) | Versionado de modelos, conjunto de referencia público, rendimiento, agrupación y anomalías | Baja | CU-14, CU-15 | RF-18, RF-19 |
 | 4 | 004 | [spec-vision.md](spec-vision.md) | Clasificación de imágenes (MobileNetV3) y video, exportación TFLite y TF.js | Media | CU-16 | RF-20, RF-21, RF-22 |
 | 5 | 005 | [spec-agentes.md](spec-agentes.md) | Herramientas MCP de solo lectura, agentes LangGraph con Ollama y verificación de cifras | Baja | CU-17 | RF-23 |
-| 6 | 006 | [spec-reportes.md](spec-reportes.md) | Reportes por texto o voz (Whisper), catálogo fijo, PDF, Excel y CSV, reportes programados para n8n | Baja | CU-18, CU-25 | RF-24, RF-25, RF-34 |
+| 6 | 006 | [spec-reportes.md](spec-reportes.md) | Reportes armados según la solicitud (plan con fuentes, columnas, filtros y orden), por texto o voz (Whisper), en PDF y Excel; reportes programados para n8n | Baja | CU-18, CU-25 | RF-24, RF-25, RF-34 |
 
 - La prioridad de los casos de uso sale de la sección 3.6.3 del documento de requisitos. Las specs de soporte van primero porque las demás las usan.
 
@@ -58,6 +58,7 @@ Prefijo `/api/ia/v1`. Se completa con cada spec.
 | `/mcp` | MCP (*streamable HTTP*) | spec-agentes.md |
 | `/reportes` | `POST` | spec-reportes.md |
 | `/reportes/voz` | `POST` | spec-reportes.md |
+| `/reportes/fuentes` | `GET` | spec-reportes.md |
 | `/reportes/{idTrabajo}/archivos/{formato}` | `GET` | spec-reportes.md |
 
 Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `/openapi.json` y `/docs` (spec-base.md).
@@ -85,7 +86,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-17 | **Paginación de listados:** `pagina` (desde 0) y `tamanio` (por defecto 20, máximo 100); respuesta `{ items, pagina, tamanio, total }`, igual que `servicio-gestion`. |
 | D-18 | **Datos de entrenamiento:** conjunto de referencia público (USDA ERS, maíz, soya y sorgo, convertido a BOB/ha y kg/ha) más las campañas finalizadas de `servicio-gestion` cuando existan (spec-prediccion.md 1.1). Toda versión guarda el conjunto exacto usado. |
 | D-19 | **Archivos recibidos:** se validan por su contenido, no por extensión ni `Content-Type`, y se leen por bloques cortando al pasar el límite. Imágenes y videos no se conservan; solo el SHA-256 de la imagen (spec-vision.md). |
-| D-20 | **Modelo de lenguaje:** Ollama con `OLLAMA_MODEL` (`qwen2.5:3b`), temperatura 0, detrás del `Protocol ModeloLenguaje`; sin LangChain. Toda cifra de un texto generado se verifica contra los datos consultados y la oración que no se puede verificar se quita (spec-agentes.md 2.6). Lo reutiliza `spec-reportes.md`. |
+| D-20 | **Modelo de lenguaje:** Ollama con `OLLAMA_MODEL` (`qwen2.5:3b` en spec-agentes.md; `qwen2.5:7b` desde spec-reportes.md, que cabe en la GPU de 6 GB de desarrollo), temperatura 0, detrás del `Protocol ModeloLenguaje`; sin LangChain. Toda cifra de un texto generado se verifica contra los datos consultados y la oración que no se puede verificar se quita (spec-agentes.md 2.6). Lo reutiliza `spec-reportes.md`. |
 
 ## Catálogo de códigos de error
 
@@ -134,8 +135,8 @@ Criterio: `400` para formato (lo valida el esquema Pydantic); `422` para reglas 
 | RNF-06 | Clasificación en el servidor en menos de 3 s | visión |
 | RF-23 | Agentes LangGraph con herramientas MCP y Ollama | agentes, reportes (agente de reportes) |
 | RF-24 | Reportes por voz (Faster-Whisper) o texto, asíncronos con polling | reportes, trabajos |
-| RF-25 | Exportación en PDF y Excel (más CSV) | reportes |
-| RF-34 | Reportes programados para n8n | reportes (solicitud estructurada, evento `ia.reporte.completado`) |
+| RF-25 | Exportación en PDF y Excel | reportes |
+| RF-34 | Reportes programados para n8n | reportes (plan del reporte enviado por n8n, evento `ia.reporte.completado`) |
 | RN-13 | Resultados orientativos | predicción, todos los de IA |
 | RN-14 | Los agentes y el servicio solo consultan; el modelo de lenguaje no genera cifras | base (cliente de solo lectura), agentes (herramientas de lectura, verificación de cifras) |
 | RN-16 | Permisos verificados en el servidor | base, todos |
@@ -157,8 +158,7 @@ Donde difieren, prevalece la constitución.
 | Documento de requisitos | Specs y constitución | Motivo |
 |---|---|---|
 | No menciona base de datos para el servicio de IA | Firestore (trabajos y resultados) y Cloud Storage (modelos y reportes) | Constitución §2 y §4; ambos en GCP, donde se despliega el servicio |
-| RF-25 pide PDF y Excel | PDF, Excel y CSV | Pedido del usuario (2026-11-04); CSV sin dependencias nuevas (constitución v4.0.0) |
-| Proceso 8: "el agente interpreta la solicitud" (libre) | Catálogo fijo de 5 tipos de reporte; el modelo elige tipo y filtros | Con un reporte libre el modelo decidiría columnas y cálculos, que RN-14 prohíbe |
+| Proceso 8: "el agente interpreta la solicitud" (libre) | El agente arma un plan con fuentes, columnas, filtros, orden y límite del catálogo de fuentes; el código lo aplica sin calcular | Así el reporte tiene la forma pedida y RN-14 se cumple: ninguna celda ni columna se calcula (constitución v5.0.0 §6) |
 | Archivos de audio `.wav` y `.mp3` (§1.7.3) | También WebM y OGG | La MediaRecorder API de Chrome y Edge graba en WebM con Opus |
 | RNF-17 asigna arquitectura a tres servicios | Módulos por capacidad | Constitución v3.0.0 §3: el servicio casi no tiene lógica de negocio |
 | El modelo supervisado se entrena "con datos históricos de campañas proporcionados por Spring Boot" (proceso 9) | Conjunto de referencia público (USDA ERS) más los históricos de `servicio-gestion` cuando existan | El sistema empieza sin campañas finalizadas; sin la referencia no habría modelo |
@@ -175,8 +175,9 @@ Donde difieren, prevalece la constitución.
 - Rol de realm `lectura_ia` para la cuenta de servicio de GraphQL.
 - Clasificador: ASDID (soya, CC0) y las clases de maíz de PlantVillage (CC0), 12 etiquetas más `INDETERMINADO` por umbral; sin sorgo (no hay dataset abierto). MobileNetV3 Large con exportaciones TFLite (float16) y TF.js (uint8) de la misma versión. Muestra de 50 fotos por clase, pedidas sueltas dentro de los zips de Zenodo con rangos de bytes (unos 2,4 GB en lugar de 43 GB); se revisa después de la primera versión. Los modelos para dispositivos se descargan a través de la API, no con URL firmadas.
 - Agentes: grafo con clasificación (`campanias`, `inventario`, `fuera_de_alcance`) en lugar de un solo agente con todas las herramientas (modelo de 3B); herramientas por MCP también dentro del proceso (transporte en memoria) y publicadas en `/api/ia/v1/mcp` para `gerencia`; oraciones con cifras sin respaldo se quitan; sin historial de conversación.
-- Reportes: catálogo fijo de 5 tipos (`CAMPANIAS_FINALIZADAS`, `COSTOS_CAMPANIA`, `INVENTARIO`, `LABORES`, `INCIDENCIAS`); formatos PDF, Excel y CSV; sin sumas ni promedios propios (RN-14); solicitud estructurada para n8n, que funciona sin Ollama (sin resumen); evento `ia.reporte.completado` para todos los reportes, con `origen`; archivos por 7 días.
+- Reportes: catálogo fijo de 5 tipos (`CAMPANIAS_FINALIZADAS`, `COSTOS_CAMPANIA`, `INVENTARIO`, `LABORES`, `INCIDENCIAS`); formatos PDF, Excel y CSV; sin sumas ni promedios propios (RN-14); solicitud estructurada para n8n, que funciona sin Ollama (sin resumen); evento `ia.reporte.completado` para todos los reportes, con `origen`; archivos por 7 días. *Reemplazado el 2026-11-05: fuentes de datos con plan del reporte, sin CSV (ver más abajo).*
 - Implementación de spec-agentes.md (2026-11-05): MCP SDK 2.x (`MCPServer`); las herramientas exigen el filtro obligatorio de labores e incidencias; 16 pasos del grafo para que se puedan alcanzar las 6 llamadas; el largo de las listas cuenta como cifra respaldada; `/api/ia/v1/mcp` registrado como ruta exacta, con `validar_token` compartido.
+- Reescritura de spec-reportes.md (2026-11-05): el catálogo deja de fijar 5 reportes y fija fuentes de datos con sus campos; la IA arma un plan (fuentes, columnas, filtros, orden, límite, resumen sí o no) que el código valida y aplica sin modificar valores; el plan es también la solicitud estructurada de n8n y React; labores e incidencias recorren estados o parcelas cuando no se filtra por campaña; solo PDF y Excel (constitución v5.0.0); `qwen2.5:7b`.
 - Constitución v4.0.0: descarga de reportes a través de la API en lugar de URL firmadas.
 - Implementación de spec-vision.md (2026-11-05): clasificador v1 con F1 macro 0,893 sobre 50 fotos por clase (1.777,5 MB descargados); TF.js se convierte desde un SavedModel con `tensorflowjs` instalado sin dependencias; el entrenamiento del clasificador corre fuera del contenedor del servicio (memoria); la publicación de una versión carga el modelo en segundo plano (el clasificador tarda unos 14 s y el gateway corta a los 10 s).
 - `DEPENDENCIA_NO_DISPONIBLE` en lugar de reutilizar `SERVICIO_NO_DISPONIBLE`, que es el código del gateway cuando este servicio está caído: así el cliente distingue "IA no responde" de "IA no pudo obtener los datos".
