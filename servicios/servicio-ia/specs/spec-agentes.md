@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-agentes.md` |
-| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
+| Estado | Implementada (2026-11-05) · pipeline en verde |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 3, 6, 7, 8 y 9) |
 | Trazabilidad | CU-17 · RF-23 · RN-14 · RNF-08 · §1.7.6 del documento de requisitos ("agentes de monitoreo de campañas, inventario, análisis y reportes") |
