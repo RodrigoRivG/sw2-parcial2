@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-reportes.md` |
-| Estado | Implementada (2026-11-06) · pipeline en GitHub pendiente de confirmar |
+| Estado | Implementada (2026-11-06) · pipeline en verde |
 | Fecha | 2026-11-05 (versión anterior aprobada el 2026-11-04, con catálogo fijo de reportes y CSV) |
 | Constitución | v5.0.0 (secciones 1, 2, 4, 6, 7, 9 y 10) |
 | Trazabilidad | CU-18, CU-25 · RF-24, RF-25, RF-34 · RN-13, RN-14 · procesos 8 y 11 del documento de requisitos · Módulo 8 (n8n) |
