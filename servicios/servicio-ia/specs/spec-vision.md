@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-vision.md` |
-| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
+| Estado | Implementada (2026-11-05) · pipeline en verde |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 4, 5, 7, 8 y 9) |
 | Trazabilidad | CU-16 · RF-20, RF-21, RF-22 · RN-13 · RNF-06 · proceso 6 y Módulo 5 del documento de requisitos |
@@ -467,5 +467,5 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [x] **T04** — Agregar `clasificador` a `app/ml/entrenar.py` con las exportaciones y la verificación, y el cargador Keras en `CargadorModelos`. *Hecho cuando:* pasa `test_exportacion_clasificador.py`. Hecho. El conversor a TF.js parte de `modelo.export` (ver 2.4).
 - [x] **T05** — Implementar `POST /clasificaciones` y la descarga para dispositivos. *Hecho cuando:* pasan las historias 1 y 2 de `test_router_vision.py`. Hecho.
 - [x] **T06** — Implementar `vision/video.py`, `POST /clasificaciones/videos` y el manejador `CLASIFICACION_VIDEO`. *Hecho cuando:* pasan `test_video.py`, `test_manejador_video.py` y la Historia 3 de `test_router_vision.py`. Hecho.
-- [x] **T07** [P] — Ajustar el `Dockerfile`, el `healthcheck` de Docker Compose y el pipeline (grupo `[ml]`). *Hecho cuando:* el pipeline corre en verde y se cumple CE-VIS-02 con `test_rendimiento_vision.py`. Hecho en local: `libglib2.0-0`, `start_period: 300s`, pipeline con `.[dev,ml]` y `tensorflowjs --no-deps`. CE-VIS-02 se verifica en `test_router_vision.py`. El pipeline en GitHub queda pendiente de confirmar.
+- [x] **T07** [P] — Ajustar el `Dockerfile`, el `healthcheck` de Docker Compose y el pipeline (grupo `[ml]`). *Hecho cuando:* el pipeline corre en verde y se cumple CE-VIS-02 con `test_rendimiento_vision.py`. Hecho en local: `libglib2.0-0`, `start_period: 300s`, pipeline con `.[dev,ml]` y `tensorflowjs --no-deps`. CE-VIS-02 se verifica en `test_router_vision.py`. Pipeline de GitHub en verde (2026-11-05).
 - [x] **T08** — Entrenar la versión 1 del clasificador (CPU o GPU), publicarla y agregar su sección a `docs/modelos.md`. *Hecho cuando:* se cumplen CE-VIS-03 a CE-VIS-06 y una foto de `tests/fixtures` se clasifica a través del gateway con un token de `tecnico.prueba`; se anota el resultado en esta tarea. Hecho (2026-11-05): versión 1 entrenada en CPU, en unos 8 minutos, con la imagen de desarrollo. Dentro del contenedor del servicio se pasaba de los 3 GB al convertir a TF.js; ver `docs/modelos.md`. Resultados: F1 macro 0,893 y exactitud 0,896 en 96 fotos de prueba (CE-VIS-04); TFLite de 5,8 MB y TF.js de 3,1 MB (CE-VIS-03). Publicada como `admin.prueba` a través del gateway. Con `tecnico.prueba`, a través del gateway: `SOYA_ROYA/ASDID_soybean_rust_1139.jpg` dio `SOYA_ROYA` con 0,7863; la foto de maíz, `MAIZ_ROYA_COMUN` con 0,9994; la foto de 4,2 MB respondió en 0,58 s (CE-VIS-02). Un video de 60 s se procesó en 2,5 s (CE-VIS-05). El archivo TFLite responde `304` con su `ETag`. La sección del clasificador está en `docs/modelos.md` (CE-VIS-06). Suite: 262 tests, Ruff y mypy sin errores.

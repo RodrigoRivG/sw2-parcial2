@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-prediccion.md` |
-| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
+| Estado | Implementada (2026-11-05) · pipeline en verde |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 4, 5, 7 y 9) |
 | Trazabilidad | CU-14, CU-15 · RF-18, RF-19 · RN-13 · proceso 9 y 10 del documento de requisitos · RNF-05 |
