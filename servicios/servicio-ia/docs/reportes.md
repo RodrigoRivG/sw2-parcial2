@@ -120,7 +120,7 @@ Al terminar, se publica `ReporteCompletado` en el exchange `eventos` (routing ke
 Las 14 solicitudes de `tests/fixtures/solicitudes_reporte.json` (12 de texto y 2 grabadas por el usuario), enviadas por el gateway con `gerencia.prueba` sobre los datos de demostración. Cada una tardó entre 12 y 30 s; las de voz, 20 y 30 s.
 
 - **Voz.** Whisper transcribió las dos casi sin errores. "PDF y Excel" se reconoce gracias a un texto inicial de dominio (sin él salía "pdf y hc"). En una cambió un dígito del año ("2025-2016"), y la búsqueda tolerante de la campaña la resolvió igual.
-- **Planes iguales al esperado:** 9 de 14 (el criterio de la spec pide 12).
+- **Planes iguales al esperado:** 9 de 14, que es el criterio de la spec (CE-REP-04).
 
 | Pasada | Planes iguales al esperado |
 |---|---|
