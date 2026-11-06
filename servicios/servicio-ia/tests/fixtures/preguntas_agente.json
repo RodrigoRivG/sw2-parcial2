@@ -1,0 +1,52 @@
+[
+  {
+    "pregunta": "¿Qué campañas de soya tienen el costo por hectárea más alto?",
+    "agente": "campanias",
+    "herramientas": ["listar_historicos"]
+  },
+  {
+    "pregunta": "¿Qué campañas están en curso?",
+    "agente": "campanias",
+    "herramientas": ["listar_campanias"]
+  },
+  {
+    "pregunta": "¿Cuál fue el rendimiento por hectárea de las campañas finalizadas?",
+    "agente": "campanias",
+    "herramientas": ["listar_historicos", "obtener_indicadores_campania"]
+  },
+  {
+    "pregunta": "¿Cuántas parcelas hay registradas y qué superficie tienen?",
+    "agente": "campanias",
+    "herramientas": ["listar_parcelas"]
+  },
+  {
+    "pregunta": "¿Qué cultivos se siembran en el sistema?",
+    "agente": "campanias",
+    "herramientas": ["listar_cultivos"]
+  },
+  {
+    "pregunta": "¿Qué insumos están bajo el mínimo?",
+    "agente": "inventario",
+    "herramientas": ["consultar_estado_inventario"]
+  },
+  {
+    "pregunta": "¿Cuánto stock de fertilizantes tenemos?",
+    "agente": "inventario",
+    "herramientas": ["consultar_estado_inventario"]
+  },
+  {
+    "pregunta": "¿Qué semillas hay en el inventario?",
+    "agente": "inventario",
+    "herramientas": ["consultar_estado_inventario"]
+  },
+  {
+    "pregunta": "¿Hay algún fitosanitario con stock bajo?",
+    "agente": "inventario",
+    "herramientas": ["consultar_estado_inventario"]
+  },
+  {
+    "pregunta": "¿Quién ganó el partido de fútbol de ayer?",
+    "agente": "fuera_de_alcance",
+    "herramientas": []
+  }
+]

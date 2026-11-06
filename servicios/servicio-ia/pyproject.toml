@@ -25,6 +25,9 @@ dependencies = [
     "opencv-python-headless~=5.0.0",
     "python-multipart~=0.0.33",
     "tensorflow-cpu~=2.21.0",
+    "mcp~=2.3.0",
+    "langgraph~=1.2.20",
+    "ollama~=0.6.3",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +53,10 @@ ml = [
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+# Mensajes de sistema de los agentes (spec-agentes.md 2.5)
+app = ["agentes/prompts/*.md"]
 
 [tool.ruff]
 line-length = 100

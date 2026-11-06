@@ -13,6 +13,8 @@ VARIABLES = {
     "GOOGLE_CLOUD_PROJECT": "sw2-local",
     "RABBITMQ_URL": "amqp://sw2:clave@rabbitmq:5672",
     "GCS_BUCKET": "ia-artefactos",
+    "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
+    "OLLAMA_MODEL": "qwen2.5:3b",
 }
 
 
@@ -32,7 +34,7 @@ def test_lee_las_variables_y_quita_la_barra_final_del_gateway(entorno: pytest.Mo
     assert configuracion.keycloak_client_secret.get_secret_value() == "secreto-de-prueba"
 
 
-@pytest.mark.parametrize("nombre", ["KEYCLOAK_AUDIENCE", "API_GATEWAY_URL"])
+@pytest.mark.parametrize("nombre", ["KEYCLOAK_AUDIENCE", "API_GATEWAY_URL", "OLLAMA_MODEL"])
 def test_falta_una_variable_obligatoria(entorno: pytest.MonkeyPatch, nombre: str) -> None:
     entorno.delenv(nombre)
 

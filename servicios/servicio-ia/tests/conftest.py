@@ -62,6 +62,8 @@ def configuracion_de_prueba(**cambios: Any) -> Configuracion:
         "rabbitmq_url": SecretStr("amqp://invalido.prueba:5672/"),
         "trabajos_consumidor_activo": False,
         "gcs_bucket": "pruebas-sin-bucket",
+        "ollama_base_url": "http://ollama.prueba:11434",
+        "ollama_model": "qwen2.5:3b",
     }
     valores.update(cambios)
     return Configuracion(**valores)

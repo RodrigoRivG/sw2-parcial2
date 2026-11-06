@@ -2,12 +2,16 @@
 
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from importlib.metadata import version
 
 import httpx
 from fastapi import FastAPI
 
+from app.agentes.router import router_agentes
+from app.agentes.servicio import TIEMPO_LIMITE as TIEMPO_LIMITE_CONSULTA
+from app.agentes.servicio import TIPO_TRABAJO as TIPO_TRABAJO_CONSULTA
+from app.agentes.servicio import ServicioAgentes
 from app.comun.correlacion import MiddlewareCorrelacion
 from app.comun.errores import error_interno_asgi, registrar_manejadores
 from app.comun.logs import configurar_logs
@@ -18,11 +22,15 @@ from app.integracion.almacen_archivos import AlmacenGcs
 from app.integracion.datos_agricolas import DatosAgricolasGateway
 from app.integracion.firestore import comprobar_firestore, crear_cliente_firestore
 from app.integracion.gateway import ClienteGateway
+from app.integracion.modelo_lenguaje import ModeloOllama
 from app.integracion.rabbitmq import ConexionRabbitMq
 from app.integracion.repositorio_resultados import RepositorioResultadosFirestore
 from app.integracion.repositorio_trabajos import RepositorioTrabajosFirestore
 from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
 from app.integracion.token_servicio import TokenCuentaServicio
+from app.mcp_server.http import RUTA as RUTA_MCP
+from app.mcp_server.http import EndpointMcp, preparar_http
+from app.mcp_server.servidor import crear_servidor_mcp
 from app.modelos.cargador import CargadorModelos
 from app.modelos.router import router_modelos
 from app.modelos.servicio import ServicioModelos
@@ -61,7 +69,10 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as cliente:
+        async with (
+            httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as cliente,
+            AsyncExitStack() as pila,
+        ):
             token = TokenCuentaServicio(
                 cliente,
                 config.keycloak_token_url,
@@ -125,6 +136,17 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
                 app.state.servicio_trabajos,
             )
 
+            # Herramientas MCP y agentes (spec-agentes.md)
+            servidor_mcp = crear_servidor_mcp(app.state.cliente_gateway)
+            app.state.mcp_http, gestor_mcp = preparar_http(servidor_mcp)
+            await pila.enter_async_context(gestor_mcp)
+            app.state.modelo_lenguaje = ModeloOllama(
+                config.ollama_base_url, config.ollama_model, config.agentes_num_ctx
+            )
+            app.state.servicio_agentes = ServicioAgentes(
+                app.state.modelo_lenguaje, servidor_mcp, app.state.servicio_trabajos
+            )
+
             _logger.info("Servicio iniciado")
             try:
                 yield
@@ -162,6 +184,16 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
             TIEMPO_LIMITE_VIDEO,
         )
     )
+    registro_tipos.registrar(
+        DefinicionTipo(
+            TIPO_TRABAJO_CONSULTA,
+            lambda trabajo: app.state.servicio_agentes.procesar(trabajo),
+            TIEMPO_LIMITE_CONSULTA,
+        )
+    )
+    app.state.registro_salud.registrar(
+        "ollama", lambda: app.state.modelo_lenguaje.comprobar(), critica=False
+    )
     for nombre in (*MODELOS, MODELO_CLASIFICADOR):
         app.state.registro_salud.registrar(
             f"modelo_{nombre}",
@@ -175,4 +207,11 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.include_router(router_modelos)
     app.include_router(router_prediccion)
     app.include_router(router_vision)
+    app.include_router(router_agentes)
+    app.router.add_route(
+        RUTA_MCP,
+        EndpointMcp(lambda: app.state),  # type: ignore[arg-type]
+        methods=["GET", "POST", "DELETE"],
+        include_in_schema=False,
+    )
     return app

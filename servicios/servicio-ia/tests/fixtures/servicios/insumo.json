@@ -1,0 +1,14 @@
+{
+  "id": "00000011-0000-4000-8000-000000000000",
+  "nombre": "Urea 46 %",
+  "categoria": "FERTILIZANTE",
+  "unidad": "KILOGRAMO",
+  "stock": "500.000",
+  "nivelMinimo": "50.000",
+  "costoUnitario": "4.8500",
+  "descripcion": "Bolsa de 50 kg",
+  "stockBajo": false,
+  "version": 0,
+  "fechaCreacion": "2026-11-02T14:00:00Z",
+  "fechaActualizacion": "2026-11-02T14:00:00Z"
+}

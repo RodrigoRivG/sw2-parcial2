@@ -1,0 +1,11 @@
+{
+  "idCampania": "00000007-0000-4000-8000-000000000000",
+  "estadoCampania": "FINALIZADA",
+  "definitivo": true,
+  "superficieHectareas": "25.5000",
+  "produccion": "76500.00",
+  "costoTotal": "38250.00",
+  "rendimientoPorHectarea": "3000.00",
+  "costoPorHectarea": "1500.00",
+  "motivosNoDisponible": []
+}

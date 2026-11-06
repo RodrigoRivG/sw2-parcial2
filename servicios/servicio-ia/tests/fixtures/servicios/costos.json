@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "00000006-0000-4000-8000-000000000000",
+      "categoria": "MANO_DE_OBRA",
+      "monto": "1500.00",
+      "fecha": "2026-12-10",
+      "descripcion": "Cosecha manual",
+      "origen": "MANUAL",
+      "idLabor": null,
+      "fechaRegistro": "2026-12-10T15:00:00Z"
+    }
+  ],
+  "pagina": 0,
+  "tamanio": 20,
+  "total": 3,
+  "costoTotal": "2320.50",
+  "subtotalesPorCategoria": {
+    "INSUMO": "820.50",
+    "MANO_DE_OBRA": "1500.00",
+    "MAQUINARIA": "0.00",
+    "OTRO": "0.00"
+  }
+}

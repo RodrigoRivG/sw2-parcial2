@@ -1,0 +1,26 @@
+{
+  "idCampania": "00000008-0000-4000-8000-000000000000",
+  "idParcela": "00000009-0000-4000-8000-000000000000",
+  "nombreParcela": "Lote Norte",
+  "superficieHectareas": "25.5000",
+  "idCultivo": "00000010-0000-4000-8000-000000000000",
+  "nombreCultivo": "Soya",
+  "variedad": "Munasqa",
+  "fechaInicio": "2026-11-15",
+  "fechaFin": "2027-03-30",
+  "fechaInicioEjecucion": "2026-11-16T12:00:00Z",
+  "fechaFinalizacion": "2027-03-28T18:00:00Z",
+  "duracionDias": 133,
+  "produccion": "76500.00",
+  "fechaCosecha": "2027-03-20",
+  "costoTotal": "38250.00",
+  "costosPorCategoria": {
+    "INSUMO": "20000.00",
+    "MANO_DE_OBRA": "12000.00",
+    "MAQUINARIA": "6250.00",
+    "OTRO": "0.00"
+  },
+  "rendimientoPorHectarea": "3000.00",
+  "costoPorHectarea": "1500.00",
+  "motivosNoDisponible": []
+}

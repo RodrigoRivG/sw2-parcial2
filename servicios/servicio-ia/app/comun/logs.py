@@ -50,3 +50,6 @@ def configurar_logs(nivel: str = "INFO") -> None:
     acceso_uvicorn = logging.getLogger("uvicorn.access")
     acceso_uvicorn.handlers = []
     acceso_uvicorn.propagate = False
+    # El SDK de MCP registra en INFO los argumentos de cada herramienta que falla; los logs no
+    # llevan argumentos ni datos (spec-agentes.md RQ-AGE-09). Los agentes registran lo suyo.
+    logging.getLogger("mcp").setLevel(logging.WARNING)

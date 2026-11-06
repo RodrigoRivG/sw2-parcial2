@@ -47,6 +47,11 @@ class Configuracion(BaseSettings):
     vision_tamanio_maximo_imagen_mb: float = Field(default=10.0, gt=0)
     vision_tamanio_maximo_video_mb: float = Field(default=50.0, gt=0)
 
+    # spec-agentes.md 2.2
+    ollama_base_url: TextoObligatorio
+    ollama_model: TextoObligatorio
+    agentes_num_ctx: int = Field(default=8192, ge=1024)
+
     @field_validator("keycloak_client_secret", "rabbitmq_url")
     @classmethod
     def _secreto_no_vacio(cls, valor: SecretStr) -> SecretStr:

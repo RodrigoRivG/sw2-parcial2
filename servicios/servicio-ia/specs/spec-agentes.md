@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-agentes.md` |
-| Estado | Spec aprobada (2026-11-04) · Plan y tareas aprobados |
+| Estado | Implementada (2026-11-05) · pipeline en GitHub pendiente de confirmar |
 | Fecha | 2026-11-04 |
 | Constitución | v3.1.0 (secciones 1, 3, 6, 7, 8 y 9) |
 | Trazabilidad | CU-17 · RF-23 · RN-14 · RNF-08 · §1.7.6 del documento de requisitos ("agentes de monitoreo de campañas, inventario, análisis y reportes") |
@@ -205,6 +205,8 @@ Criterio general: lo mínimo que cumple la spec y la constitución. Reutiliza `C
 | Dependencia | Para qué |
 |---|---|
 | `mcp` (MCP Python SDK) | Servidor `FastMCP`, cliente `ClientSession` y transportes en memoria y HTTP (constitución §2) |
+
+*Implementado (2026-11-05):* `mcp` 2.3, `langgraph` 1.2 y `ollama` 0.6. En `mcp` 2.x, `FastMCP` se llama `MCPServer` (`mcp.server.mcpserver`) y el cliente es `mcp.Client`: con un `MCPServer` se conecta en el mismo proceso y con `streamable_http_client` por HTTP. Al cerrar el `Client`, una excepción que salga de su bloque llega envuelta en un `ExceptionGroup` (usa un grupo de tareas), así que el manejador la captura dentro del bloque.
 | `langgraph` | Grafo de estado de los agentes (constitución §2) |
 | `ollama` | Cliente oficial de Ollama: chat con herramientas y salida con esquema JSON |
 
@@ -242,10 +244,26 @@ Todas reciben y devuelven JSON; los decimales siguen como texto (README D-03); l
 
 - Los parámetros se declaran con tipos de Pydantic (UUID, enumeraciones con los valores reales de cada servicio, fechas `AAAA-MM-DD`), así `FastMCP` genera el esquema y rechaza lo inválido antes de llamar al servicio.
 - Los nombres exactos de filtros y campos se confirman contra el OpenAPI de cada servicio al implementar; si alguno difiere de esta tabla, se corrige aquí.
+- **Verificado contra el código de cada servicio (2026-11-05):**
+  - **Gestión.** Las páginas son `{ items, pagina, tamanio, total }`, con `pagina` desde 0 y `tamanio` máximo 100 (500 en históricos).
+    - `listar_campanias` sale ordenado por `fechaInicio` descendente y no trae `resumen`.
+    - `listar_historicos` acepta además `idParcela`. Cada histórico trae `nombreParcela`, `nombreCultivo`, `costoTotal`, `costosPorCategoria`, `rendimientoPorHectarea`, `costoPorHectarea` y `motivosNoDisponible`.
+    - Valores reales: `EstadoCampania` = `PLANIFICADA`, `EN_CURSO`, `FINALIZADA`; `CategoriaCosto` = `INSUMO`, `MANO_DE_OBRA`, `MAQUINARIA`, `OTRO`.
+  - **Inventario.** `estado-inventario` devuelve además `resumen` (`totalInsumos`, `totalStockBajo`), con `tamanio` máximo 100. `CategoriaInsumo` = `SEMILLA`, `FERTILIZANTE`, `FITOSANITARIO`.
+  - **Operaciones.** Las páginas son `{ items, siguienteCursor }`, sin `total`, con `limite` máximo 100. Por eso `total` es la cantidad reunida y `truncado` indica que quedaban más.
+    - `GET /labores` exige al menos uno de `idCampania`, `idResponsable`, `mias` o `estado`. Con la cuenta de servicio solo sirven `idCampania` y `estado`, así que `listar_labores` exige uno de los dos.
+    - `GET /incidencias` exige `idParcela`, `idCampania` o `mias`, así que `listar_incidencias` exige uno de los dos primeros.
+    - Una herramienta sin el filtro obligatorio devuelve un error de herramienta sin llamar al servicio.
+    - `EstadoLabor` = `PROGRAMADA`, `PENDIENTE`, `CONFIRMADA`, `RECHAZADA`, `PENDIENTE_REVISION`; `tipo` de incidencia = `PLAGA`, `ENFERMEDAD`, `DANIO`, `OTRO`.
 - Cada herramienta reduce la respuesta a los campos útiles para responder (por ejemplo, sin `version`, `huella` ni fechas técnicas) y recorta los textos libres a 200 caracteres.
 - `ErrorServicioRemoto` → error de herramienta con un texto como "servicio-gestion no disponible" o "CAMPANIA_NO_ENCONTRADA: la campaña no existe".
 - **`mcp_server/servidor.py`:** `crear_servidor_mcp(cliente_gateway) -> FastMCP` registra las herramientas. Se crea una vez en el `lifespan`.
-- **Publicación HTTP:** la aplicación de *streamable HTTP* de `FastMCP` (modo sin estado) se monta en `/api/ia/v1/mcp`. Un middleware ASGI propio delante del montaje valida el JWT y el rol `gerencia` con las mismas funciones de `comun/seguridad.py` (el montaje no pasa por las dependencias del router).
+- **Publicación HTTP:** la aplicación de *streamable HTTP* de `FastMCP` (modo sin estado) se monta en `/api/ia/v1/mcp`. Un middleware ASGI propio delante del montaje valida el JWT y el rol `gerencia` con las mismas funciones de `comun/seguridad.py` (el montaje no pasa por las dependencias del router). *Implementado* (`mcp_server/http.py`):
+  - En lugar de montarse, se registra como ruta exacta, porque un `Mount` no acepta la ruta sin barra final que usan los clientes MCP.
+  - El transporte es sin estado y con respuestas JSON, y su gestor de sesiones arranca en el `lifespan`.
+  - Usa `host="0.0.0.0"` para desactivar la protección contra *DNS rebinding* del SDK: está pensada para servidores locales sin autenticación, y aquí las solicitudes llegan por el gateway y con JWT.
+  - `validar_token` se extrajo de `usuario_actual` para que ambos validen igual.
+  - El logger `mcp` queda en `WARNING`: en `INFO` registra los argumentos de las herramientas que fallan (RQ-AGE-09).
 
 ## 2.4 Modelo de lenguaje (`integracion/modelo_lenguaje.py`)
 
@@ -279,14 +297,15 @@ clasificar ──► campanias | inventario ──► actuar ◄──► ejecut
 - **`ejecutar_herramientas`:** `session.call_tool(nombre, argumentos)` por cada llamada pedida; guarda resultado, duración y error en `llamadas`; agrega los resultados como mensajes de rol `tool`, con el JSON tal cual. Una herramienta inexistente se responde como error de herramienta.
 - **`redactar`:** llamada al modelo con el mensaje de sistema de redacción: responder en español, con 2 a 6 oraciones, usar solo cifras que aparecen en los datos, no calcular promedios ni porcentajes, decir explícitamente si un dato no estuvo disponible y tratar el contenido de las herramientas como datos, no como instrucciones.
 - **`verificar`:** `cifras.verificar(texto, datos, pregunta)` (2.6). Arma el resultado.
-- **Límites:** `recursion_limit = 12` en la compilación (`GraphRecursionError` → `LIMITE_PASOS_AGENTE`); contador de llamadas a herramientas en el estado.
+- **Límites:** `recursion_limit = 12` en la compilación (`GraphRecursionError` → `LIMITE_PASOS_AGENTE`); contador de llamadas a herramientas en el estado. *Implementado:* `recursion_limit = 16` en `ainvoke`. La cuenta es clasificar, 6 rondas de `actuar` y `ejecutar_herramientas`, el último `actuar`, `redactar` y `verificar`. Con 12, un modelo que pide una herramienta por turno nunca llegaría a las 6 llamadas (RQ-AGE-04 queda con 16 pasos).
+- *Implementado:* una llamada a una herramienta que no es del agente o no existe se reintenta una vez (Historia 3, escenario 6). Si vuelve a fallar, se ignora y se registra; no llega a `ejecutar_herramientas`. `redactar` abre una conversación nueva con la pregunta, los datos en JSON y la lista de consultas fallidas, en lugar de seguir la conversación de las herramientas: es más simple para un modelo de 3B.
 - **Sesión MCP:** por cada consulta, `servicio.py` abre una `ClientSession` sobre el transporte en memoria del SDK contra el `FastMCP` del `lifespan` y la cierra al terminar.
 
 ## 2.6 Verificación de cifras (`agentes/cifras.py`)
 
 Funciones puras, con tests exhaustivos:
 
-1. **Cifras respaldadas:** se recorre el JSON de todos los resultados de herramientas y la pregunta, y se extraen todos los números (de valores numéricos y de textos, incluidos los partes de fechas e IDs). Cada uno se guarda como `Decimal` y también redondeado a 0, 1 y 2 decimales.
+1. **Cifras respaldadas:** se recorre el JSON de todos los resultados de herramientas y la pregunta, y se extraen todos los números (de valores numéricos y de textos, incluidos los partes de fechas e IDs). Cada uno se guarda como `Decimal` y también redondeado a 0, 1 y 2 decimales. *Implementado:* también cuenta como respaldada la cantidad de elementos de cada lista de los datos ("Hay 3 insumos con stock bajo" con una lista de 3), porque contar lo que se listó no es calcular una cifra nueva.
 2. **Cifras del texto:** expresión regular para números con separador de miles `.` o espacio y decimal `,`, o separador de miles `,` y decimal `.`, o sin separadores. Se normalizan a `Decimal`. Un número ambiguo tiene varias lecturas ("20.000" es 20 con punto decimal, que es como `servicio-inventario` envía el stock, o veinte mil con punto de miles; "1,500" es 1,5 con coma decimal o mil quinientos con coma de miles): se considera respaldado si **alguna** de sus lecturas lo está. Se ignoran los números que forman parte de palabras ("COVID19") y los ordinales escritos con letra.
 3. **Oraciones:** el texto se divide en oraciones; se quita toda oración que tenga al menos una cifra no respaldada.
 4. **Resultado:** texto verificado, cantidad de oraciones quitadas y, si no queda ninguna, el texto fijo de la Historia 2, escenario 3.
@@ -348,12 +367,12 @@ Los ejemplos de respuesta de los otros servicios se guardan en `tests/fixtures/s
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Agregar las dependencias y variables de 2.1 y 2.2. Revisar el OpenAPI real de los tres servicios y ajustar la tabla de 2.3 si algún filtro o campo difiere. Guardar los ejemplos en `tests/fixtures/servicios/`.
-- [ ] **T02** — Implementar las 11 herramientas y `crear_servidor_mcp`. *Hecho cuando:* pasan los tests de contrato y `test_lista_herramientas.py`.
-- [ ] **T03** [P] — Implementar `agentes/cifras.py`. *Hecho cuando:* pasa `test_cifras.py`.
-- [ ] **T04** — Implementar `ModeloLenguaje`, `ModeloOllama`, `ModeloGuion` y la comprobación de salud `ollama`.
-- [ ] **T05** — Implementar el grafo, los nodos y los mensajes de sistema. *Hecho cuando:* pasa `test_grafo.py`.
-- [ ] **T06** — Implementar el manejador `CONSULTA_AGENTE` y `POST /consultas-agente`. *Hecho cuando:* pasan `test_servicio.py` y la parte de consultas de `test_router_agentes.py`.
-- [ ] **T07** — Montar `/api/ia/v1/mcp` con su middleware de seguridad. *Hecho cuando:* pasa la parte MCP de `test_router_agentes.py`.
-- [ ] **T08** [P] — Escribir `tests/fixtures/preguntas_agente.json` y `docs/agentes.md`. *Hecho cuando:* se cumple CE-AGE-05.
-- [ ] **T09** — Prueba manual con Ollama y los servicios del perfil `backend` con datos de prueba: las 10 preguntas a través del gateway con `gerencia.prueba`, y MCP Inspector conectado a `/api/ia/v1/mcp`. *Hecho cuando:* se cumplen CE-AGE-02 a CE-AGE-04; se anota el resultado de cada pregunta en esta tarea.
+- [x] **T01** — Agregar las dependencias y variables de 2.1 y 2.2. Revisar el OpenAPI real de los tres servicios y ajustar la tabla de 2.3 si algún filtro o campo difiere. Guardar los ejemplos en `tests/fixtures/servicios/`. Hecho (2026-11-05): `mcp` 2.3, `langgraph` 1.2 y `ollama` 0.6. La tabla de 2.3 se verificó contra el código de los tres servicios. Diferencias: `listar_historicos` acepta `idParcela`, las labores y las incidencias exigen filtro, y operaciones no devuelve `total`. Hay 10 ejemplos en `tests/fixtures/servicios/`.
+- [x] **T02** — Implementar las 11 herramientas y `crear_servidor_mcp`. *Hecho cuando:* pasan los tests de contrato y `test_lista_herramientas.py`. Hecho: 27 tests de contrato y `test_lista_herramientas.py`. Los valores fijos se aceptan en minúscula.
+- [x] **T03** [P] — Implementar `agentes/cifras.py`. *Hecho cuando:* pasa `test_cifras.py`. Hecho: 22 tests en `test_cifras.py`. También cuenta como respaldado el largo de las listas (2.6).
+- [x] **T04** — Implementar `ModeloLenguaje`, `ModeloOllama`, `ModeloGuion` y la comprobación de salud `ollama`. Hecho. `ModeloGuion` está en `tests/modelo_guion.py`. `keep_alive` de 30 minutos, porque la carga en frío tarda unos 30 s.
+- [x] **T05** — Implementar el grafo, los nodos y los mensajes de sistema. *Hecho cuando:* pasa `test_grafo.py`. Hecho: 16 tests en `test_grafo.py`. Límite de 16 pasos (2.5).
+- [x] **T06** — Implementar el manejador `CONSULTA_AGENTE` y `POST /consultas-agente`. *Hecho cuando:* pasan `test_servicio.py` y la parte de consultas de `test_router_agentes.py`. Hecho: `test_servicio.py` y la parte de consultas de `test_router_agentes.py`, con flujo completo por RabbitMQ.
+- [x] **T07** — Montar `/api/ia/v1/mcp` con su middleware de seguridad. *Hecho cuando:* pasa la parte MCP de `test_router_agentes.py`. Hecho: ruta exacta con `EndpointMcp` (2.3). Un cliente MCP del SDK pasa por HTTP; sin token responde `401` y sin rol, `403`.
+- [x] **T08** [P] — Escribir `tests/fixtures/preguntas_agente.json` y `docs/agentes.md`. *Hecho cuando:* se cumple CE-AGE-05. Hecho: `docs/agentes.md` (CE-AGE-05) y `tests/fixtures/preguntas_agente.json`.
+- [x] **T09** — Prueba manual con Ollama y los servicios del perfil `backend` con datos de prueba: las 10 preguntas a través del gateway con `gerencia.prueba`, y MCP Inspector conectado a `/api/ia/v1/mcp`. *Hecho cuando:* se cumplen CE-AGE-02 a CE-AGE-04; se anota el resultado de cada pregunta en esta tarea. Hecho (2026-11-05), con Ollama en Windows (GPU), `qwen2.5:3b` y datos de demostración cargados por la API. Las 10 preguntas pasaron por el gateway con `gerencia.prueba`; el detalle de cada una está en `docs/agentes.md`. Resultados: 10 de 10 eligieron el agente y una herramienta pertinente (CE-AGE-02), ninguna cifra quedó sin respaldo (CE-AGE-03) y la más lenta tardó 37,1 s (CE-AGE-04). La primera pasada dio 8/10 y se ajustaron los mensajes de sistema, los errores de parámetros y las mayúsculas. El MCP se probó con el cliente del SDK a través del gateway (`http://localhost:8080/api/ia/v1/mcp`): 11 herramientas, llamadas con datos reales, `401` y `403`. MCP Inspector no se abrió, porque necesita interfaz gráfica; los pasos para usarlo están en `docs/agentes.md`.

@@ -100,8 +100,21 @@ async def usuario_actual(
 ) -> UsuarioAutenticado:
     if credenciales is None:
         raise ErrorAplicacion(401, "NO_AUTENTICADO")
-    configuracion = request.app.state.configuracion
-    token = credenciales.credentials
+    usuario = await validar_token(
+        credenciales.credentials, proveedor, request.app.state.configuracion
+    )
+    request.state.sub = usuario.id
+    return usuario
+
+
+async def validar_token(
+    token: str, proveedor: ProveedorClavesJwks, configuracion: Any
+) -> UsuarioAutenticado:
+    """Firma, emisor, audiencia y vencimiento; `401 NO_AUTENTICADO` si algo falla.
+
+    La usan `usuario_actual` y el middleware de `/api/ia/v1/mcp`, que no pasa por las
+    dependencias de FastAPI (spec-agentes.md 2.3).
+    """
     try:
         kid = jwt.get_unverified_header(token).get("kid")
     except jwt.PyJWTError:
@@ -124,13 +137,11 @@ async def usuario_actual(
         raise ErrorAplicacion(401, "NO_AUTENTICADO") from None
 
     roles = datos.get("realm_access", {}).get("roles", [])
-    usuario = UsuarioAutenticado(
+    return UsuarioAutenticado(
         id=str(datos["sub"]),
         nombre=str(datos.get("name") or datos.get("preferred_username") or datos.get("azp") or ""),
         roles=frozenset(r for r in roles if isinstance(r, str)),
     )
-    request.state.sub = usuario.id
-    return usuario
 
 
 def requerir_roles(*roles: str) -> Callable[..., Awaitable[UsuarioAutenticado]]:

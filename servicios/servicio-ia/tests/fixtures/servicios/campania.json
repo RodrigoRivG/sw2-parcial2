@@ -1,0 +1,20 @@
+{
+  "id": "00000003-0000-4000-8000-000000000000",
+  "nombre": "Soya verano 2026-2027",
+  "idParcela": "00000004-0000-4000-8000-000000000000",
+  "idCultivo": "00000005-0000-4000-8000-000000000000",
+  "fechaInicio": "2026-11-15",
+  "fechaFin": "2027-03-30",
+  "superficieHectareas": "25.5000",
+  "estado": "EN_CURSO",
+  "fechaInicioEjecucion": "2026-11-16T12:00:00Z",
+  "fechaFinalizacion": null,
+  "resumen": {
+    "costoTotal": "0.00",
+    "cantidadCostos": 0,
+    "produccion": null
+  },
+  "version": 1,
+  "fechaCreacion": "2026-11-02T14:00:00Z",
+  "fechaActualizacion": "2026-11-16T12:00:00Z"
+}

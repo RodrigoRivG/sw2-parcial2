@@ -1,0 +1,27 @@
+{
+  "id": "00000017-0000-4000-8000-000000000000",
+  "tipo": "PLAGA",
+  "descripcion": "Manchas anaranjadas en hojas del borde norte",
+  "fechaObservacion": "2026-11-02T10:00:00Z",
+  "idParcela": "00000018-0000-4000-8000-000000000000",
+  "idCampania": "00000019-0000-4000-8000-000000000000",
+  "foto": {
+    "url": "https://almacen.prueba/incidencias/foto.jpg?firma=x",
+    "tipoContenido": "image/jpeg",
+    "tamanio": 3145728,
+    "expiraEn": "2026-11-02T14:10:00Z"
+  },
+  "clasificacion": {
+    "categoria": "roya",
+    "confianza": "0.8731",
+    "versionModelo": "clasificador-1.2.0",
+    "origen": "DISPOSITIVO",
+    "orientativa": true
+  },
+  "registradaPor": {
+    "id": "sub-ana",
+    "nombre": "Ana Quispe"
+  },
+  "fechaCreacion": "2026-11-02T10:05:00Z",
+  "fechaRecepcion": "2026-11-02T14:00:00Z"
+}
