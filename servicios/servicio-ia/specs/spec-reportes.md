@@ -265,12 +265,12 @@ Advertencias del resultado (el trabajo termina `COMPLETADO`): `CALCULO_NO_PERMIT
 - **CE-REP-01:** los escenarios de las historias 1 a 5 pasan como tests automáticos, sin Ollama ni Whisper reales.
 - **CE-REP-02:** un plan de inventario en los dos formatos se genera en menos de 15 s; un reporte por voz de 15 s de audio, en menos de 90 s en el equipo de desarrollo (Whisper `small` en CPU).
 - **CE-REP-03:** el PDF se abre en un lector estándar con tildes y ñ correctas; el XLSX se abre en Excel y LibreOffice con números en las celdas numéricas.
-- **CE-REP-04:** con Ollama (`qwen2.5:7b`) y Whisper reales, las 12 solicitudes de `tests/fixtures/solicitudes_reporte.json` producen el plan esperado en 10 casos o más. Hay al menos una por fuente y varias con columnas, filtros, orden y límite; 2 son audios grabados por el usuario. Se considera esperado el plan con las mismas fuentes, columnas, filtros, orden y límite (prueba manual, ver T11).
+- **CE-REP-04:** con Ollama (`qwen2.5:7b-instruct-q3_K_M`) y Whisper reales, las 12 solicitudes de `tests/fixtures/solicitudes_reporte.json` producen el plan esperado en 10 casos o más. Hay al menos una por fuente y varias con columnas, filtros, orden y límite; 2 son audios grabados por el usuario. Se considera esperado el plan con las mismas fuentes, columnas, filtros, orden y límite (prueba manual, ver T11).
 - **CE-REP-05:** cobertura ≥ 80 % (README D-13), Ruff y mypy sin errores, pipeline en verde.
 
 ## 1.7 Supuestos
 
-- El modelo de lenguaje es `qwen2.5:7b` (`OLLAMA_MODEL`): cabe en la GPU de 6 GB del equipo de desarrollo y arma planes JSON con más precisión que el de 3B. El usuario lo descarga antes de la prueba manual. Las herramientas y el código no dependen del modelo.
+- El modelo de lenguaje es `qwen2.5:7b-instruct-q3_K_M` (`OLLAMA_MODEL`). La versión Q4 de `qwen2.5:7b` (5,4 GB con un contexto de 8192) no entraba entera en la GPU de 6 GB del equipo de desarrollo, de la que Ollama obtiene unos 4,1 GB: la carga en frío tardaba 91 s y una consulta, hasta 70 s. La Q3 ocupa 4,2 GB, entra entera, carga en 33 s y arma planes JSON con más precisión que el de 3B (medido con las preguntas de `spec-agentes.md` T09). El usuario lo descarga antes de la prueba manual. Las herramientas y el código no dependen del modelo.
 - React graba con la MediaRecorder API del navegador, que en Chrome y Edge produce WebM con Opus. El documento de requisitos menciona `.wav` y `.mp3`; se aceptan los cuatro. Los audios de prueba los graba el usuario.
 - Faster-Whisper descarga su modelo (`WHISPER_MODEL`, `small`, unos 480 MB) la primera vez y lo guarda en `/cache` (volumen `ia-cache` de Docker Compose). En Cloud Run, el modelo se incluye en la imagen al construirla.
 - El flujo de n8n (programación, destinatarios y envío del correo) lo define la spec de n8n. Esta spec fija lo que n8n necesita de este servicio: el plan, el evento y la descarga.
@@ -321,7 +321,7 @@ Criterio general: lo mínimo que cumple la spec y la constitución. Reutiliza `t
 | `WHISPER_DEVICE` | No (`cpu`) | `cpu` o `cuda` | Ya en Docker Compose |
 | `WHISPER_COMPUTE_TYPE` | No (`int8`) | Cuantización | — |
 | `REPORTES_RETENCION_DIAS` | No (7) | Días hasta borrar los archivos | — |
-| `OLLAMA_MODEL` | Sí (de `spec-agentes.md`) | Pasa a `qwen2.5:7b` | `.env`, cuando el usuario lo descargue |
+| `OLLAMA_MODEL` | Sí (de `spec-agentes.md`) | Pasa a `qwen2.5:7b-instruct-q3_K_M` | Ya en `.env` (2026-11-06) |
 
 ## 2.3 Cambios en las herramientas MCP (`spec-agentes.md`)
 
@@ -507,7 +507,7 @@ Prefijo `/api/ia/v1`.
   ],
   "fechaGeneracion": "2026-11-05T12:00:09Z",
   "fechaExpiracionArchivos": "2026-11-12T12:00:09Z",
-  "modeloLenguaje": "qwen2.5:7b",
+  "modeloLenguaje": "qwen2.5:7b-instruct-q3_K_M",
   "aviso": "El plan y el resumen los produjo un modelo de lenguaje; las cifras del resumen se verificaron contra las tablas. Las tablas son datos de los servicios sin cambios."
 }
 ```
@@ -557,4 +557,4 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [ ] **T08** — Implementar `reportes/router.py`. *Hecho cuando:* pasa `test_router_reportes.py` y se cumple CE-REP-02.
 - [ ] **T09** [P] — Cambiar el realm (2.12) en su propio commit y ajustar el `Dockerfile` (2.11). *Hecho cuando:* un token de `n8n` trae `reportes_ia`, envía un plan a través del gateway y descarga el PDF; la imagen de producción transcribe sin descargar el modelo.
 - [ ] **T10** [P] — Escribir `tests/fixtures/solicitudes_reporte.json` (12 solicitudes con su plan esperado) y `docs/reportes.md` (fuentes, plan, ejemplos, límites y cómo usarlo desde React y n8n).
-- [ ] **T11** — Prueba manual con `qwen2.5:7b`, Whisper `small` y el perfil `backend` con datos de demostración: las 12 solicitudes por el gateway con `gerencia.prueba`, 2 de ellas con los audios grabados. *Hecho cuando:* se cumple CE-REP-04; se anota el resultado de cada solicitud en esta tarea.
+- [ ] **T11** — Prueba manual con `qwen2.5:7b-instruct-q3_K_M`, Whisper `small` y el perfil `backend` con datos de demostración: las 12 solicitudes por el gateway con `gerencia.prueba`, 2 de ellas con los audios grabados. *Hecho cuando:* se cumple CE-REP-04; se anota el resultado de cada solicitud en esta tarea.

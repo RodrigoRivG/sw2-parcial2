@@ -12,7 +12,7 @@ Las respuestas son **orientativas** (RN-14). Todas las cifras del texto se verif
 |---|---|---|---|
 | Herramientas MCP | `app/mcp_server/` | Consultan los microservicios por el gateway, solo con `GET` y la cuenta de servicio `servicio-ia`. Devuelven JSON acotado | No redactan ni calculan cifras nuevas |
 | Agentes | `app/agentes/` (LangGraph) | Clasifican la pregunta, eligen qué herramientas llamar y con qué parámetros, y verifican las cifras | No escriben en ningún servicio: no existen herramientas de escritura |
-| Modelo de lenguaje | Ollama (`qwen2.5:3b`), detrás de `integracion/modelo_lenguaje.py` | Interpreta la pregunta y redacta con los datos recibidos | No es fuente de cifras |
+| Modelo de lenguaje | Ollama (`qwen2.5:7b-instruct-q3_K_M`), detrás de `integracion/modelo_lenguaje.py` | Interpreta la pregunta y redacta con los datos recibidos | No es fuente de cifras |
 
 ## Agentes
 
@@ -111,7 +111,7 @@ No hay historial: cada consulta es independiente (AC-04).
   "herramientas": [{ "nombre": "consultar_estado_inventario", "argumentos": { "soloStockBajo": true }, "duracionMs": 312, "error": null }],
   "datos": [{ "herramienta": "consultar_estado_inventario", "resultado": { "items": [], "total": 2, "truncado": false } }],
   "cifrasOmitidas": 0,
-  "modeloLenguaje": "qwen2.5:3b",
+  "modeloLenguaje": "qwen2.5:7b-instruct-q3_K_M",
   "aviso": "Respuesta redactada por un modelo de lenguaje a partir de los datos consultados. Las cifras se verificaron contra esos datos."
 }
 ```
@@ -119,6 +119,22 @@ No hay historial: cada consulta es independiente (AC-04).
 Si Ollama está caído según la última comprobación (se guarda 30 s), la solicitud responde `503 MODELO_LENGUAJE_NO_DISPONIBLE` sin crear el trabajo. Predicción, análisis y clasificación siguen funcionando, y `/salud/readiness` informa `ollama: DOWN` en `informativos` (RNF-08).
 
 Los logs registran el agente, las herramientas, sus tiempos y si fallaron. No registran la pregunta, los argumentos ni los datos. El SDK de MCP queda en nivel `WARNING` por la misma razón.
+
+## Resultado con `qwen2.5:7b-instruct-q3_K_M` (2026-11-06)
+
+Mismas 10 preguntas, mismos datos de demostración y mismo flujo por el gateway que la prueba con el modelo de 3B (abajo).
+
+- **CE-AGE-02:** 10 de 10 eligieron el agente esperado y llamaron una herramienta pertinente.
+- **CE-AGE-03:** ninguna respuesta tiene cifras sin respaldo.
+- **CE-AGE-04:** la más lenta tardó 50,6 s; la mayoría, entre 10 y 25 s.
+
+Mejoras frente al de 3B:
+
+- **"¿Qué campañas de soya tienen el costo por hectárea más alto?"** Ahora responde bien: Lote Sur, 2800.00 por hectárea.
+- **Rendimiento de las campañas finalizadas.** Ya no omite Lote Sur.
+- **Stock de fertilizantes.** Responde con el stock de cada uno; antes la verificación vaciaba la respuesta.
+
+Queda una debilidad: a veces pasa argumentos que la herramienta no tiene (`nombreCultivo`, `ascendente`). Se ignoran sin error, porque el resultado no se filtra por ellos. La respuesta igual fue correcta, ya que el modelo leyó `nombreCultivo` en los datos.
 
 ## Resultado con `qwen2.5:3b` (2026-11-05)
 
@@ -192,14 +208,16 @@ async with (
 | Variable | Valor local | Uso |
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` (Ollama nativo en Windows) | URL de Ollama |
-| `OLLAMA_MODEL` | `qwen2.5:3b` (admite llamadas a herramientas) | Modelo |
+| `OLLAMA_MODEL` | `qwen2.5:7b-instruct-q3_K_M` (admite llamadas a herramientas; 4,2 GB, entra entero en una GPU de 6 GB) | Modelo |
 | `AGENTES_NUM_CTX` | 8192 | Contexto del modelo |
 
-Temperatura 0 en todas las llamadas. Para descargar el modelo (unos 1,9 GB):
+Temperatura 0 en todas las llamadas. Para descargar el modelo (unos 3,8 GB):
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen2.5:7b-instruct-q3_K_M
 ```
+
+**Por qué esta variante.** En la GPU de desarrollo (RTX 4050, 6 GB), Ollama obtiene unos 4,1 GB libres; el resto lo usa Windows. La versión Q4 de `qwen2.5:7b` ocupa 5,4 GB con un contexto de 8192, así que un cuarto corría en la CPU: la carga en frío tardaba 91 s (por encima del límite de 60 s por llamada) y una consulta, hasta 70 s. La Q3 ocupa 4,2 GB y entra entera: carga en 33 s.
 
 Si `ollama` no está en el `PATH`, se puede pedir desde el contenedor del servicio:
 

@@ -86,7 +86,7 @@ Fuera del prefijo, sin token: `/salud`, `/salud/liveness`, `/salud/readiness`, `
 | D-17 | **Paginación de listados:** `pagina` (desde 0) y `tamanio` (por defecto 20, máximo 100); respuesta `{ items, pagina, tamanio, total }`, igual que `servicio-gestion`. |
 | D-18 | **Datos de entrenamiento:** conjunto de referencia público (USDA ERS, maíz, soya y sorgo, convertido a BOB/ha y kg/ha) más las campañas finalizadas de `servicio-gestion` cuando existan (spec-prediccion.md 1.1). Toda versión guarda el conjunto exacto usado. |
 | D-19 | **Archivos recibidos:** se validan por su contenido, no por extensión ni `Content-Type`, y se leen por bloques cortando al pasar el límite. Imágenes y videos no se conservan; solo el SHA-256 de la imagen (spec-vision.md). |
-| D-20 | **Modelo de lenguaje:** Ollama con `OLLAMA_MODEL` (`qwen2.5:3b` en spec-agentes.md; `qwen2.5:7b` desde spec-reportes.md, que cabe en la GPU de 6 GB de desarrollo), temperatura 0, detrás del `Protocol ModeloLenguaje`; sin LangChain. Toda cifra de un texto generado se verifica contra los datos consultados y la oración que no se puede verificar se quita (spec-agentes.md 2.6). Lo reutiliza `spec-reportes.md`. |
+| D-20 | **Modelo de lenguaje:** Ollama con `OLLAMA_MODEL` (`qwen2.5:3b` en spec-agentes.md; desde el 2026-11-06, `qwen2.5:7b-instruct-q3_K_M`: la versión Q4 del 7B no entraba entera en la GPU de 6 GB de desarrollo, de la que Ollama solo obtiene unos 4,1 GB), temperatura 0, detrás del `Protocol ModeloLenguaje`; sin LangChain. Toda cifra de un texto generado se verifica contra los datos consultados y la oración que no se puede verificar se quita (spec-agentes.md 2.6). Lo reutiliza `spec-reportes.md`. |
 
 ## Catálogo de códigos de error
 
