@@ -31,7 +31,7 @@ SERVICIOS = {"servicio-gestion", "servicio-inventario", "servicio-operaciones", 
 ROLES_DEL_SISTEMA = {
     "administrador", "gerencia", "tecnico_campo",
     "lectura_gestion", "estado_campania", "lectura_inventario", "lectura_operaciones",
-    "lectura_ia",
+    "lectura_ia", "reportes_ia",
 }
 
 # RQ-KC-06
@@ -50,7 +50,7 @@ CUENTAS_DE_SERVICIO = {
     "graphql-server": ("GRAPHQL_CLIENT_SECRET",
                        {"lectura_gestion", "estado_campania", "lectura_inventario", "lectura_operaciones",
                         "lectura_ia"}, SERVICIOS),
-    "n8n": ("N8N_CLIENT_SECRET", {"lectura_inventario", "lectura_operaciones"},
+    "n8n": ("N8N_CLIENT_SECRET", {"lectura_inventario", "lectura_operaciones", "reportes_ia"},
             {"servicio-inventario", "servicio-operaciones", "servicio-ia"}),
 }
 

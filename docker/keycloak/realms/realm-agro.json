@@ -17,7 +17,8 @@
       { "name": "estado_campania", "description": "Cuenta de servicio: estado de campaña (servicio-operaciones, GraphQL)" },
       { "name": "lectura_inventario", "description": "Cuenta de servicio: lectura de inventario (servicio-ia, GraphQL, n8n)" },
       { "name": "lectura_operaciones", "description": "Cuenta de servicio: lectura de operaciones (servicio-ia, GraphQL, n8n)" },
-      { "name": "lectura_ia", "description": "Cuenta de servicio: lectura de predicciones y análisis de servicio-ia (GraphQL)" }
+      { "name": "lectura_ia", "description": "Cuenta de servicio: lectura de predicciones y análisis de servicio-ia (GraphQL)" },
+      { "name": "reportes_ia", "description": "Cuenta de servicio: pedir y descargar reportes programados de servicio-ia (n8n)" }
     ]
   },
   "clients": [
@@ -192,7 +193,7 @@
       "username": "service-account-n8n",
       "enabled": true,
       "serviceAccountClientId": "n8n",
-      "realmRoles": ["lectura_inventario", "lectura_operaciones"]
+      "realmRoles": ["lectura_inventario", "lectura_operaciones", "reportes_ia"]
     },
     {
       "username": "admin.prueba",
