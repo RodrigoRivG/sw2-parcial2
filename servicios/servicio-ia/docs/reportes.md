@@ -115,9 +115,12 @@ Al terminar, se publica `ReporteCompletado` en el exchange `eventos` (routing ke
 | Fechas | `DD/MM/AAAA`; con hora, en hora de Bolivia | Fecha de Excel |
 | Otros | DejaVu Sans (tildes y ñ); apaisado con más de 6 columnas | Encabezado congelado; un texto con forma de fórmula queda como texto |
 
-## Resultado con `qwen2.5:7b-instruct-q3_K_M` (2026-11-06)
+## Resultado con `qwen2.5:7b-instruct-q3_K_M` y Whisper `small` (2026-11-06)
 
-12 solicitudes de texto de `tests/fixtures/solicitudes_reporte.json`, enviadas por el gateway con `gerencia.prueba` sobre los datos de demostración. Cada una tardó entre 10 y 24 s.
+Las 14 solicitudes de `tests/fixtures/solicitudes_reporte.json` (12 de texto y 2 grabadas por el usuario), enviadas por el gateway con `gerencia.prueba` sobre los datos de demostración. Cada una tardó entre 12 y 30 s; las de voz, 20 y 30 s.
+
+- **Voz.** Whisper transcribió las dos casi sin errores. "PDF y Excel" se reconoce gracias a un texto inicial de dominio (sin él salía "pdf y hc"). En una cambió un dígito del año ("2025-2016"), y la búsqueda tolerante de la campaña la resolvió igual.
+- **Planes iguales al esperado:** 9 de 14 (el criterio de la spec pide 12).
 
 | Pasada | Planes iguales al esperado |
 |---|---|

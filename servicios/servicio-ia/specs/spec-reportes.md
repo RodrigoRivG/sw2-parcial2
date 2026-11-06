@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-ia` |
 | Archivo | `specs/spec-reportes.md` |
-| Estado | En implementación (2026-11-06): falta T05 y la parte de voz de T11 (audios del usuario) |
+| Estado | Implementada (2026-11-06) · CE-REP-04 sin cumplir (9 de 14), pendiente de decisión del usuario |
 | Fecha | 2026-11-05 (versión anterior aprobada el 2026-11-04, con catálogo fijo de reportes y CSV) |
 | Constitución | v5.0.0 (secciones 1, 2, 4, 6, 7, 9 y 10) |
 | Trazabilidad | CU-18, CU-25 · RF-24, RF-25, RF-34 · RN-13, RN-14 · procesos 8 y 11 del documento de requisitos · Módulo 8 (n8n) |
@@ -557,6 +557,7 @@ Prefijo `/api/ia/v1`.
 - **Protección contra fórmulas en Excel:** los textos se guardan con tipo texto explícito en vez de anteponer `'`, porque openpyxl escribiría el apóstrofo literal.
 - **PDF:** los estilos se insertan sin el autoescape de Jinja (rompía las comillas de la fuente dentro de `<style>`), y el título se escapa como texto CSS para que no pueda cerrar el `<style>`. Los filtros se describen como se muestran las celdas ("Stock bajo es «Sí»").
 - **Empaquetado:** además de lo previsto, `libharfbuzz-subset0` (WeasyPrint avisa que lo exigirá). El pipeline instala Pango, HarfBuzz y DejaVu en el runner para los tests del PDF.
+- **Campaña por nombre tolerante a la voz.** Si ninguna campaña coincide exactamente, se acepta la más parecida solo si la similitud es al menos 0,9 y le saca 0,05 a la segunda. Whisper transcribió "2025-2016" en lugar de "2025-2026". Antes de comparar se quitan tildes, mayúsculas y puntuación.
 - **Tests:** `test_agente.py` y `test_manejador.py` quedaron en `tests/unit/reportes/`. La cola de prueba enlazada a `eventos` es durable: RabbitMQ 4 no admite colas transitorias compartidas.
 
 ---
@@ -569,10 +570,10 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [x] **T02** — Aplicar los cambios de 2.3 en las herramientas MCP. *Hecho cuando:* pasa `test_maximo.py` y siguen pasando los tests de `spec-agentes.md`. Hecho: `test_maximo.py`; siguen pasando los de agentes.
 - [x] **T03** — Implementar la obtención de cada fuente (2.5). *Hecho cuando:* pasa `test_fuentes.py`. Hecho: 10 tests en `test_fuentes.py`.
 - [x] **T04** [P] — Implementar `reportes/generadores.py` y las plantillas. *Hecho cuando:* pasa `test_generadores.py` y se cumple CE-REP-03 abriendo los archivos generados a mano. Hecho: `test_generadores.py`. CE-REP-03 verificado: el usuario abrió el PDF y el Excel de muestra.
-- [ ] **T05** — Implementar `Transcriptor`, `TranscriptorWhisper` y su comprobación de salud. *Hecho cuando:* pasa `test_transcriptor_whisper.py` con el audio grabado por el usuario.
+- [x] **T05** — Implementar `Transcriptor`, `TranscriptorWhisper` y su comprobación de salud. *Hecho cuando:* pasa `test_transcriptor_whisper.py` con el audio grabado por el usuario. Hecho (2026-11-06) con `costos.ogg` y `campanias.ogg`, grabados por el usuario (OGG Opus, de 7,1 y 4,9 s). Se encontró que `faster-whisper` 1.2.1 llama a `av.open` con un argumento que PyAV 19 ya no admite, así que el audio se decodifica en `transcriptor.decodificar` (16 kHz, mono). Se agregó un texto inicial de dominio: sin él, "PDF y Excel" salía "pdf y hc".
 - [x] **T06** — Implementar el subgrafo del agente de reportes y su mensaje de sistema. *Hecho cuando:* pasa `test_reportes.py`. Hecho, con la interpretación en dos pasos (2.14): `test_agente.py`.
 - [x] **T07** — Implementar el exchange `eventos` y `publicar_evento`, el manejador `REPORTE` y `reportes/servicio.py`. *Hecho cuando:* pasa `test_manejador.py`. Hecho: `test_manejador.py` (incluye WebM sin duración generado con PyAV).
 - [x] **T08** — Implementar `reportes/router.py`. *Hecho cuando:* pasa `test_router_reportes.py` y se cumple CE-REP-02. Hecho: `test_router_reportes.py`. CE-REP-02, parte del plan: el plan de inventario en PDF y Excel tarda menos de 15 s de punta a punta. La parte de voz se mide en T11.
 - [x] **T09** [P] — Cambiar el realm (2.12) en su propio commit y ajustar el `Dockerfile` (2.11). *Hecho cuando:* un token de `n8n` trae `reportes_ia`, envía un plan a través del gateway y descarga el PDF; la imagen de producción transcribe sin descargar el modelo. Hecho: `reportes_ia` en el realm, en `verificar-realm.py` (57 correctas) y en `spec-keycloak-realm.md`; aplicado al Keycloak local con la API de administración. Un token de `n8n` envió un plan por el gateway y descargó el PDF. `Dockerfile` con las librerías de WeasyPrint y el modelo de Whisper incluido; el pipeline construye la imagen.
 - [x] **T10** [P] — Escribir `tests/fixtures/solicitudes_reporte.json` (12 solicitudes con su plan esperado) y `docs/reportes.md` (fuentes, plan, ejemplos, límites y cómo usarlo desde React y n8n). Hecho: `tests/fixtures/solicitudes_reporte.json` (14 solicitudes) y `docs/reportes.md`.
-- [ ] **T11** — Prueba manual con `qwen2.5:7b-instruct-q3_K_M`, Whisper `small` y el perfil `backend` con datos de demostración: las 12 solicitudes por el gateway con `gerencia.prueba`, 2 de ellas con los audios grabados. *Hecho cuando:* se cumple CE-REP-04; se anota el resultado de cada solicitud en esta tarea. *Avance (2026-11-06):* las 12 solicitudes de texto dieron 8 a 9 planes iguales al esperado en tres corridas (detalle en `docs/reportes.md`). Faltan las 2 de voz.
+- [ ] **T11** — Prueba manual con `qwen2.5:7b-instruct-q3_K_M`, Whisper `small` y el perfil `backend` con datos de demostración: las 12 solicitudes por el gateway con `gerencia.prueba`, 2 de ellas con los audios grabados. *Hecho cuando:* se cumple CE-REP-04; se anota el resultado de cada solicitud en esta tarea. *Resultado (2026-11-06):* 9 de 14 planes iguales al esperado, incluidas las 2 de voz; CE-REP-04 (12 de 14) **no se cumple**. Los 5 restantes difieren en la forma (columnas o un filtro redundante), nunca en los datos. Detalle en `docs/reportes.md`. Los reportes por voz tardaron 20 y 30 s (CE-REP-02).

@@ -445,18 +445,39 @@ def _para_modelo(tabla: Tabla) -> dict[str, Any]:
     }
 
 
+SIMILITUD_MINIMA = 0.9
+VENTAJA_MINIMA = 0.05
+
+
+def _comparable(texto: str) -> str:
+    """Sin tildes, mayúsculas ni puntuación: "Soya verano 2025-2026, Lote Norte" ≈ el nombre."""
+    return " ".join(re.sub(r"[^\w-]+", " ", normalizar_texto(texto)).split())
+
+
 def _resolver(nombre: str, campanias: dict[str, str]) -> str:
-    """Una coincidencia (igual o contenida, sin tildes ni mayúsculas) → su ID."""
-    buscado = normalizar_texto(nombre)
-    exactas = [i for i, n in campanias.items() if normalizar_texto(n) == buscado]
-    coincidencias = exactas or [i for i, n in campanias.items() if buscado in normalizar_texto(n)]
+    """Una coincidencia (igual o contenida, sin tildes ni mayúsculas) → su ID.
+
+    Si no hay ninguna, se acepta la más parecida solo si lo es mucho (≥ 0,9) y claramente más
+    que la segunda: la voz transcrita puede cambiar un dígito ("2025-2016" por "2025-2026").
+    """
+    buscado = _comparable(nombre)
+    exactas = [i for i, n in campanias.items() if _comparable(n) == buscado]
+    coincidencias = exactas or [i for i, n in campanias.items() if buscado in _comparable(n)]
     if len(coincidencias) == 1:
         return coincidencias[0]
-    parecidas = sorted(
-        campanias.values(),
-        key=lambda n: difflib.SequenceMatcher(None, buscado, normalizar_texto(n)).ratio(),
+    similitudes = sorted(
+        (
+            (difflib.SequenceMatcher(None, buscado, _comparable(n)).ratio(), i)
+            for i, n in campanias.items()
+        ),
         reverse=True,
-    )[:5]
+    )
+    if not coincidencias and similitudes:
+        mejor = similitudes[0][0]
+        segunda = similitudes[1][0] if len(similitudes) > 1 else 0.0
+        if mejor >= SIMILITUD_MINIMA and mejor - segunda >= VENTAJA_MINIMA:
+            return similitudes[0][1]
+    parecidas = [campanias[i] for _, i in similitudes[:5]]
     motivo = "varias campañas coinciden" if coincidencias else "ninguna campaña coincide"
     raise ErrorAplicacion(
         422,

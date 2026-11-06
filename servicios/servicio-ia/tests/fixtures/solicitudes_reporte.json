@@ -38,13 +38,13 @@
   {
     "id": "finalizadas-este-anio",
     "solicitud": "Dame el reporte de las campañas finalizadas de este año en PDF y Excel.",
-    "audio": "voz_campanias",
+    "audio": "campanias.ogg",
     "esperado": {"tablas": [{"fuente": "CAMPANIAS_FINALIZADAS", "columnas": [], "filtros": [["fechaFinalizacion", "entre", ["{anio}-01-01", "{anio}-12-31"]]], "orden": [], "limite": null}], "formatos": ["PDF", "XLSX"]}
   },
   {
     "id": "costos-campania",
     "solicitud": "Necesito el reporte de costos de la campaña Soya verano 2025-2026 Lote Norte en Excel.",
-    "audio": "voz_costos",
+    "audio": "costos.ogg",
     "esperado": {"tablas": [{"fuente": "COSTOS_CAMPANIA", "campania": "Soya verano 2025-2026 Lote Norte", "columnas": [], "filtros": [], "orden": [], "limite": null}], "formatos": ["XLSX"]}
   },
   {

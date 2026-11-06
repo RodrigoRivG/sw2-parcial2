@@ -342,3 +342,21 @@ def test_mensaje_de_sistema_con_catalogo_fecha_y_ejemplos() -> None:
     )
     assert "uno de PLANIFICADA/EN_CURSO/FINALIZADA" in mensaje
     assert "{catalogo}" not in mensaje and "<AÑO>" not in mensaje
+
+
+def test_campania_con_un_error_de_transcripcion() -> None:
+    from app.reportes.agente import _resolver
+
+    campanias = {
+        "n": "Soya verano 2025-2026 Lote Norte",
+        "s": "Soya verano 2025-2026 Lote Sur",
+        "m": "Maíz invierno 2025 El Paraíso",
+    }
+
+    assert _resolver("soya verano 2025-2016, lote norte", campanias) == "n"  # un dígito mal oído
+    with pytest.raises(ErrorAplicacion) as ambigua:
+        _resolver("soya verano 2025-2026 lote", campanias)  # contenida en dos
+    with pytest.raises(ErrorAplicacion) as lejana:
+        _resolver("trigo verano 2024", campanias)
+
+    assert "varias" in ambigua.value.mensaje and "ninguna" in lejana.value.mensaje

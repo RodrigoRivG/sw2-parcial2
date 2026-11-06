@@ -15,6 +15,12 @@ _logger = logging.getLogger("app.integracion.transcriptor")
 DURACION_MAXIMA = 120.0
 # Nombres de formato de PyAV (FFmpeg) de WebM, OGG, WAV y MP3
 FORMATOS_AUDIO = {"matroska,webm", "webm", "ogg", "wav", "mp3"}
+# Orienta a Whisper hacia el vocabulario de las solicitudes: sin esto, "PDF y Excel" salía
+# "pdf y hc".
+TEXTO_INICIAL = (
+    "Solicitud de un reporte agrícola en PDF o en Excel: campañas de soya y maíz, costos, "
+    "insumos, inventario, labores, incidencias, parcelas."
+)
 
 
 class AudioInvalido(Exception):
@@ -68,6 +74,28 @@ def _duracion(contenedor: Any) -> float:
         if paquete.pts is not None and paquete.time_base is not None:
             final = max(final, float((paquete.pts + (paquete.duration or 0)) * paquete.time_base))
     return final
+
+
+def decodificar(ruta: Path) -> Any:
+    """Muestras mono de 16 kHz en `float32`, el formato que espera Whisper.
+
+    Se decodifica aquí y no dentro de faster-whisper: su `decode_audio` llama a `av.open` con un
+    argumento (`metadata_errors`) que las versiones actuales de PyAV ya no aceptan.
+    """
+    import av
+    import numpy as np
+
+    remuestreador = av.AudioResampler(format="s16", layout="mono", rate=16000)
+    partes = []
+    with av.open(str(ruta)) as contenedor:
+        for cuadro in contenedor.decode(audio=0):
+            for remuestreado in remuestreador.resample(cuadro):
+                partes.append(remuestreado.to_ndarray().reshape(-1))
+        for remuestreado in remuestreador.resample(None):
+            partes.append(remuestreado.to_ndarray().reshape(-1))
+    if not partes:
+        return np.zeros(0, dtype=np.float32)
+    return np.concatenate(partes).astype(np.float32) / 32768.0
 
 
 class EstadoTranscriptor(StrEnum):
@@ -130,7 +158,9 @@ class TranscriptorWhisper:
         return await asyncio.to_thread(self._transcribir, ruta)
 
     def _transcribir(self, ruta: Path) -> Transcripcion:
-        segmentos, informacion = self._modelo.transcribe(str(ruta), language="es", vad_filter=True)
+        segmentos, informacion = self._modelo.transcribe(
+            decodificar(ruta), language="es", vad_filter=True, initial_prompt=TEXTO_INICIAL
+        )
         texto = " ".join(s.text.strip() for s in segmentos).strip()
         return Transcripcion(texto, informacion.language, float(informacion.duration))
 
