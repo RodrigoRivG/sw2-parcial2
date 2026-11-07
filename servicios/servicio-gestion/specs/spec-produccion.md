@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-gestion` |
 | Archivo | `specs/spec-produccion.md` |
-| Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-01) · Implementada (2026-11-02) |
 | Fecha | 2026-11-01 |
 | Constitución | v2.7.0 |
 | Trazabilidad | CU-03 (prioridad alta) · RF-05 · RN-03 (dato de entrada) · RNF-05 |

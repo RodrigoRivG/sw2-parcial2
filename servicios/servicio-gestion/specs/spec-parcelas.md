@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-gestion` |
 | Archivo | `specs/spec-parcelas.md` |
-| Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-01) · Implementada (2026-11-02) |
 | Constitución | v2.7.0 |
 | Trazabilidad | CU-01 (prioridad alta) · RF-01 · RN-01, RN-15, RN-16 · RNF-05 |
 | Depende de | — (incluye la Fase 0: base del servicio) |

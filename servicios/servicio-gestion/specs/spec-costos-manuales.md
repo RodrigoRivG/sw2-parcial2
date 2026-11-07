@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-gestion` |
 | Archivo | `specs/spec-costos-manuales.md` |
-| Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-01) · Implementada (2026-11-02) |
 | Fecha | 2026-11-01 |
 | Constitución | v2.7.0 |
 | Trazabilidad | CU-04 (prioridad media, actor Administrador) · RF-04 · RN-15, RN-16 · RNF-05 |

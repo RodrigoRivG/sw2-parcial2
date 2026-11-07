@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-gestion` |
 | Archivo | `specs/spec-indicadores.md` |
-| Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-01) · Implementada (2026-11-02) |
 | Fecha | 2026-11-01 |
 | Constitución | v2.7.0 |
 | Trazabilidad | CU-05 (prioridad media) · RF-06 · RN-03, RN-15 · RNF-05 |

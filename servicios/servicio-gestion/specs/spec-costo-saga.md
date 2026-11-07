@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `servicio-gestion` |
 | Archivo | `specs/spec-costo-saga.md` |
-| Estado | Spec aprobada (2026-11-01) · Plan y tareas en borrador |
+| Estado | Spec aprobada (2026-11-01) · Implementada (2026-11-02) |
 | Fecha | 2026-11-01 |
 | Constitución | v2.7.0 (secciones 4, 5, 6 y 8) |
 | Trazabilidad | CU-04 (actor Sistema) y CU-12 (participante) · RF-04, RF-13 · RN-06, RN-08, RN-09 · RNF-10, RNF-11, RNF-22 |
