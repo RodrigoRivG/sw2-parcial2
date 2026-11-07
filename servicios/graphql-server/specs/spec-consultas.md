@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `graphql-server` |
 | Archivo | `specs/spec-consultas.md` |
-| Estado | Spec en borrador (2026-11-06) · Plan y tareas en borrador |
+| Estado | Spec, plan y tareas aprobados (2026-11-07) |
 | Constitución | v1.0.0 |
 | Trazabilidad | CU-05, CU-14, CU-15, CU-24 · RF-06, RF-18, RF-19, RF-27, RF-33 · RN-13, RN-14, RN-15, RN-16 · RNF-02, RNF-03, RNF-05, RNF-08, RNF-19, RNF-20, RNF-22 |
 | Depende de | `api-gateway/specs/spec-ruta-graphql.md` (ruta `/api/graphql`). Los cuatro microservicios y el realm `agro`, ya implementados. |
