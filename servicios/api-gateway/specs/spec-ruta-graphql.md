@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `api-gateway` |
 | Archivo | `specs/spec-ruta-graphql.md` |
-| Estado | Spec en borrador (2026-11-06) · Plan y tareas en borrador |
+| Estado | Spec, plan y tareas aprobados (2026-11-07) |
 | Constitución | v1.1.0 |
 | Trazabilidad | Módulo 9 · proceso 7 · RF-27 · RNF-01, RNF-05, RNF-08, RNF-22 |
 | Depende de | `spec-enrutamiento.md` (implementada). Para la prueba de punta a punta, `graphql-server/specs/spec-consultas.md`. |
