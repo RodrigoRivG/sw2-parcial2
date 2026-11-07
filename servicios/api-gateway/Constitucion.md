@@ -78,8 +78,9 @@ api-gateway/
 | `/api/inventario/**` | `servicio-inventario` | `INVENTARIO_URL` |
 | `/api/operaciones/**` | `servicio-operaciones` | `OPERACIONES_URL` |
 | `/api/ia/**` | `servicio-ia` | `IA_URL` |
+| `/api/graphql` (ruta exacta) | `graphql-server` | `GRAPHQL_URL` |
 
-- La ruta se reenvía sin reescribir: `/api/gestion/v1/parcelas` llega igual a `servicio-gestion`. Cada servicio ya expone su prefijo y versión (`/api/<servicio>/v1/...`).
+- La ruta se reenvía sin reescribir: `/api/gestion/v1/parcelas` llega igual a `servicio-gestion`. Cada servicio ya expone su prefijo y versión (`/api/<servicio>/v1/...`); `graphql-server` expone `/api/graphql`, sin versión, porque un esquema GraphQL evoluciona agregando campos.
 - Se reenvían sin cambios el método, la query, el cuerpo (incluido `multipart/form-data` para fotografías y audio) y los headers, incluido `Authorization`.
 - Una ruta que no coincide con ningún prefijo responde `404 RUTA_NO_ENCONTRADA` sin llamar a ningún servicio.
 - Cada solicitud reenviada tiene un tiempo límite de respuesta, configurable por variable de entorno. Una ruta puede tener uno propio solo si la spec de su servicio admite respuestas más lentas (hoy, la sincronización por lotes de `servicio-operaciones`). Si se agota, el gateway responde `504 TIEMPO_AGOTADO`.
@@ -148,7 +149,7 @@ api-gateway/
 
 | Concepto | Clase / archivo | Variable de entorno |
 |---|---|---|
-| Ruta a un microservicio | `application.yml` | `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL` |
+| Ruta a un microservicio o al servidor GraphQL | `application.yml` | `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL`, `GRAPHQL_URL` |
 | Validación del token | `ConfiguracionSeguridad` | `KEYCLOAK_JWKS_URI`, `KEYCLOAK_ISSUER` |
 | Orígenes CORS | `application.yml` | `CORS_ORIGENES_PERMITIDOS` |
 | Tiempo límite de respuesta | `application.yml` | `GATEWAY_TIEMPO_LIMITE`, `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION` |
@@ -158,7 +159,7 @@ api-gateway/
 
 ## Enmiendas
 
-- Versión: 1.0.0 (2026-11-04)
+- Versión: 1.1.0 (2026-11-06)
 - Cambiar una regla requiere actualizar este documento, registrar el motivo y subir la versión:
   - MAJOR: se elimina o redefine una regla.
   - MINOR: se agrega una regla.
@@ -167,3 +168,4 @@ api-gateway/
 | Versión | Fecha | Motivo |
 |---|---|---|
 | 1.0.0 | 2026-11-04 | Versión inicial. El gateway valida firma, emisor y vigencia del token; audiencia y roles quedan en cada microservicio. |
+| 1.1.0 | 2026-11-06 | Ruta `/api/graphql` hacia `graphql-server` (`GRAPHQL_URL`), para que React use una sola URL base y GraphQL reciba la misma validación del token, CORS y correlación que los microservicios. Origen: `specs/spec-ruta-graphql.md`. |

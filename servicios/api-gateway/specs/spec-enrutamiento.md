@@ -87,7 +87,8 @@ Como microfrontend publicado en otro origen (S3 + CloudFront, o `localhost` con 
 
 ### Casos borde
 
-- **Keycloak no responde y el gateway todavía no tiene las claves:** se responde `503 AUTENTICACION_NO_DISPONIBLE`, no `401`. El cliente no debe pensar que su sesión venció.
+- **Keycloak falla y el gateway todavía no tiene las claves:** si la descarga del JWKS termina en error (respuesta `5xx`, conexión rechazada o nombre que no se resuelve), se responde `503 AUTENTICACION_NO_DISPONIBLE`, no `401`. El cliente no debe pensar que su sesión venció.
+  - *Limitación conocida (2026-11-06):* la descarga del JWKS no tiene un tiempo límite propio. Si Keycloak acepta la conexión pero no responde, la solicitud espera sin tope: `GATEWAY_TIEMPO_LIMITE` solo rige las llamadas a los servicios. Solo ocurre con las claves fuera de caché (al arrancar o al rotarlas). Pendiente de corregir.
 - **Header `Authorization` con un esquema distinto de `Bearer`, o un token mal formado:** `401 NO_AUTENTICADO`.
 - **El prefijo debe coincidir completo:** `/api/gestionx/v1` no va a `servicio-gestion` (`404 RUTA_NO_ENCONTRADA`).
 - **El servicio destino corta la conexión a mitad de la respuesta:** no se reintenta. El cliente recibe el error de conexión o un `503 SERVICIO_NO_DISPONIBLE` si los headers aún no se habían enviado.
@@ -125,6 +126,7 @@ El gateway no tiene entidades ni persistencia. Su único dato propio es `Respues
 
 | HTTP | `codigo` | `mensaje` |
 |---|---|---|
+| 400 u otro 4xx | `DATOS_INVALIDOS` | "La solicitud no es válida." (solicitud que rechaza el propio gateway antes de enrutar; ver 2.5) |
 | 401 | `NO_AUTENTICADO` | "Debe iniciar sesión para continuar." |
 | 404 | `RUTA_NO_ENCONTRADA` | "La ruta solicitada no existe." |
 | 503 | `SERVICIO_NO_DISPONIBLE` | "El servicio solicitado no está disponible en este momento." |
@@ -158,7 +160,7 @@ El gateway no tiene entidades ni persistencia. Su único dato propio es `Respues
 
 - Rate limiting, circuit breaker, caché y balanceo (constitución §1).
 - Exponer la documentación OpenAPI o la salud de los microservicios a través del gateway.
-- El servidor GraphQL (`graphql-server`): es un cliente más del gateway, no una ruta de él.
+- El servidor GraphQL (`graphql-server`): es un cliente más del gateway, no una ruta de él. *(2026-11-06: la ruta `/api/graphql` se agrega en `spec-ruta-graphql.md`, constitución v1.1.0.)*
 - La creación del realm de Keycloak.
 
 ---
@@ -202,23 +204,24 @@ Los tokens de los tests se firman con Nimbus JOSE (`com.nimbusds:nimbus-jose-jwt
 
 Valores fijos:
 
-- Rutas en `spring.cloud.gateway.routes`, una por servicio, con el predicado `Path=/api/<servicio>/**` y sin filtros de reescritura. Ids de ruta: `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia` (se usan como "servicio destino" en el log).
+- Rutas en `spring.cloud.gateway.routes`, una por servicio, con el predicado `Path=/api/<servicio>/**` y sin filtros de reescritura. Ids de ruta: `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia`. Cada ruta lleva `metadata.servicio`, que el log de acceso informa como servicio destino.
 - Una quinta ruta, `operaciones-sincronizacion`, con `Path=/api/operaciones/v1/sincronizacion`, el mismo destino que `servicio-operaciones`, `order: -1` (para que gane a la ruta general) y su propio `response-timeout`. Motivo: un lote de 50 operaciones tarda unos 11 s con gestión caída (`spec-sincronizacion.md` CE-SIN-03 permite 15 s) y, en el peor caso de 50 campañas distintas, hasta 100 s (2 s por campaña). En el log, su servicio destino se informa como `servicio-operaciones`.
 - `spring.cloud.gateway.httpclient.connect-timeout: 2000` (ms).
 - `spring.cloud.gateway.default-filters: DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST` (caso borde de CORS duplicado y correlación, ver notas de implementación).
 - El tiempo límite general de 10 s cubre una foto de 10 MB (CE-INC-04 pide menos de 3 s) y deja margen sobre la meta de RNF-05. El de Reactor Netty empieza a contar cuando terminó de enviarse la solicitud, así que la subida lenta de un lote desde una red móvil no lo consume.
+- `spring.web.resources.add-mappings: false`: sin recursos estáticos, una ruta desconocida llega al manejador de errores como `404` y responde `RUTA_NO_ENCONTRADA`.
 - `logging.structured.format.console: ecs`.
 - Actuator igual que en `servicio-gestion`: `base-path: /`, `path-mapping.health: salud`, solo `health` expuesto y `probes.enabled: true`. La readiness incluye solo `readinessState` (RNF-08).
 
-Si `KEYCLOAK_JWKS_URI` o `KEYCLOAK_ISSUER` faltan, la aplicación no arranca (RNF-03).
+Si falta `KEYCLOAK_JWKS_URI`, `KEYCLOAK_ISSUER` o alguna de las URL de los servicios, la aplicación no arranca (RNF-03).
 
 ## 2.3 Seguridad (`ConfiguracionSeguridad`)
 
 - `SecurityWebFilterChain` reactivo, sin sesión, sin CSRF, sin login por formulario ni HTTP Basic.
 - `permitAll` para `/salud/**` y para `OPTIONS /api/**`. `authenticated()` para `/api/**`. Para cualquier otra ruta, `permitAll`: así llega al gateway y responde `404 RUTA_NO_ENCONTRADA`, en vez de un 401 que confunda.
-- `oauth2ResourceServer().jwt()` con el decodificador que arma Spring Boot a partir de `jwk-set-uri` e `issuer-uri`: valida firma, `iss` y `exp`. No se configuran `audiences`.
+- `oauth2ResourceServer().jwt()` con un decodificador propio (`decodificadorJwt`): `NimbusReactiveJwtDecoder` con las claves de `jwk-set-uri` y el validador de `iss` (`JwtValidators.createDefaultWithIssuer`). Valida firma, `iss` y `exp`; no valida `aud`. Es el mismo que armaría Spring Boot, más la traducción del punto siguiente.
 - El punto de entrada de autenticación (`ServerAuthenticationEntryPoint`) escribe `401 NO_AUTENTICADO` con `RespuestaError`.
-- Si el JWKS no se puede descargar, Spring Security lanza `AuthenticationServiceException`; `ManejadorErroresGateway` la traduce a `503 AUTENTICACION_NO_DISPONIBLE`.
+- Si el JWKS no se puede descargar, Nimbus lanza una excepción que no es `JwtException` (`IllegalStateException("Could not obtain the keys")`). El decodificador la convierte en `JwtException`; Spring Security la transforma en `AuthenticationServiceException` y `ManejadorErroresGateway` responde `503 AUTENTICACION_NO_DISPONIBLE`. La descarga no tiene tiempo límite propio (ver casos borde).
 - CORS en la cadena de seguridad (`http.cors(...)`) con un `CorsConfigurationSource` construido desde `CORS_ORIGENES_PERMITIDOS`, para que la verificación previa se resuelva antes de exigir el token:
   - Métodos: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`.
   - Headers permitidos: `Authorization`, `Content-Type`, `X-Correlation-Id`.
@@ -232,24 +235,27 @@ Si `KEYCLOAK_JWKS_URI` o `KEYCLOAK_ISSUER` faltan, la aplicación no arranca (RN
   - Valida el header recibido con `[A-Za-z0-9-]{1,64}`; si falta o no coincide, genera un UUID.
   - Reemplaza el header en la solicitud (con `exchange.mutate()`), para que el destino lo reciba; lo agrega a la respuesta y lo guarda como atributo del exchange (`idCorrelacion`) para el manejador de errores y el log.
 - **`RegistroAcceso`** (`WebFilter` justo después de `FiltroIdCorrelacion`, también antes de la seguridad, para registrar los 401):
-  - Al terminar la respuesta (`doFinally`), escribe un log `INFO` con pares clave-valor de SLF4J: `idCorrelacion`, `metodo`, `ruta` (sin query), `servicioDestino` (id de la ruta o `ninguno`), `estado`, `duracionMs` y `sub`.
-  - El `sub` lo guarda en un atributo del exchange un `WebFilter` que corre después de la seguridad (`exchange.getPrincipal()`). Los atributos se comparten entre los decoradores del exchange, así que `RegistroAcceso` los lee al final.
+  - Justo antes de enviar la respuesta (`response.beforeCommit`), escribe un log `INFO` con pares clave-valor de SLF4J: `idCorrelacion`, `metodo`, `ruta` (sin query), `servicioDestino` (`metadata.servicio` de la ruta o `ninguno`), `estado`, `duracionMs` y `sub`. Se usa `beforeCommit` y no el fin de la cadena de filtros porque los errores del gateway se resuelven fuera de esa cadena.
+  - El `sub` lo guarda `FiltroSujeto`, un `WebFilter` con orden `0` (después de la seguridad, que tiene `-100`), que lo lee de `ReactiveSecurityContextHolder` y lo deja en un atributo del exchange. Los atributos se comparten entre los decoradores del exchange, así que `RegistroAcceso` los lee al final.
   - Nunca registra headers ni el cuerpo.
 
 ## 2.5 Errores (`RespuestaError`, `ManejadorErroresGateway`)
 
 - `RespuestaError`: `record` con `codigo`, `mensaje`, `detalles` (lista vacía) e `idCorrelacion`; se serializa igual que en `servicio-gestion`.
+- `CodigoError`: enumeración con los códigos y mensajes de 1.4. `EscritorRespuestaError`: escribe el JSON (con el `X-Correlation-Id`); lo usan el manejador y el punto de entrada 401.
 - `ManejadorErroresGateway`: `ErrorWebExceptionHandler` con `@Order(-2)` (antes del manejador por defecto de Boot). Responde `application/json`, sin trazas:
 
   | Excepción | HTTP | Código |
   |---|---|---|
   | `ResponseStatusException` 404 (sin ruta) o `NoResourceFoundException` | 404 | `RUTA_NO_ENCONTRADA` |
-  | `java.net.ConnectException`, `io.netty.channel.ConnectTimeoutException` o `java.net.UnknownHostException` (también si vienen como causa) | 503 | `SERVICIO_NO_DISPONIBLE` |
   | `ResponseStatusException` 504 (lo lanza el gateway al agotar `response-timeout`) | 504 | `TIEMPO_AGOTADO` |
+  | `ResponseStatusException` 503, o `java.net.ConnectException`, `io.netty.channel.ConnectTimeoutException` o `java.net.UnknownHostException` (también si vienen como causa) | 503 | `SERVICIO_NO_DISPONIBLE` |
+  | Otra `ResponseStatusException` 4xx | La misma | `DATOS_INVALIDOS` |
   | `AuthenticationServiceException` | 503 | `AUTENTICACION_NO_DISPONIBLE` |
   | Cualquier otra | 500 | `ERROR_INTERNO` |
 
 - Si la respuesta ya se había empezado a enviar, no se escribe cuerpo (caso borde de conexión cortada).
+- Los errores `5xx` se registran en el log como `WARN` con su `idCorrelacion` y código.
 
 ## 2.6 Tests
 
@@ -258,11 +264,13 @@ Todos en `src/test/java/com/agrosystem/gateway/integration/`, con `@SpringBootTe
 - **`PruebaIntegracionBase`**:
   - Levanta un WireMock que hace de los cuatro servicios y de Keycloak.
   - Genera un par de claves RSA, publica el JWKS en WireMock y ofrece un método para firmar tokens con `iss`, `exp`, `sub` y `aud` configurables (más una segunda clave que no está en el JWKS).
-  - Con `@DynamicPropertySource` apunta `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL` y `KEYCLOAK_JWKS_URI` a WireMock, y fija `GATEWAY_TIEMPO_LIMITE=1s`.
-- **`EnrutamientoIT`**: historia 1 (los cuatro prefijos, query, multipart byte a byte, headers, respuesta 4xx devuelta tal cual, prefijo incompleto y ruta desconocida → 404 sin llamadas a WireMock).
-- **`SeguridadIT`**: historia 2 (sin token, otra clave, otro `iss`, vencido, `aud` ajeno y sin roles reenviados, esquema distinto de `Bearer`, salud sin token) y el caso de JWKS no disponible (WireMock responde 500 al JWKS, decodificador sin claves en caché) → `503 AUTENTICACION_NO_DISPONIBLE`.
-- **`ResilienciaIT`**: historia 3 (una ruta apuntando a un puerto sin servicio → 503; demora de WireMock de 2 s → 504; la misma demora en `/api/operaciones/v1/sincronizacion`, con `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION=3000` en el test, responde `200`; readiness `UP` con el destino caído). En `EnrutamientoIT`, un `404` de WireMock con `CAMPANIA_NO_ENCONTRADA` llega intacto al cliente.
-- **`CorrelacionIT`**: historia 4 (recibido, ausente, inválido; mismo id en header y cuerpo de error; el destino lo recibe). El log se verifica con un `OutputCaptureExtension` buscando `idCorrelacion` y la ausencia del token.
+  - Ofrece `propiedades(registro)`, que apunta `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL` y `KEYCLOAK_JWKS_URI` a WireMock y fija `KEYCLOAK_ISSUER`, `GATEWAY_TIEMPO_LIMITE=1s`, `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION=3000` y `CORS_ORIGENES_PERMITIDOS`. Cada clase IT declara su propio `@DynamicPropertySource`, lo llama y puede reemplazar valores después.
+  - Antes de cada test reinicia WireMock y vuelve a publicar el JWKS.
+- **`EnrutamientoIT`**: historia 1 (los cuatro prefijos, query, multipart byte a byte con su `Content-Type` intacto, headers, respuesta 4xx devuelta tal cual, `404 CAMPANIA_NO_ENCONTRADA` del servicio sin reescribir, `Location` relativo intacto, prefijo incompleto y ruta desconocida → 404 sin llamadas a WireMock).
+- **`SeguridadIT`**: historia 2 (sin token, otra clave, otro `iss`, vencido, `aud` ajeno y sin roles reenviados, esquema distinto de `Bearer` o token mal formado, salud sin token).
+- **`AutenticacionNoDisponibleIT`**: caso borde del JWKS que responde `500` → `503 AUTENTICACION_NO_DISPONIBLE`. Va en una clase aparte, con su propio contexto apuntado a un JWKS que falla, para que ninguna clave quede en caché de otro test. No hay test de un JWKS lento (limitación conocida de los casos borde).
+- **`ResilienciaIT`**: historia 3 (una ruta apuntando a un puerto sin servicio → 503; otra a un host `.invalid` que no se resuelve → 503; demora de WireMock de 2 s → 504; la misma demora en `/api/operaciones/v1/sincronizacion`, con `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION=3000` en el test, responde `200`; readiness `UP` con el destino caído).
+- **`CorrelacionIT`**: historia 4 (recibido, ausente, inválido; mismo id en header y cuerpo de error, también en el 401; el destino lo recibe; un solo `X-Correlation-Id` cuando el servicio devuelve el mismo id o uno distinto). El log se verifica con un `OutputCaptureExtension`: campos de la línea de una solicitud correcta y de un 401, sin la query ni el token.
 - **`CorsIT`**: historia 5 (verificación previa permitida y rechazada, header expuesto, sin duplicados cuando WireMock devuelve su propio `Access-Control-Allow-Origin`).
 - **`LatenciaIT`**: CE-GW-02 (100 solicitudes contra un destino sin demora; p95 < 50 ms tras un calentamiento de 20).
 
@@ -313,4 +321,4 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 - [x] **T10** — Escribir el `Dockerfile`, `.dockerignore` y `.github/workflows/api-gateway.yml`, con JaCoCo al 80 %. *Hecho cuando:* `mvn -B verify` pasa con la cobertura y `docker build` construye la imagen.
 - [x] **T11** — Actualizar `docker-compose.yml` (`CORS_ORIGENES_PERMITIDOS`) y `README.md`. *Hecho cuando:* `docker compose --profile gateway up -d api-gateway` arranca y `curl localhost:8080/salud` responde `UP`, y `curl localhost:8080/api/gestion/v1/parcelas` sin token responde `401 NO_AUTENTICADO`.
 - [x] **T12** — Prueba manual de punta a punta (CE-GW-03, requiere el realm de Keycloak y la corrección del `Location` de operaciones, ver 1.6): con los perfiles `saga`, `gateway` y `auth`, un token de usuario obtenido de Keycloak llega a los tres servicios a través del gateway, y la consulta de `servicio-operaciones` a `GET /api/gestion/v1/campanias/{id}/estado` responde con el estado de la campaña. *Hecho cuando:* los dos casos quedan comprobados con `curl` y en los logs aparece el mismo `idCorrelacion` en el gateway y en el servicio.
-- [x] **T13** — Verificación final: `mvn -B verify` en verde, cobertura ≥ 80 % y los criterios CE-GW-01, CE-GW-02 y CE-GW-04 cubiertos por al menos un test. Resultado: 42 tests en verde y cobertura ≥ 80 %. T12 comprobada con `scripts/verificar-realm.py --saga` (`specs/spec-keycloak-realm.md`, Resultado).
+- [x] **T13** — Verificación final: `mvn -B verify` en verde, cobertura ≥ 80 % y los criterios CE-GW-01, CE-GW-02 y CE-GW-04 cubiertos por al menos un test. Resultado: 44 tests en verde y cobertura ≥ 80 % (la última ejecución, del 2026-11-05, tras corregir el `X-Correlation-Id` duplicado). T12 comprobada con `scripts/verificar-realm.py --saga` (`specs/spec-keycloak-realm.md`, Resultado).
