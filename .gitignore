@@ -8,6 +8,10 @@
 docker/n8n/secretos/*
 !docker/n8n/secretos/.gitkeep
 
+# Borradores de la constitución y las specs de los microfrontends: el código y la copia
+# definitiva viven en su propio repositorio (Windows)
+frontends/
+
 # Java / Maven
 target/
 *.class
