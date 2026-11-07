@@ -4,7 +4,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.any;
 import static com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
@@ -128,8 +130,47 @@ class EnrutamientoIT extends PruebaIntegracionBase {
                 .expectHeader().valueEquals("Location", "/api/gestion/v1/parcelas/p1");
     }
 
+    @Test
+    void graphqlLlegaASuServidorYSuRespuestaVuelveTalCual() {
+        // Un error de campo de GraphQL viaja con 200 y la lista "errors": el gateway no lo toca (spec-ruta-graphql.md)
+        String consulta = "{\"query\":\"{ campanias { total } }\"}";
+        String respuesta = "{\"data\":{\"campanias\":null},\"errors\":[{\"message\":\"m\","
+                + "\"extensions\":{\"codigo\":\"DEPENDENCIA_NO_DISPONIBLE\"}}]}";
+        String token = token();
+        SERVICIOS.stubFor(any(urlEqualTo("/api/graphql")).willReturn(aResponse()
+                .withStatus(200).withHeader("Content-Type", "application/json").withBody(respuesta)));
+
+        cliente.post().uri("/api/graphql")
+                .header("Authorization", "Bearer " + token)
+                .header("X-Correlation-Id", "abc-123")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(consulta)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("X-Correlation-Id", "abc-123")
+                .expectBody().json(respuesta, true);
+
+        SERVICIOS.verify(postRequestedFor(urlEqualTo("/api/graphql"))
+                .withHeader("Authorization", equalTo("Bearer " + token))
+                .withHeader("X-Correlation-Id", equalTo("abc-123"))
+                .withRequestBody(equalToJson(consulta)));
+    }
+
+    @Test
+    void graphqlSinTokenResponde401SinLlamarAlServidor() {
+        cliente.post().uri("/api/graphql")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"query\":\"{ campanias { total } }\"}")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.codigo").isEqualTo("NO_AUTENTICADO");
+
+        SERVICIOS.verify(0, anyRequestedFor(urlMatching("/api/.*")));
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"/api/desconocido/v1/x", "/otra-ruta", "/api/gestionx/v1/parcelas", "/"})
+    @ValueSource(strings = {"/api/desconocido/v1/x", "/otra-ruta", "/api/gestionx/v1/parcelas", "/",
+        "/api/graphqlx", "/api/graphql/otra"})
     void rutaSinDestinoResponde404SinLlamarANadie(String ruta) {
         cliente.get().uri(ruta).header("Authorization", "Bearer " + token())
                 .exchange()

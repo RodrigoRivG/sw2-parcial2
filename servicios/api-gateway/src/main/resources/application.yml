@@ -62,6 +62,13 @@ spring:
             - Path=/api/ia/**
           metadata:
             servicio: servicio-ia
+        # Ruta exacta: graphql-server expone /api/graphql (spec-ruta-graphql.md)
+        - id: graphql-server
+          uri: ${GRAPHQL_URL}
+          predicates:
+            - Path=/api/graphql
+          metadata:
+            servicio: graphql-server
 
 gateway:
   cors:

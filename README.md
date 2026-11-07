@@ -110,7 +110,7 @@ Todo lo que un servicio necesita le llega por **variables de entorno** (RNF-03).
 | servicio-inventario | `npm run start:dev` (recompila al guardar; aplica las migraciones de `migrations/` al arrancar) | `PORT`, `MONGODB_URI`, `RABBITMQ_URL` |
 | servicio-operaciones | `php artisan serve` (crea las tablas de DynamoDB al arrancar); `servicio-operaciones-programador` corre `php artisan schedule:work` | `DYNAMODB_ENDPOINT`, `AWS_*`, `AWS_ENDPOINT`, `AWS_ENDPOINT_PUBLICO`, `AWS_BUCKET`, `RABBITMQ_*`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | servicio-ia | `pip install -e .` + `uvicorn app.main:app --reload` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `WHISPER_*`, `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `STORAGE_EMULATOR_HOST`, `GCS_BUCKET`, `RABBITMQ_URL`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
-| api-gateway | `mvn spring-boot:run` | `SERVER_PORT`, `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL`, `CORS_ORIGENES_PERMITIDOS`, `GATEWAY_TIEMPO_LIMITE` (10 s), `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION` (120000 ms) |
+| api-gateway | `mvn spring-boot:run` | `SERVER_PORT`, `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL`, `GRAPHQL_URL`, `CORS_ORIGENES_PERMITIDOS`, `GATEWAY_TIEMPO_LIMITE` (10 s), `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION` (120000 ms) |
 | graphql-server | `npm run dev` | `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 
 Los servicios se comunican entre sí **solo a través del API Gateway** (`API_GATEWAY_URL`), como exigen las constituciones. Solo el gateway conoce las URL internas.

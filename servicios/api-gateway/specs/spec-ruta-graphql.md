@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `api-gateway` |
 | Archivo | `specs/spec-ruta-graphql.md` |
-| Estado | Spec, plan y tareas aprobados (2026-11-07) |
+| Estado | Implementada (2026-11-07) · prueba de punta a punta pendiente de `graphql-server` |
 | Constitución | v1.1.0 |
 | Trazabilidad | Módulo 9 · proceso 7 · RF-27 · RNF-01, RNF-05, RNF-08, RNF-22 |
 | Depende de | `spec-enrutamiento.md` (implementada). Para la prueba de punta a punta, `graphql-server/specs/spec-consultas.md`. |
@@ -93,7 +93,13 @@ Como microfrontend React, quiero enviar mis consultas GraphQL a la misma URL bas
 
 # 3. Tareas
 
-- [ ] **T01** — Agregar la ruta y `GRAPHQL_URL` a `application.yml` y a `PruebaIntegracionBase.propiedades(registro)`. *Hecho cuando:* compila y los tests existentes siguen en verde.
-- [ ] **T02** — Escribir los escenarios de la historia 1 en los tests de 2. *Hecho cuando:* pasan.
-- [ ] **T03** — Actualizar `docker-compose.yml`, `README.md` y `specs/README.md`. *Hecho cuando:* `docker compose --profile gateway --profile graphql up -d` arranca los dos y `curl -X POST localhost:8080/api/graphql` sin token responde `401 NO_AUTENTICADO`.
-- [ ] **T04** — Verificación final: `mvn -B verify` en verde con cobertura ≥ 80 %. La prueba de punta a punta (CE-RGQ-03) se marca con T14 de `graphql-server/specs/spec-consultas.md`.
+- [x] **T01** — Agregar la ruta y `GRAPHQL_URL` a `application.yml` y a `PruebaIntegracionBase.propiedades(registro)`. *Hecho cuando:* compila y los tests existentes siguen en verde.
+- [x] **T02** — Escribir los escenarios de la historia 1 en los tests de 2. *Hecho cuando:* pasan.
+- [x] **T03** — Actualizar `docker-compose.yml`, `README.md` y `specs/README.md`. *Hecho cuando:* `docker compose --profile gateway --profile graphql up -d` arranca los dos y `curl -X POST localhost:8080/api/graphql` sin token responde `401 NO_AUTENTICADO`.
+- [x] **T04** — Verificación final: `mvn -B verify` en verde con cobertura ≥ 80 %. La prueba de punta a punta (CE-RGQ-03) se marca con T14 de `graphql-server/specs/spec-consultas.md`.
+
+## Resultado (2026-11-07)
+
+- `./scripts/ejecutar.sh api-gateway mvn -B verify`: 48 tests en verde (44 anteriores y 4 nuevos) y cobertura de líneas del 93,2 %.
+- Tests mínimos, en `EnrutamientoIT`: los escenarios 1 y 2 en un solo test (consulta reenviada con su cuerpo, `Authorization` y `X-Correlation-Id`, y una respuesta `200` con `errors` devuelta tal cual), el 3 (`401` sin llamar al servidor) y el 5 (`/api/graphqlx` y `/api/graphql/otra` en el test parametrizado de rutas sin destino). Los escenarios 4 (CORS), 6 (`503`) y 7 (servicio destino en el log) los cubren las reglas generales de `/api/**`, ya probadas en `CorsIT`, `ResilienciaIT` y `CorrelacionIT`: la ruta solo agrega su `metadata.servicio`.
+- T03 comprobada solo con el perfil `gateway`: `graphql-server` todavía no tiene código, así que su contenedor no arranca. El gateway responde `401 NO_AUTENTICADO` a `POST /api/graphql` sin token. El arranque conjunto queda para T13 y T14 de `spec-consultas.md`.

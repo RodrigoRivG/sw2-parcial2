@@ -28,7 +28,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 /**
- * Un WireMock hace de los cuatro servicios y de Keycloak (JWKS). Los tokens se firman en el test:
+ * Un WireMock hace de los cuatro servicios, de graphql-server y de Keycloak (JWKS). Los tokens se firman en el test:
  * no se levanta Keycloak (D-GW-04). Cada clase IT declara su @DynamicPropertySource llamando a
  * {@link #propiedades}, y puede reemplazar valores después.
  */
@@ -61,6 +61,7 @@ abstract class PruebaIntegracionBase {
         registro.add("INVENTARIO_URL", () -> base);
         registro.add("OPERACIONES_URL", () -> base);
         registro.add("IA_URL", () -> base);
+        registro.add("GRAPHQL_URL", () -> base);
         registro.add("KEYCLOAK_JWKS_URI", () -> base + RUTA_JWKS);
         registro.add("KEYCLOAK_ISSUER", () -> EMISOR);
         registro.add("GATEWAY_TIEMPO_LIMITE", () -> "1s");

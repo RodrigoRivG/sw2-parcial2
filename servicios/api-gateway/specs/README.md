@@ -21,6 +21,6 @@ Un archivo por funcionalidad, cada uno con tres partes: **Spec** (qué hace), **
 | `/api/inventario/**` | `servicio-inventario` |
 | `/api/operaciones/**` | `servicio-operaciones` |
 | `/api/ia/**` | `servicio-ia` |
-| `/api/graphql` | `graphql-server` (GW-002, pendiente) |
+| `/api/graphql` (ruta exacta) | `graphql-server` |
 
 Del propio gateway, sin token: `/salud`, `/salud/liveness` y `/salud/readiness`.
