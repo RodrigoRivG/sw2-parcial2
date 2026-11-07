@@ -196,7 +196,7 @@ Se construye una sola vez, con esta funcionalidad, y la reutilizan todas las dem
 
 ### Conexión a MongoDB y migraciones
 
-- `ProveedorConexionMongo` (en `adapters/outbound/persistence`) crea la conexión con `mongoose.createConnection(MONGODB_URI, { autoIndex: false })`.
+- `crearConexionMongo` (en `adapters/outbound/persistence/conexion-mongo.ts`) crea la conexión con `mongoose.createConnection(MONGODB_URI, { autoIndex: false, autoCreate: false })` y aplica las migraciones; `CierreConexionMongo` la cierra al apagar (`onApplicationShutdown`).
 - **Ejecutor de migraciones** (`migrations/ejecutor.ts`, ~30 líneas): al arrancar, antes de escuchar, recorre la lista ordenada de `migrations/index.ts` (cada `migrations/NNN-*.ts` se agrega ahí), ejecuta `subir(db)` de las que no están en la colección `migraciones` y registra cada una (`_id` = nombre, `fecha`). Una lista explícita evita leer el disco, que cambia entre `ts-jest` (`.ts`) y la imagen (`.js`). Los tests de integración ejecutan el mismo ejecutor.
 - **Unidad de trabajo** (`UnidadTrabajo`, puerto en `application/ports`): `ejecutar(fn)` abre una sesión y llama a `session.withTransaction(fn)`, que reintenta ante errores transitorios. La sesión activa viaja en un `AsyncLocalStorage` del adaptador; los repositorios Mongo la toman de ahí, así el dominio y los casos de uso no conocen la sesión.
 
@@ -232,7 +232,7 @@ Se construye una sola vez, con esta funcionalidad, y la reutilizan todas las dem
 
 ### Correlación y logs
 
-- **`IdCorrelacionMiddleware`**: toma `X-Correlation-Id` o genera un UUID, lo guarda en un `AsyncLocalStorage` de contexto y lo devuelve en el header de la respuesta. Se registra antes de las guardias, para que los 401 y 403 también lo incluyan.
+- **`middlewareIdCorrelacion`** (`id-correlacion.middleware.ts`): toma `X-Correlation-Id` (solo si es un identificador simple de hasta 64 caracteres) o genera un UUID, lo guarda en un `AsyncLocalStorage` de contexto y lo devuelve en el header de la respuesta. Se registra después del lector de JSON (que responde por su cuenta un cuerpo mal formado, también con `idCorrelacion`) y antes de las guardias, para que los 401 y 403 también lo incluyan.
 - Los logs no incluyen tokens ni datos personales; solo el `sub`.
 
 ### Auditoría
@@ -410,11 +410,11 @@ Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[
 ## Fase 0 — Base del servicio
 
 - [x] **T01** — Crear el proyecto NestJS (`package.json`, `tsconfig.json` con `strict`, `main.ts`, `app.module.ts`) con las dependencias de 2.1 y las carpetas de la constitución. *Hecho cuando:* `npm run build` compila.
-- [x] **T02** — Implementar `validacion-entorno.ts`, `ProveedorConexionMongo`, el ejecutor de migraciones y `UnidadTrabajo`. *Hecho cuando:* la app arranca contra el MongoDB de Docker Compose y registra las migraciones en `migraciones`.
+- [x] **T02** — Implementar `validacion-entorno.ts`, `crearConexionMongo`, el ejecutor de migraciones y `UnidadTrabajo`. *Hecho cuando:* la app arranca contra el MongoDB de Docker Compose y registra las migraciones en `migraciones`.
 - [x] **T03** — Implementar `SaludControlador`. *Hecho cuando:* `/salud`, `/salud/liveness` y `/salud/readiness` responden sin token, y readiness responde `503` si MongoDB no está.
 - [x] **T04** — Implementar `JwtGuardia`, `RolesGuardia`, `@Roles`, `@Publica` y el soporte de tokens de prueba. *Hecho cuando:* pasa `seguridad.int-spec.ts`.
 - [x] **T05** [P] — Implementar `ErrorDominio` y `FiltroExcepcionesHttp`. *Hecho cuando:* pasa `errores.int-spec.ts`.
-- [x] **T06** [P] — Implementar `IdCorrelacionMiddleware` y `LoggerJson`. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
+- [x] **T06** [P] — Implementar `middlewareIdCorrelacion` y `LoggerJson`. *Hecho cuando:* la respuesta devuelve el `X-Correlation-Id` recibido o uno generado, y aparece en los logs.
 - [x] **T07** — Crear `001-crear-indices-auditoria.ts` y `RegistroAuditoriaMongo`. *Hecho cuando:* un test de integración registra una auditoría dentro de una transacción y la lee con actor e `idCorrelacion`.
 - [x] **T08** [P] — Crear `ConsultaPaginada`, la respuesta paginada, `Reloj` y la configuración de Swagger.
 - [x] **T09** [P] — Escribir el `Dockerfile` y `.github/workflows/servicio-inventario.yml`, con el umbral de cobertura de Jest. *Hecho cuando:* el pipeline corre en verde y construye la imagen. Verificado en local con los mismos pasos (`npm ci`, lint, build, tests con cobertura y `docker build`); la primera corrida en GitHub Actions ocurre con el push.

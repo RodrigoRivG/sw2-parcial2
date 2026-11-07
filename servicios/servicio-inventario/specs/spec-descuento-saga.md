@@ -261,7 +261,7 @@ por cada mensaje:
      loop:
        try:
          respuesta, insumosAfectados = casoDeUso[tipo].ejecutar(sobre)   ← transacción propia
-         publicador.publicarRespuesta(respuesta)                          ← espera confirmación
+         responder(respuesta) en la cola del coordinador                  ← espera confirmación
          ack
          evaluarStockBajo(insumosAfectados) sin esperar                   ← spec-stock-bajo.md
          break
@@ -379,11 +379,11 @@ Los tests publican en `servicio-inventario.comandos` y leen de `servicio-operaci
 
 # 3. Tareas
 
-- [x] **T01** — Declarar las colas de 2.1 (`topologia-saga.ts`) y ampliar el publicador con `publicarRespuesta`. *Hecho cuando:* un test de integración verifica las tres colas y sus argumentos. `ClienteSaga` las declara con los mismos argumentos en cada archivo de la Saga; además se verificó en Docker Compose (`rabbitmqctl list_queues`).
+- [x] **T01** — Declarar las colas de 2.1 (`topologia-saga.ts`) y publicar las respuestas desde el consumidor, con confirmación. *Hecho cuando:* un test de integración verifica las tres colas y sus argumentos. `ClienteSaga` las declara con los mismos argumentos en cada archivo de la Saga; además se verificó en Docker Compose (`rabbitmqctl list_queues`).
 - [x] **T02** — Crear `SagaProcesada`, `ResultadoSagaProcesada` y `validacion-comando-descuento.ts`, con sus tests unitarios.
 - [x] **T03** — Crear el esquema, el mapper y `RepositorioSagaProcesadaMongo`, con el bloqueo de 2.3.
 - [x] **T04** — Implementar `ComandosSagaConsumidor` con reintentos y DLQ (2.2).
-- [x] **T05** — Implementar `DescontarInsumosCasoUso`. *Hecho cuando:* pasan `descontar-insumos.caso-uso.spec.ts` y `descontar-insumos.int-spec.ts` (salvo el escenario 7).
+- [x] **T05** — Implementar `DescontarInsumosCasoUso`. *Hecho cuando:* pasan `saga.caso-uso.spec.ts` y `descontar-insumos.int-spec.ts` (salvo el escenario 7).
 - [x] **T06** — Implementar `RestaurarInsumosCasoUso`. *Hecho cuando:* pasan `restaurar-insumos.int-spec.ts` y el escenario 7 de la Historia 1.
 - [x] **T07** — Escribir `idempotencia-saga.int-spec.ts`, `fallos-saga.int-spec.ts` y `concurrencia-saga.int-spec.ts`.
 - [x] **T08** — Conectar la evaluación de stock bajo después de cada respuesta (RQ-SAG-14) y completar el escenario 4 de la Historia 3 de `spec-movimientos.md` (actor de la Saga en el listado).
