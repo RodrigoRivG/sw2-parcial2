@@ -73,7 +73,7 @@ Solo hace falta para los perfiles que incluyen `servicio-operaciones`.
 | `gateway` | api-gateway | ~0,7 GB |
 | `graphql` | graphql-server | ~0,2 GB |
 | `auth` | Keycloak | ~0,7 GB |
-| `n8n` | n8n | ~0,3 GB |
+| `n8n` | n8n (notificaciones push) | ~0,5 GB |
 | `herramientas` | Interfaz web de DynamoDB | ~0,1 GB |
 | `saga` | gestion + inventario + operaciones | ~1,9 GB |
 | `backend` | los 3 de negocio + gateway + Keycloak | ~3,3 GB |
@@ -221,6 +221,29 @@ docker compose exec keycloak /opt/keycloak/bin/kcadm.sh delete realms/agro \
   --server http://localhost:8080 --realm master --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD"
 docker compose restart keycloak
 ```
+
+### n8n y las notificaciones push
+
+n8n envía dos avisos push por Firebase Cloud Messaging al tema `tecnicos`: uno inmediato por cada incidencia registrada y un recordatorio diario (07:00) de labores programadas (`specs/spec-n8n.md`). Al arrancar, importa y publica los flujos y sus credenciales desde `docker/n8n/`, sin pasos manuales.
+
+Antes del primer arranque (una sola vez):
+
+1. En la consola de Firebase, crea un proyecto y genera una clave de su cuenta de servicio (Configuración del proyecto → Cuentas de servicio).
+2. Guárdala como `docker/n8n/secretos/firebase-cuenta-servicio.json` (está en `.gitignore`).
+3. En el `.env`, pon el `project_id` del archivo en `FIREBASE_PROYECTO_ID` y define `N8N_ENCRYPTION_KEY` (copia la de `.env.example`).
+
+Sin esto n8n arranca igual, pero sin flujos (lo avisa en el log con `[agro]`). Si cambias `N8N_ENCRYPTION_KEY` después del primer arranque, borra el volumen: `docker volume rm sw2_n8n-data`.
+
+Para verificar (con `--profile backend --profile n8n`):
+
+- **Incidencia:** registra una incidencia, o publica un evento con routing key `operaciones.incidencia.registrada` en el exchange `eventos` desde el panel de RabbitMQ. En http://localhost:5678 → *Executions*, la ejecución debe estar en verde y el nodo `fcm` debe mostrar el `name` del mensaje.
+- **Recordatorio (también para la defensa):** abre el flujo `recordatorio-labores` y pulsa *Execute workflow*, o ejecútalo por CLI:
+
+  ```bash
+  docker compose exec -e N8N_RUNNERS_BROKER_PORT=5690 -e N8N_PORT=5691 n8n n8n execute --id=recordatorioLabores
+  ```
+
+  Solo envía algo si hay labores `PROGRAMADA` retrasadas o para hoy o mañana.
 
 ### Ollama (nativo en Windows)
 

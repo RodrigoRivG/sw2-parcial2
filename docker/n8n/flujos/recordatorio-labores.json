@@ -1,0 +1,60 @@
+{
+  "id": "recordatorioLabores",
+  "name": "recordatorio-labores",
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "America/La_Paz" },
+  "nodes": [
+    {
+      "id": "4f1d7a10-0002-4000-8000-000000000001",
+      "name": "cada dia 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 7 * * *" }] }
+      }
+    },
+    {
+      "id": "4f1d7a10-0002-4000-8000-000000000004",
+      "name": "a mano",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 200],
+      "parameters": {}
+    },
+    {
+      "id": "4f1d7a10-0002-4000-8000-000000000002",
+      "name": "conteo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "jsCode": "// Cuenta las labores PROGRAMADA retrasadas y próximas a través del gateway\n// con la cuenta de servicio n8n, y arma la notificación (spec-n8n.md 2.5).\n// Si no hay ninguna, no devuelve nada y el flujo termina sin enviar.\nconst parsear = (r) => (typeof r === 'string' ? JSON.parse(r) : r);\nconst dia = (desplazamiento) => new Date(Date.now() + desplazamiento * 86400000).toISOString().slice(0, 10);\nconst ayer = dia(-1), hoy = dia(0), manana = dia(1);\n\nconst token = parsear(await this.helpers.httpRequest({\n  method: 'POST',\n  url: $env.KEYCLOAK_TOKEN_URL,\n  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },\n  body: `grant_type=client_credentials&client_id=n8n&client_secret=${encodeURIComponent($env.N8N_CLIENT_SECRET)}`,\n})).access_token;\n\nasync function contar(filtros) {\n  let total = 0, cursor = null;\n  do {\n    const qs = { estado: 'PROGRAMADA', limite: 100, ...filtros };\n    if (cursor) qs.cursor = cursor;\n    const pagina = parsear(await this.helpers.httpRequest({\n      url: `${$env.API_GATEWAY_URL}/api/operaciones/v1/labores`,\n      qs,\n      headers: { Authorization: `Bearer ${token}` },\n    }));\n    total += pagina.items.length;\n    cursor = pagina.siguienteCursor;\n  } while (cursor);\n  return total;\n}\n\nconst retrasadas = await contar.call(this, { fechaHasta: ayer });\nconst proximas = await contar.call(this, { fechaDesde: hoy, fechaHasta: manana });\nif (retrasadas === 0 && proximas === 0) return [];\n\nreturn [{\n  json: {\n    mensaje: {\n      topic: 'tecnicos',\n      notification: { title: 'Labores programadas', body: `${retrasadas} retrasadas y ${proximas} para hoy o mañana` },\n      data: { tipo: 'RECORDATORIO_LABORES', retrasadas: String(retrasadas), proximas: String(proximas), fecha: hoy },\n      android: { priority: 'high' },\n    },\n  },\n}];\n"
+      }
+    },
+    {
+      "id": "4f1d7a10-0002-4000-8000-000000000003",
+      "name": "fcm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://fcm.googleapis.com/v1/projects/{{ $env.FIREBASE_PROYECTO_ID }}/messages:send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $json.mensaje }) }}",
+        "options": {}
+      },
+      "credentials": { "googleApi": { "id": "firebaseFcm", "name": "Firebase FCM" } }
+    }
+  ],
+  "connections": {
+    "cada dia 07:00": { "main": [[{ "node": "conteo", "type": "main", "index": 0 }]] },
+    "a mano": { "main": [[{ "node": "conteo", "type": "main", "index": 0 }]] },
+    "conteo": { "main": [[{ "node": "fcm", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}
+}

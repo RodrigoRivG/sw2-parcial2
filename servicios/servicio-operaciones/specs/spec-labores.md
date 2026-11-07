@@ -246,7 +246,7 @@ Como administrador o gerente, quiero ver las labores por campaña, estado o resp
 ## 1.7 Supuestos
 
 - El cliente (Vue.js o Flutter) descarga las parcelas y campañas de gestión y el catálogo de insumos de inventario para armar la labor; este servicio solo valida la campaña.
-- Los recordatorios de n8n van al `responsable` de la labor programada; n8n obtiene su correo desde Keycloak con el `id` (este servicio no guarda correos).
+- ~~Los recordatorios de n8n van al `responsable` de la labor programada; n8n obtiene su correo desde Keycloak con el `id` (este servicio no guarda correos).~~ Reemplazado por `specs/spec-n8n.md` (2026-11-07): el recordatorio es un aviso push diario a todos los técnicos, con los conteos de labores programadas retrasadas y próximas. Este servicio no cambia.
 - La labor programada no lleva insumos planificados: los insumos se informan al realizarla.
 
 ## 1.8 Aclaraciones

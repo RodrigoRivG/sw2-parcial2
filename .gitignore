@@ -4,6 +4,9 @@
 !.env.example
 # Sin secretos: solo hace que Laravel no busque .env en los tests de operaciones
 !servicios/servicio-operaciones/.env.testing
+# Cuenta de servicio de Firebase y otros secretos de n8n (spec-n8n.md, T01)
+docker/n8n/secretos/*
+!docker/n8n/secretos/.gitkeep
 
 # Java / Maven
 target/

@@ -432,15 +432,37 @@ services:
   # ia.reporte.completado) y llama a los servicios a través del gateway.
   n8n:
     profiles: ["n8n", "todo"]
-    image: docker.n8n.io/n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:2.46.6
+    # Importa credenciales y flujos de docker/n8n/ y arranca n8n (specs/spec-n8n.md)
+    entrypoint: ["sh", "/opt/agro/iniciar.sh"]
     ports:
       - "5678:5678"
     environment:
+      <<: *keycloak-env
       GENERIC_TIMEZONE: America/La_Paz
       TZ: America/La_Paz
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+      # Los nodos leen URL y el secreto del client n8n con $env
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      API_GATEWAY_URL: http://api-gateway:8080
+      N8N_CLIENT_SECRET: ${N8N_CLIENT_SECRET:-}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: /
+      RABBITMQ_SSL: "false"
+      FIREBASE_PROYECTO_ID: ${FIREBASE_PROYECTO_ID:-}
+      FIREBASE_CUENTA_SERVICIO: /opt/agro/secretos/firebase-cuenta-servicio.json
+      # Con 512 MB, n8n 2.x se queda sin memoria al arrancar
+      NODE_OPTIONS: --max-old-space-size=640
     volumes:
       - n8n-data:/home/node/.n8n
-    mem_limit: 512m
+      - ./docker/n8n:/opt/agro:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 896m
 
   dynamodb-admin:
     profiles: ["herramientas"]
