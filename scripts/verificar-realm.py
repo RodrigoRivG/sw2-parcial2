@@ -153,6 +153,8 @@ def historia_1(clave):
         comprobar(f"{usuario}: iss es {EMISOR}", c.get("iss") == EMISOR, c.get("iss"))
         comprobar(f"{usuario}: roles {sorted(roles)}", roles_token == roles, sorted(roles_token))
         comprobar(f"{usuario}: aud con los cuatro servicios", SERVICIOS <= audiencias(c), sorted(audiencias(c)))
+        # graphql-server/specs/spec-consultas.md 2.10: los tokens de usuario también llevan graphql-server.
+        comprobar(f"{usuario}: aud con graphql-server", "graphql-server" in audiencias(c), sorted(audiencias(c)))
         comprobar(f"{usuario}: trae name y preferred_username",
                   bool(c.get("name")) and c.get("preferred_username") == usuario)
     estado, _, _ = http("POST", URL_TOKEN, formulario={

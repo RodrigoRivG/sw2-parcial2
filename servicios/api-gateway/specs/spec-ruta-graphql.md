@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `api-gateway` |
 | Archivo | `specs/spec-ruta-graphql.md` |
-| Estado | Implementada (2026-11-07) · prueba de punta a punta pendiente de `graphql-server` |
+| Estado | Implementada (2026-11-07) |
 | Constitución | v1.1.0 |
 | Trazabilidad | Módulo 9 · proceso 7 · RF-27 · RNF-01, RNF-05, RNF-08, RNF-22 |
 | Depende de | `spec-enrutamiento.md` (implementada). Para la prueba de punta a punta, `graphql-server/specs/spec-consultas.md`. |
@@ -103,3 +103,4 @@ Como microfrontend React, quiero enviar mis consultas GraphQL a la misma URL bas
 - `./scripts/ejecutar.sh api-gateway mvn -B verify`: 48 tests en verde (44 anteriores y 4 nuevos) y cobertura de líneas del 93,2 %.
 - Tests mínimos, en `EnrutamientoIT`: los escenarios 1 y 2 en un solo test (consulta reenviada con su cuerpo, `Authorization` y `X-Correlation-Id`, y una respuesta `200` con `errors` devuelta tal cual), el 3 (`401` sin llamar al servidor) y el 5 (`/api/graphqlx` y `/api/graphql/otra` en el test parametrizado de rutas sin destino). Los escenarios 4 (CORS), 6 (`503`) y 7 (servicio destino en el log) los cubren las reglas generales de `/api/**`, ya probadas en `CorsIT`, `ResilienciaIT` y `CorrelacionIT`: la ruta solo agrega su `metadata.servicio`.
 - T03 comprobada solo con el perfil `gateway`: `graphql-server` todavía no tiene código, así que su contenedor no arranca. El gateway responde `401 NO_AUTENTICADO` a `POST /api/graphql` sin token. El arranque conjunto queda para T13 y T14 de `spec-consultas.md`.
+- **CE-RGQ-03 (2026-11-07):** comprobada con T14 de `graphql-server/specs/spec-consultas.md`: la consulta del tablero por `POST /api/graphql` llega a `graphql-server` con su token y su `X-Correlation-Id`, y las llamadas de `graphql-server` a los servicios pasan por las demás rutas del gateway con el mismo id.

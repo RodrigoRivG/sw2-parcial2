@@ -1,0 +1,36 @@
+name: graphql-server
+
+on:
+  push:
+    paths:
+      - "servicios/graphql-server/**"
+      - ".github/workflows/graphql-server.yml"
+  pull_request:
+    paths:
+      - "servicios/graphql-server/**"
+      - ".github/workflows/graphql-server.yml"
+
+jobs:
+  construir:
+    # Sin contenedores en los tests: el gateway y Keycloak se simulan en el propio proceso (D-GQL-05).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: servicios/graphql-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: servicios/graphql-server/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Revisar estilo
+        run: npm run lint
+      - name: Compilar
+        run: npm run build
+      - name: Probar y medir cobertura
+        run: npm test -- --coverage
+      - name: Construir la imagen Docker
+        run: docker build -t graphql-server:${{ github.sha }} .

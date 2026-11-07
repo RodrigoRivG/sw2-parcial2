@@ -44,7 +44,8 @@
         { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
         { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
         { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
-        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-graphql-server", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "graphql-server", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
       ]
     },
     {
@@ -87,7 +88,8 @@
         { "name": "audiencia-servicio-gestion", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-gestion", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
         { "name": "audiencia-servicio-inventario", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-inventario", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
         { "name": "audiencia-servicio-operaciones", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-operaciones", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
-        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
+        { "name": "audiencia-servicio-ia", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "servicio-ia", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } },
+        { "name": "audiencia-graphql-server", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "graphql-server", "access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "true" } }
       ]
     },
     {

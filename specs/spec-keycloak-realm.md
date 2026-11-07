@@ -99,7 +99,7 @@ Como administrador, quiero crear cuentas, asignar roles y activar o desactivar u
   | `agro-web` | La aplicación contenedora de single-spa y sus tres microfrontends, que comparten la sesión (Módulo 6) | `http://localhost:9000/*` (provisional, como `CORS_ORIGENES_PERMITIDOS`) |
   | `agro-movil` | Flutter con `flutter_appauth` (Módulo 7) | `com.agrosystem.campo:/oauthredirect` (provisional) |
 
-  Ambos agregan a `aud` las cuatro audiencias de los servicios.
+  Ambos agregan a `aud` las cuatro audiencias de los servicios. `agro-web` (y `agro-pruebas`, RQ-KC-07) agrega además `graphql-server`, que valida su propia audiencia (`graphql-server/specs/spec-consultas.md` 2.10, 2026-11-07). `agro-movil` no la necesita: Flutter no usa GraphQL.
 
 - **RQ-KC-04:** clients de servicio, confidenciales, solo con client credentials (sin login de usuario):
 

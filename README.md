@@ -2,7 +2,7 @@
 
 Entorno local compartido del sistema de gestión de campañas agrícolas (RNF-19): infraestructura, emuladores de nube e imágenes de desarrollo para los cuatro microservicios, el API Gateway y el servidor GraphQL. Está pensado para una laptop de **16 GB de RAM** con Windows 11 y WSL 2.
 
-Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus specs (`specs/`); el código se genera siguiendo spec → plan → tareas. Hoy tienen código `servicio-gestion`, `servicio-inventario`, `servicio-operaciones` y `api-gateway`.
+Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus specs (`specs/`); el código se genera siguiendo spec → plan → tareas. Hoy tienen código `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia`, `api-gateway` y `graphql-server`.
 
 > Los microfrontends (Angular, React, Vue) y Flutter se desarrollan fuera de Docker y consumen el backend a través del API Gateway.
 
@@ -31,7 +31,7 @@ sw2-parcial2/
     ├── servicio-operaciones/       # Constitucion.md, specs/ y código (Laravel)
     ├── servicio-ia/                # Constitucion.md
     ├── api-gateway/                # Constitucion.md, specs/ y código (Spring Cloud Gateway)
-    └── graphql-server/
+    └── graphql-server/             # Constitucion.md, specs/ y código (Apollo Server)
 ```
 
 ---
@@ -111,7 +111,7 @@ Todo lo que un servicio necesita le llega por **variables de entorno** (RNF-03).
 | servicio-operaciones | `php artisan serve` (crea las tablas de DynamoDB al arrancar); `servicio-operaciones-programador` corre `php artisan schedule:work` | `DYNAMODB_ENDPOINT`, `AWS_*`, `AWS_ENDPOINT`, `AWS_ENDPOINT_PUBLICO`, `AWS_BUCKET`, `RABBITMQ_*`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | servicio-ia | `pip install -e .` + `uvicorn app.main:app --reload` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `WHISPER_*`, `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `STORAGE_EMULATOR_HOST`, `GCS_BUCKET`, `RABBITMQ_URL`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | api-gateway | `mvn spring-boot:run` | `SERVER_PORT`, `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL`, `GRAPHQL_URL`, `CORS_ORIGENES_PERMITIDOS`, `GATEWAY_TIEMPO_LIMITE` (10 s), `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION` (120000 ms) |
-| graphql-server | `npm run dev` | `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
+| graphql-server | `npm run dev` (recarga al guardar) | `PORT`, `API_GATEWAY_URL`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_CLIENT_ID/SECRET`, `GRAPHQL_TIEMPO_LIMITE_LLAMADA_MS` (4000), `GRAPHQL_PLAZO_CONSULTA_MS` (4500), `GRAPHQL_MAXIMO_LLAMADAS` (200) |
 
 Los servicios se comunican entre sí **solo a través del API Gateway** (`API_GATEWAY_URL`), como exigen las constituciones. Solo el gateway conoce las URL internas.
 
@@ -131,6 +131,7 @@ Los SDK de Google (Firestore y Cloud Storage) detectan los emuladores automátic
 ./scripts/ejecutar.sh servicio-operaciones ./vendor/bin/pest
 ./scripts/ejecutar.sh servicio-ia pytest
 ./scripts/ejecutar.sh servicio-ia mypy app
+./scripts/ejecutar.sh graphql-server npm test -- --coverage
 ```
 
 También sirve para los generadores y herramientas de cada stack (`composer`, `php artisan`, `npx @nestjs/cli`, `mvn`, `pip`…).

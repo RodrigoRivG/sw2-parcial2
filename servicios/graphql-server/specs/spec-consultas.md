@@ -4,7 +4,7 @@
 |---|---|
 | Servicio | `graphql-server` |
 | Archivo | `specs/spec-consultas.md` |
-| Estado | Spec, plan y tareas aprobados (2026-11-07) |
+| Estado | Implementada (2026-11-07) |
 | Constitución | v1.0.0 |
 | Trazabilidad | CU-05, CU-14, CU-15, CU-24 · RF-06, RF-18, RF-19, RF-27, RF-33 · RN-13, RN-14, RN-15, RN-16 · RNF-02, RNF-03, RNF-05, RNF-08, RNF-19, RNF-20, RNF-22 |
 | Depende de | `api-gateway/specs/spec-ruta-graphql.md` (ruta `/api/graphql`). Los cuatro microservicios y el realm `agro`, ya implementados. |
@@ -322,6 +322,8 @@ type Campania {
   superficieHectareas: Decimal!
   fechaInicioEjecucion: FechaHora
   fechaFinalizacion: FechaHora
+  idParcela: ID!
+  idCultivo: ID!
   parcela: Parcela
   cultivo: Cultivo
   indicadores: Indicadores
@@ -458,6 +460,7 @@ type Intervalo { minimo: Decimal! maximo: Decimal! }
 
 type Prediccion {
   id: ID!
+  idCampania: ID!
   fecha: FechaHora!
   cultivo: String!
   estadoCampania: EstadoCampania!
@@ -473,14 +476,22 @@ type Prediccion {
   orientativo: Boolean!
   aviso: String!
 }
-type Advertencia { codigo: String! campos: [String!] }
+type Advertencia { codigo: String! mensaje: String! campos: [String!]! }
 type PaginaPredicciones { items: [Prediccion!]! pagina: Int! tamanio: Int! total: Int! }
 
-type ResumenAnalisis { id: ID! fecha: FechaHora! cantidadAnalizadas: Int! truncado: Boolean! versionModelo: VersionModelo! }
+type ResumenAnalisis {
+  id: ID!
+  fecha: FechaHora!
+  cantidadAnalizadas: Int!
+  truncado: Boolean!
+  cantidadGrupos: Int!
+  cantidadAnomalias: Int!
+  versionModelo: VersionModelo!
+}
 type PaginaResumenAnalisis { items: [ResumenAnalisis!]! pagina: Int! tamanio: Int! total: Int! }
 
 type Grupo { grupo: Int! descripcion: String! cantidad: Int! idsCampania: [ID!]! }
-type Anomalia { idCampania: ID! nombreParcela: String! cultivo: String! puntaje: Decimal! motivos: [String!]! campania: Campania }
+type Anomalia { idCampania: ID! nombreParcela: String cultivo: String! puntaje: Decimal! motivos: [String!]! campania: Campania }
 type Excluida { idCampania: ID! motivo: String! }
 
 type Analisis {
@@ -501,6 +512,7 @@ type Analisis {
 - Los objetos `{ "INSUMO": "…", … }` de gestión e IA se entregan como `[MontoPorCategoria!]!`, en el orden del enum `CategoriaCosto`, sin cambiar los montos.
 - `Labor.idParcela`, `Labor.idCampania` e `Incidencia.idParcela` se conservan para que React pueda mostrar algo aunque el campo anidado falle.
 - Los tipos de este bloque se escribieron a partir de las specs de cada servicio. Los campos que una spec no detalla (`Produccion`, `Advertencia`, `ResumenAnalisis`) se confirman contra el OpenAPI real en T02; si difieren, prevalece el servicio y este bloque se corrige en el mismo commit.
+- Corregido en T02 (2026-11-07), contra el código de los servicios: `Advertencia` trae `mensaje` y `campos` no anulable; `Prediccion` trae `idCampania`; `ResumenAnalisis` trae `cantidadGrupos` y `cantidadAnomalias`; `Anomalia.nombreParcela` puede ser `null`. Se agregan `Campania.idParcela` e `idCultivo`, que gestión ya devuelve, por la misma razón que en `Labor`.
 
 ## 2.4 Resolución de cada campo
 
@@ -640,18 +652,30 @@ Todos en `test/`, con `supertest` contra la aplicación de Express.
 
 Cada tarea se da por terminada solo con sus tests en verde. Las marcadas con **[P]** pueden hacerse en paralelo con la anterior.
 
-- [ ] **T01** — Crear el proyecto (`package.json`, `tsconfig.json`, ESLint, Jest), `config.ts`, `main.ts`, `app.ts` y las rutas de salud. *Hecho cuando:* `./scripts/ejecutar.sh graphql-server npm run build` compila y `/salud/readiness` responde `UP` en un test.
-- [ ] **T02** — Revisar el OpenAPI real de los cuatro servicios para cada endpoint de 1.3; guardar una respuesta de ejemplo de cada uno en `test/soporte/respuestas/` y corregir 2.3 si algún campo difiere. *Hecho cuando:* cada tipo de 2.3 tiene su respuesta de ejemplo.
-- [ ] **T03** — Implementar `correlacion`, `registroAcceso`, el logger, `RespuestaError` y `cors-desarrollo`, en el orden de 2.5, con `gateway-simulado.ts`. *Hecho cuando:* pasan `cors.int-spec.ts` y `correlacion.int-spec.ts`, salvo lo que depende de llamadas a servicios.
-- [ ] **T04** — Implementar `validarToken`, el middleware de autenticación y `exigirRol` con `PERMISOS`. *Hecho cuando:* pasan `permisos.spec.ts` y los escenarios 1 a 3 de la historia 6.
-- [ ] **T05** [P] — Agregar la audiencia `graphql-server` al realm, a `verificar-realm.py` y a `spec-keycloak-realm.md` (2.10). *Hecho cuando:* con el realm reimportado, `python3 scripts/verificar-realm.py` termina con código 0.
-- [ ] **T06** — Implementar el plazo de la consulta, `TokenServicio` y `ClienteGateway` (2.6). *Hecho cuando:* pasan `token-servicio.spec.ts` y `cliente-gateway.spec.ts`.
-- [ ] **T07** — Escribir el esquema, los escalares, `formatError` y los resolvers de gestión con sus `DataLoader`. *Hecho cuando:* pasan `escalares.spec.ts` y `gestion.int-spec.ts`.
-- [ ] **T08** [P] — Resolvers de inventario. *Hecho cuando:* pasa `inventario.int-spec.ts`.
-- [ ] **T09** [P] — Resolvers de operaciones. *Hecho cuando:* pasa `operaciones.int-spec.ts`.
-- [ ] **T10** [P] — Resolvers de IA. *Hecho cuando:* pasa `ia.int-spec.ts`.
-- [ ] **T11** — Completar `seguridad.int-spec.ts`, `resiliencia.int-spec.ts` y `correlacion.int-spec.ts`. *Hecho cuando:* pasan completos.
-- [ ] **T12** [P] — Escribir `rendimiento.int-spec.ts` (CE-GQL-02).
-- [ ] **T13** — Escribir el `Dockerfile`, `.dockerignore` y `.github/workflows/graphql-server.yml`; actualizar `docker-compose.yml` y `README.md` (2.11). *Hecho cuando:* `npm test -- --coverage` pasa con ≥ 80 %, `docker build` construye la imagen y `docker compose --profile graphql up -d graphql-server` arranca con `/salud` en `UP`.
-- [ ] **T14** — Prueba manual de punta a punta (CE-GQL-03, requiere `api-gateway/specs/spec-ruta-graphql.md` implementada y T05). *Hecho cuando:* la consulta del tablero con un token de `gerencia.prueba` (`agro-pruebas`) contra `http://localhost:8080/api/graphql` devuelve los mismos valores que las llamadas REST, y el mismo `idCorrelacion` aparece en los logs del gateway, de `graphql-server` y de `servicio-gestion`.
-- [ ] **T15** — Verificación final: `npm run lint`, `npm run build` y `npm test -- --coverage` en verde, y los criterios CE-GQL-01, CE-GQL-02, CE-GQL-04 y CE-GQL-05 cubiertos por al menos un test (CE-GQL-03 queda en T14).
+- [x] **T01** — Crear el proyecto (`package.json`, `tsconfig.json`, ESLint, Jest), `config.ts`, `main.ts`, `app.ts` y las rutas de salud. *Hecho cuando:* `./scripts/ejecutar.sh graphql-server npm run build` compila y `/salud/readiness` responde `UP` en un test.
+- [x] **T02** — Revisar el OpenAPI real de los cuatro servicios para cada endpoint de 1.3; guardar una respuesta de ejemplo de cada uno en `test/soporte/respuestas/` y corregir 2.3 si algún campo difiere. *Hecho cuando:* cada tipo de 2.3 tiene su respuesta de ejemplo.
+- [x] **T03** — Implementar `correlacion`, `registroAcceso`, el logger, `RespuestaError` y `cors-desarrollo`, en el orden de 2.5, con `gateway-simulado.ts`. *Hecho cuando:* pasan `cors.int-spec.ts` y `correlacion.int-spec.ts`, salvo lo que depende de llamadas a servicios.
+- [x] **T04** — Implementar `validarToken`, el middleware de autenticación y `exigirRol` con `PERMISOS`. *Hecho cuando:* pasan `permisos.spec.ts` y los escenarios 1 a 3 de la historia 6.
+- [x] **T05** [P] — Agregar la audiencia `graphql-server` al realm, a `verificar-realm.py` y a `spec-keycloak-realm.md` (2.10). *Hecho cuando:* con el realm reimportado, `python3 scripts/verificar-realm.py` termina con código 0.
+- [x] **T06** — Implementar el plazo de la consulta, `TokenServicio` y `ClienteGateway` (2.6). *Hecho cuando:* pasan `token-servicio.spec.ts` y `cliente-gateway.spec.ts`.
+- [x] **T07** — Escribir el esquema, los escalares, `formatError` y los resolvers de gestión con sus `DataLoader`. *Hecho cuando:* pasan `escalares.spec.ts` y `gestion.int-spec.ts`.
+- [x] **T08** [P] — Resolvers de inventario. *Hecho cuando:* pasa `inventario.int-spec.ts`.
+- [x] **T09** [P] — Resolvers de operaciones. *Hecho cuando:* pasa `operaciones.int-spec.ts`.
+- [x] **T10** [P] — Resolvers de IA. *Hecho cuando:* pasa `ia.int-spec.ts`.
+- [x] **T11** — Completar `seguridad.int-spec.ts`, `resiliencia.int-spec.ts` y `correlacion.int-spec.ts`. *Hecho cuando:* pasan completos.
+- [x] **T12** [P] — Escribir `rendimiento.int-spec.ts` (CE-GQL-02).
+- [x] **T13** — Escribir el `Dockerfile`, `.dockerignore` y `.github/workflows/graphql-server.yml`; actualizar `docker-compose.yml` y `README.md` (2.11). *Hecho cuando:* `npm test -- --coverage` pasa con ≥ 80 %, `docker build` construye la imagen y `docker compose --profile graphql up -d graphql-server` arranca con `/salud` en `UP`.
+- [x] **T14** — Prueba manual de punta a punta (CE-GQL-03, requiere `api-gateway/specs/spec-ruta-graphql.md` implementada y T05). *Hecho cuando:* la consulta del tablero con un token de `gerencia.prueba` (`agro-pruebas`) contra `http://localhost:8080/api/graphql` devuelve los mismos valores que las llamadas REST, y el mismo `idCorrelacion` aparece en los logs del gateway, de `graphql-server` y de `servicio-gestion`.
+- [x] **T15** — Verificación final: `npm run lint`, `npm run build` y `npm test -- --coverage` en verde, y los criterios CE-GQL-01, CE-GQL-02, CE-GQL-04 y CE-GQL-05 cubiertos por al menos un test (CE-GQL-03 queda en T14).
+
+## Resultado (2026-11-07)
+
+- `npm run lint`, `npm run build` y `npm test -- --coverage`: 38 tests en verde (unas 22 funciones de test con casos parametrizados, según la preferencia de tests mínimos) y cobertura de líneas del 92,2 %. La imagen Docker construye y arranca.
+- **T05:** el mapper `audiencia-graphql-server` se agregó a `realm-agro.json` (para las importaciones nuevas) y, con `kcadm`, al realm ya importado, sin borrarlo (mismo criterio que `lectura_ia` en `servicio-ia`). `python3 scripts/verificar-realm.py`: 61 comprobaciones correctas, 0 fallidas, incluida la nueva audiencia en los tokens de usuario.
+- **T14 (CE-GQL-03):** con los perfiles `backend`, `ia` y `graphql`, la consulta del tablero de `gerencia.prueba` por `POST http://localhost:8080/api/graphql` devolvió las 8 campañas existentes con los mismos valores que las llamadas REST equivalentes (0 diferencias) y el mismo resumen de inventario. Con usuarios reales: `administrador` recibe `analisis` en `null` con `SIN_PERMISO`, `gerencia` lo recibe y `tecnico_campo` recibe `403 SIN_PERMISO`. El mismo `idCorrelacion` aparece en el gateway, en `graphql-server` y en `servicio-gestion`. Gestión no escribe un log por cada lectura correcta, así que la correlación en su log se comprobó con una consulta que rechaza (`campania(id: "no-es-uuid")`, `400` → `DATOS_INVALIDOS`).
+- Diferencias de implementación con el plan, sin cambiar lo que pide la spec:
+  - Regla de validación `soloConsultas`: graphql-js no valida que exista el tipo raíz de una `mutation`, que terminaba en `ERROR_INTERNO`; la regla la rechaza en la validación con `DATOS_INVALIDOS` (historia 6, escenario 6).
+  - Fuera de producción, la autenticación deja pasar el `GET` que pide HTML: es la página de Apollo Sandbox del puerto 4000 (D-GQL-07), que Apollo sirve sin ejecutar ninguna consulta.
+  - Los IDs se codifican en la URL de cada llamada, para que un `../` no lleve la llamada a otro endpoint del gateway y se salte la tabla de permisos.
+  - Resolvers en un solo archivo (`resolvers/index.ts`) y tests agrupados en cinco archivos.
+  - Versiones: `jose` 5 y Jest 29, como `servicio-inventario` (`jose` 6 solo se publica como ESM y no carga en Jest con CommonJS); TypeScript 5.9 (`ts-jest` aún no admite la 7); `graphql` 16 (lo exige `@apollo/server` 5).

@@ -1,0 +1,235 @@
+"Decimal exacto como texto con punto decimal, por ejemplo \"820.50\"."
+scalar Decimal
+"Fecha sin hora, AAAA-MM-DD."
+scalar Fecha
+"Fecha y hora ISO 8601 UTC."
+scalar FechaHora
+
+enum EstadoCampania { PLANIFICADA EN_CURSO FINALIZADA }
+enum CategoriaCosto { INSUMO MANO_DE_OBRA MAQUINARIA OTRO }
+enum MotivoIndicadorNoDisponible { SIN_PRODUCCION SIN_COSTOS }
+enum CategoriaInsumo { SEMILLA FERTILIZANTE FITOSANITARIO }
+enum UnidadMedida { KILOGRAMO LITRO UNIDAD }
+enum EstadoLabor { PROGRAMADA PENDIENTE CONFIRMADA RECHAZADA PENDIENTE_REVISION }
+enum TipoLabor { PREPARACION_SUELO SIEMBRA FERTILIZACION RIEGO CONTROL_FITOSANITARIO DESHIERBE COSECHA OTRA }
+enum TipoIncidencia { PLAGA ENFERMEDAD DANIO OTRO }
+enum OrigenClasificacion { DISPOSITIVO SERVIDOR }
+enum Orden { ASC DESC }
+
+"Solo consultas: lo que crea datos o lanza procesos de IA va por REST al servicio dueño."
+type Query {
+  parcelas(nombre: String, pagina: Int = 0, tamanio: Int = 20): PaginaParcelas
+  cultivos(nombre: String, pagina: Int = 0, tamanio: Int = 20): PaginaCultivos
+  campanias(filtro: FiltroCampanias, pagina: Int = 0, tamanio: Int = 20): PaginaCampanias
+  "null si la campaña no existe."
+  campania(id: ID!): Campania
+  campaniasFinalizadas(filtro: FiltroCampaniasFinalizadas, pagina: Int = 0, tamanio: Int = 20): PaginaCampaniasFinalizadas
+  estadoInventario(categoria: CategoriaInsumo, soloStockBajo: Boolean = false, pagina: Int = 0, tamanio: Int = 20): EstadoInventario
+  insumos(nombre: String, categoria: CategoriaInsumo, pagina: Int = 0, tamanio: Int = 20): PaginaInsumos
+  labores(filtro: FiltroLabores!, limite: Int = 20, cursor: String): PaginaLabores
+  incidencias(filtro: FiltroIncidencias!, limite: Int = 20, cursor: String): PaginaIncidencias
+  "Solo gerencia."
+  analisis(pagina: Int = 0, tamanio: Int = 20): PaginaResumenAnalisis
+  "Solo gerencia. null si el análisis no existe."
+  analisisPorId(id: ID!): Analisis
+}
+
+# --- servicio-gestion ---
+
+type Parcela { id: ID! nombre: String! superficieHectareas: Decimal! ubicacion: String descripcion: String }
+type Cultivo { id: ID! nombre: String! variedad: String unidadMedida: String! }
+
+type Campania {
+  id: ID!
+  nombre: String!
+  estado: EstadoCampania!
+  fechaInicio: Fecha!
+  fechaFin: Fecha!
+  superficieHectareas: Decimal!
+  fechaInicioEjecucion: FechaHora
+  fechaFinalizacion: FechaHora
+  idParcela: ID!
+  idCultivo: ID!
+  parcela: Parcela
+  cultivo: Cultivo
+  indicadores: Indicadores
+  costos: ResumenCostos
+  "null si la campaña no tiene producción registrada."
+  produccion: Produccion
+  "Solo gerencia."
+  predicciones(pagina: Int = 0, tamanio: Int = 5): PaginaPredicciones
+  labores(estado: EstadoLabor, limite: Int = 20, cursor: String): PaginaLabores
+  incidencias(tipo: TipoIncidencia, limite: Int = 20, cursor: String): PaginaIncidencias
+}
+
+type Indicadores {
+  estadoCampania: EstadoCampania!
+  definitivo: Boolean!
+  superficieHectareas: Decimal!
+  produccion: Decimal
+  costoTotal: Decimal
+  rendimientoPorHectarea: Decimal
+  costoPorHectarea: Decimal
+  motivosNoDisponible: [MotivoIndicadorNoDisponible!]!
+}
+
+type MontoPorCategoria { categoria: CategoriaCosto! monto: Decimal! }
+type ResumenCostos { costoTotal: Decimal! subtotalesPorCategoria: [MontoPorCategoria!]! }
+type Produccion { cantidad: Decimal! unidad: String! fechaCosecha: Fecha! observaciones: String }
+
+type CampaniaFinalizada {
+  idCampania: ID!
+  idParcela: ID!
+  nombreParcela: String!
+  superficieHectareas: Decimal!
+  idCultivo: ID!
+  nombreCultivo: String!
+  variedad: String
+  fechaInicio: Fecha!
+  fechaFin: Fecha!
+  fechaInicioEjecucion: FechaHora
+  fechaFinalizacion: FechaHora!
+  duracionDias: Int!
+  produccion: Decimal!
+  fechaCosecha: Fecha
+  costoTotal: Decimal!
+  costosPorCategoria: [MontoPorCategoria!]!
+  rendimientoPorHectarea: Decimal
+  costoPorHectarea: Decimal
+  motivosNoDisponible: [MotivoIndicadorNoDisponible!]!
+}
+
+input FiltroCampanias { estado: EstadoCampania idParcela: ID idCultivo: ID fechaInicioDesde: Fecha fechaInicioHasta: Fecha }
+input FiltroCampaniasFinalizadas { idCultivo: ID idParcela: ID fechaFinalizacionDesde: Fecha fechaFinalizacionHasta: Fecha }
+
+type PaginaParcelas { items: [Parcela!]! pagina: Int! tamanio: Int! total: Int! }
+type PaginaCultivos { items: [Cultivo!]! pagina: Int! tamanio: Int! total: Int! }
+type PaginaCampanias { items: [Campania!]! pagina: Int! tamanio: Int! total: Int! }
+type PaginaCampaniasFinalizadas { items: [CampaniaFinalizada!]! pagina: Int! tamanio: Int! total: Int! }
+
+# --- servicio-inventario ---
+
+type ResumenInventario { totalInsumos: Int! totalStockBajo: Int! }
+type EstadoInsumo {
+  idInsumo: ID!
+  nombre: String!
+  categoria: CategoriaInsumo!
+  unidad: UnidadMedida!
+  stock: Decimal!
+  nivelMinimo: Decimal!
+  stockBajo: Boolean!
+  fechaUltimaAlerta: FechaHora
+}
+type EstadoInventario { resumen: ResumenInventario! items: [EstadoInsumo!]! pagina: Int! tamanio: Int! total: Int! }
+
+type Insumo {
+  id: ID!
+  nombre: String!
+  categoria: CategoriaInsumo!
+  unidad: UnidadMedida!
+  stock: Decimal!
+  nivelMinimo: Decimal!
+  costoUnitario: Decimal!
+  stockBajo: Boolean!
+}
+type PaginaInsumos { items: [Insumo!]! pagina: Int! tamanio: Int! total: Int! }
+
+# --- servicio-operaciones ---
+
+type Persona { id: ID! nombre: String! }
+type Motivo { codigo: String! mensaje: String! }
+type ConsumoInsumo { idInsumo: ID! cantidad: Decimal! insumo: Insumo }
+
+type Labor {
+  id: ID!
+  tipoLabor: TipoLabor!
+  estado: EstadoLabor!
+  fechaReferencia: FechaHora!
+  fechaProgramada: Fecha
+  fechaEjecucion: FechaHora
+  responsable: Persona
+  observaciones: String
+  insumos: [ConsumoInsumo!]!
+  motivo: Motivo
+  idParcela: ID!
+  idCampania: ID!
+  parcela: Parcela
+  campania: Campania
+}
+
+type Foto { url: String! tipoContenido: String! tamanio: Int! expiraEn: FechaHora! }
+type Clasificacion { categoria: String! confianza: Decimal! versionModelo: String! origen: OrigenClasificacion! orientativa: Boolean! }
+
+type Incidencia {
+  id: ID!
+  tipo: TipoIncidencia!
+  descripcion: String!
+  fechaObservacion: FechaHora!
+  foto: Foto
+  clasificacion: Clasificacion
+  registradaPor: Persona
+  idParcela: ID!
+  idCampania: ID
+  parcela: Parcela
+  campania: Campania
+}
+
+input FiltroLabores { idCampania: ID idResponsable: ID estado: EstadoLabor fechaDesde: Fecha fechaHasta: Fecha orden: Orden }
+input FiltroIncidencias { idParcela: ID idCampania: ID tipo: TipoIncidencia fechaDesde: Fecha fechaHasta: Fecha orden: Orden }
+
+type PaginaLabores { items: [Labor!]! siguienteCursor: String }
+type PaginaIncidencias { items: [Incidencia!]! siguienteCursor: String }
+
+# --- servicio-ia ---
+
+type VersionModelo { nombre: String! version: Int! }
+type Intervalo { minimo: Decimal! maximo: Decimal! }
+type Advertencia { codigo: String! mensaje: String! campos: [String!]! }
+
+type Prediccion {
+  id: ID!
+  idCampania: ID!
+  fecha: FechaHora!
+  cultivo: String!
+  estadoCampania: EstadoCampania!
+  origenCostos: String!
+  costosPorHectarea: [MontoPorCategoria!]!
+  rendimientoEstimado: Decimal!
+  intervalo: Intervalo!
+  produccionEstimada: Decimal!
+  rendimientoReal: Decimal
+  unidad: String!
+  advertencias: [Advertencia!]!
+  versionModelo: VersionModelo!
+  orientativo: Boolean!
+  aviso: String!
+}
+type PaginaPredicciones { items: [Prediccion!]! pagina: Int! tamanio: Int! total: Int! }
+
+type ResumenAnalisis {
+  id: ID!
+  fecha: FechaHora!
+  cantidadAnalizadas: Int!
+  truncado: Boolean!
+  cantidadGrupos: Int!
+  cantidadAnomalias: Int!
+  versionModelo: VersionModelo!
+}
+type PaginaResumenAnalisis { items: [ResumenAnalisis!]! pagina: Int! tamanio: Int! total: Int! }
+
+type Grupo { grupo: Int! descripcion: String! cantidad: Int! idsCampania: [ID!]! }
+type Anomalia { idCampania: ID! nombreParcela: String cultivo: String! puntaje: Decimal! motivos: [String!]! campania: Campania }
+type Excluida { idCampania: ID! motivo: String! }
+
+type Analisis {
+  id: ID!
+  fecha: FechaHora!
+  cantidadAnalizadas: Int!
+  truncado: Boolean!
+  grupos: [Grupo!]!
+  anomalias: [Anomalia!]!
+  excluidas: [Excluida!]!
+  versionModelo: VersionModelo!
+  orientativo: Boolean!
+  aviso: String!
+}

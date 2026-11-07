@@ -391,6 +391,8 @@ services:
       - ./servicios/graphql-server:/app
     environment:
       <<: *keycloak-env
+      PORT: 4000
+      KEYCLOAK_AUDIENCE: graphql-server
       API_GATEWAY_URL: http://api-gateway:8080
       KEYCLOAK_CLIENT_ID: graphql-server
       KEYCLOAK_CLIENT_SECRET: ${GRAPHQL_CLIENT_SECRET:-}
