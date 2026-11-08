@@ -4,7 +4,7 @@ Entorno local compartido del sistema de gestión de campañas agrícolas (RNF-19
 
 Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus specs (`specs/`); el código se genera siguiendo spec → plan → tareas. Hoy tienen código `servicio-gestion`, `servicio-inventario`, `servicio-operaciones`, `servicio-ia`, `api-gateway` y `graphql-server`.
 
-> Los microfrontends (Angular, React, Vue) y Flutter se desarrollan fuera de Docker y consumen el backend a través del API Gateway.
+> Los microfrontends (single-spa con Angular, React y Vue) viven en su propio repositorio, `sw2-parcial2-app`, se desarrollan en Windows sin Docker y consumen el backend a través del API Gateway (`localhost:8080`) y Keycloak (`localhost:8180`), con la aplicación servida en `localhost:9000`. La app Flutter también queda fuera de este repositorio.
 
 ---
 
@@ -12,27 +12,32 @@ Cada carpeta `servicios/<servicio>/` empieza con su `Constitucion.md` y sus spec
 
 ```
 sw2-parcial2/
-├── .github/workflows/         # un pipeline por servicio, filtrado por su carpeta (gestion, inventario, operaciones, api-gateway)
+├── .github/workflows/         # un pipeline por servicio, filtrado por su carpeta (los seis de servicios/)
 ├── docker-compose.yml
 ├── .env.example
+├── specs/                     # specs transversales: realm de Keycloak y n8n
 ├── scripts/
-│   └── ejecutar.sh             # corre comandos y tests en la imagen de un servicio
+│   ├── ejecutar.sh             # corre comandos y tests en la imagen de un servicio
+│   └── verificar-realm.py      # comprueba clients, roles y tokens del realm (spec-keycloak-realm.md)
 ├── docker/
 │   ├── spring/                 # imagen de desarrollo: servicio-gestion y api-gateway
 │   ├── node/                   # imagen de desarrollo: servicio-inventario y graphql-server
 │   ├── laravel/                # imagen de desarrollo: servicio-operaciones
-│   ├── fastapi/                # imagen de desarrollo: servicio-ia
+│   ├── fastapi/                # imagen de desarrollo: servicio-ia (también para entrenar el clasificador)
 │   ├── postgres/init.sql       # crea gestion_db y keycloak_db
 │   ├── localstack/init/        # crea el bucket S3 de evidencias
-│   └── keycloak/realms/        # realm exportado (se importa al arrancar Keycloak)
-└── servicios/
-    ├── servicio-gestion/           # Constitucion.md, specs/ y código (Spring Boot)
-    ├── servicio-inventario/        # Constitucion.md, specs/ y código (NestJS)
-    ├── servicio-operaciones/       # Constitucion.md, specs/ y código (Laravel)
-    ├── servicio-ia/                # Constitucion.md
-    ├── api-gateway/                # Constitucion.md, specs/ y código (Spring Cloud Gateway)
-    └── graphql-server/             # Constitucion.md, specs/ y código (Apollo Server)
+│   ├── keycloak/realms/        # realm exportado (se importa al arrancar Keycloak)
+│   └── n8n/                    # flujos de notificaciones push, preparación e inicio (spec-n8n.md)
+└── servicios/                  # cada uno con Constitucion.md, specs/, código y su Dockerfile de producción
+    ├── servicio-gestion/           # Spring Boot
+    ├── servicio-inventario/        # NestJS
+    ├── servicio-operaciones/       # Laravel
+    ├── servicio-ia/                # FastAPI (modelos de ML, visión, agentes y reportes)
+    ├── api-gateway/                # Spring Cloud Gateway
+    └── graphql-server/             # Apollo Server
 ```
+
+`frontends/` (ignorada por Git) guarda solo los borradores de la constitución y las specs de los microfrontends, que después se copian a `sw2-parcial2-app`.
 
 ---
 
@@ -174,8 +179,8 @@ Para MongoDB Compass desde Windows usa `directConnection=true`. Sin eso, Compass
 | PostgreSQL | `postgres:17` | Azure Database for PostgreSQL |
 | MongoDB | `mongo:8.0`, replica set sin autenticación | MongoDB Atlas (con autenticación) |
 | DynamoDB | DynamoDB Local | Amazon DynamoDB |
-| S3 | LocalStack | Amazon S3 |
-| Firestore | Emulador (datos en memoria) | Firestore |
+| S3 | LocalStack (los objetos no persisten entre reinicios: las fotos de incidencias anteriores responden `404 NoSuchKey`) | Amazon S3 |
+| Firestore | Emulador (datos en memoria: un reinicio borra las versiones de los modelos de IA) | Firestore |
 | Cloud Storage | fake-gcs-server | Google Cloud Storage |
 | RabbitMQ | AMQP sin TLS | Amazon MQ con AMQPS |
 | Ollama | Nativo en Windows (usa tu GPU) | Compute Engine |
@@ -283,3 +288,8 @@ docker compose --profile todo down -v         # apagar y BORRAR todos los datos
 - **Una base de `init.sql` no existe:** ese archivo solo se ejecuta al crear el volumen de Postgres. Recréalo con `docker compose down -v` (borra los datos).
 - **LocalStack no arranca:** revisa que `LOCALSTACK_AUTH_TOKEN` esté en el `.env` con `docker compose logs localstack`.
 - **Descargas que se cortan (`EOF`):** vuelve a ejecutar el comando; lo descargado se conserva.
+- **IA responde `503 MODELO_NO_DISPONIBLE` o `GET /api/ia/v1/modelos` devuelve `[]`:** el emulador de Firestore se reinició (al apagar el equipo, con `wsl --shutdown` o al recrear el contenedor) y perdió las versiones. Hay que entrenarlas y publicarlas de nuevo según `servicios/servicio-ia/docs/modelos.md` ("Cómo reentrenar y publicar"):
+  - `rendimiento` y `patrones`: `docker compose exec servicio-ia python -m app.ml.entrenar <modelo> --incluir-historicos`, con el backend levantado. Tarda segundos.
+  - `clasificador`: fuera del contenedor, con el resto del backend detenido salvo `firestore` y `gcs`, porque necesita unos 3 GB. Tarda unos 15 minutos.
+  - Después se publican desde `/admin/modelos` o con `POST /api/ia/v1/modelos/{nombre}/versiones/{n}/publicacion`.
+- **La primera consulta tras levantar el backend es lenta:** los servicios tardan en responder su primer uso (por ejemplo, GraphQL puede agotar su plazo de 4,5 s y devolver datos parciales). Antes de una demostración, hacer una consulta de calentamiento.
