@@ -22,3 +22,4 @@ Requiere la ruta `/api/graphql` del gateway (`servicios/api-gateway/specs/spec-r
 - Solo consultas: lo que crea datos o lanza procesos de IA va por REST al servicio dueño.
 - React llega a través del gateway, en `/api/graphql`.
 - Cuenta de servicio `graphql-server` hacia los microservicios (ya definida en el realm), con permisos por campo que nunca superan los del usuario.
+- (2026-11-08) `Labor.fechaReferencia` pasa de `FechaHora!` a `FechaOFechaHora!`, un escalar de texto que acepta `AAAA-MM-DD` o fecha y hora ISO 8601. Operaciones devuelve la fecha programada sin hora mientras la labor está programada (`spec-labores.md` RQ-LAB-15), y el escalar anterior la rechazaba con `ERROR_INTERNO`. Lo detectó la verificación del frontend FE-008 (D-FE8-11). El valor sigue pasando sin cambios.

@@ -1,4 +1,4 @@
-import { Decimal, Fecha, FechaHora } from '../../src/esquema/escalares';
+import { Decimal, Fecha, FechaHora, FechaOFechaHora } from '../../src/esquema/escalares';
 import { aplicarPermisos, exigirRol } from '../../src/seguridad/permisos';
 import { leerConfiguracion } from '../../src/config';
 
@@ -11,6 +11,9 @@ describe('escalares', () => {
     expect(() => Decimal.parseValue('1e3')).toThrow();
     expect(() => Fecha.parseValue('15/11/2026')).toThrow();
     expect(() => FechaHora.serialize('2026-11-16')).toThrow();
+    expect(FechaOFechaHora.serialize('2026-11-16')).toBe('2026-11-16');
+    expect(FechaOFechaHora.serialize('2026-11-16T12:00:00Z')).toBe('2026-11-16T12:00:00Z');
+    expect(() => FechaOFechaHora.serialize('2026-11-16 12:00')).toThrow();
   });
 });
 

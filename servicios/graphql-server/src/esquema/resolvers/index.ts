@@ -1,7 +1,7 @@
 import type { Contexto } from '../../contexto';
 import type { Dato } from '../../fuentes/cargador';
 import { aplicarPermisos } from '../../seguridad/permisos';
-import { Decimal, Fecha, FechaHora } from '../escalares';
+import { Decimal, Fecha, FechaHora, FechaOFechaHora } from '../escalares';
 import { aMontos, parametros, validarPagina, type Argumentos } from './comun';
 
 type C = Contexto;
@@ -15,6 +15,7 @@ export function crearResolvers() {
     Decimal,
     Fecha,
     FechaHora,
+    FechaOFechaHora,
 
     Query: {
       parcelas: (_: unknown, a: Argumentos, c: C) => c.gestion.listar('parcelas', parametros(a)),

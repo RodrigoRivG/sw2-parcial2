@@ -101,7 +101,15 @@ describe('consultas consolidadas', () => {
     gateway.registrar(`${d.G}/campanias/c1`, { cuerpo: d.campania('c1') });
     gateway.registrar(`${d.O}/labores`, (llamada) =>
       llamada.ruta.includes('idCampania=c1')
-        ? { cuerpo: { items: [d.labor('l1')], siguienteCursor: 'cur-2' } }
+        ? {
+            cuerpo: {
+              items: [
+                d.labor('l1'),
+                { ...d.labor('l2'), estado: 'PROGRAMADA', fechaReferencia: '2026-11-20', fechaProgramada: '2026-11-20', fechaEjecucion: null, insumos: [] },
+              ],
+              siguienteCursor: 'cur-2',
+            },
+          }
         : { estado: 400, cuerpo: { codigo: 'DATOS_INVALIDOS', detalles: ['falta idCampania, idResponsable o estado'] } },
     );
     gateway.registrar(`${d.I}/insumos/i1`, { cuerpo: d.insumo('i1') });
@@ -109,7 +117,7 @@ describe('consultas consolidadas', () => {
     const respuesta = await consultar(
       aplicacion.app,
       token,
-      `{ campania(id: "c1") { labores(limite: 10) { siguienteCursor items { estado responsable { nombre }
+      `{ campania(id: "c1") { labores(limite: 10) { siguienteCursor items { estado fechaReferencia responsable { nombre }
            insumos { cantidad insumo { nombre costoUnitario } } } } }
          sinFiltro: labores(filtro: {}) { items { id } } }`,
     );
@@ -119,9 +127,11 @@ describe('consultas consolidadas', () => {
       items: [
         {
           estado: 'CONFIRMADA',
+          fechaReferencia: '2026-11-02T13:30:00Z',
           responsable: { nombre: 'Ana Quispe' },
           insumos: [{ cantidad: '100.000', insumo: { nombre: 'Urea i1', costoUnitario: '4.8500' } }],
         },
+        { estado: 'PROGRAMADA', fechaReferencia: '2026-11-20', responsable: { nombre: 'Ana Quispe' }, insumos: [] },
       ],
     });
     const deLaCampania = gateway.llamadasA(`${d.O}/labores`).find((l) => l.ruta.includes('idCampania=c1'));

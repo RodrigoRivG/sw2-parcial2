@@ -282,6 +282,8 @@ scalar Decimal
 scalar Fecha
 "Fecha y hora ISO 8601 UTC."
 scalar FechaHora
+"Fecha sin hora (AAAA-MM-DD) o fecha y hora ISO 8601 UTC, según el dato del servicio. Lo usa Labor.fechaReferencia (2026-11-08)."
+scalar FechaOFechaHora
 
 enum EstadoCampania { PLANIFICADA EN_CURSO FINALIZADA }
 enum CategoriaCosto { INSUMO MANO_DE_OBRA MAQUINARIA OTRO }
@@ -417,7 +419,8 @@ type Labor {
   id: ID!
   tipoLabor: TipoLabor!
   estado: EstadoLabor!
-  fechaReferencia: FechaHora!
+  "fechaProgramada mientras la labor está programada; fechaEjecucion desde que se realiza."
+  fechaReferencia: FechaOFechaHora!
   fechaProgramada: Fecha
   fechaEjecucion: FechaHora
   responsable: Persona

@@ -27,8 +27,14 @@ function escalarDeTexto(nombre: string, descripcion: string, formato: RegExp): G
 
 export const Decimal = escalarDeTexto('Decimal', 'Decimal exacto como texto ("820.50")', /^-?\d+(\.\d+)?$/);
 export const Fecha = escalarDeTexto('Fecha', 'Fecha sin hora, AAAA-MM-DD', /^\d{4}-\d{2}-\d{2}$/);
-export const FechaHora = escalarDeTexto(
-  'FechaHora',
-  'Fecha y hora ISO 8601 UTC',
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
+const FORMATO_FECHA_HORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+export const FechaHora = escalarDeTexto('FechaHora', 'Fecha y hora ISO 8601 UTC', FORMATO_FECHA_HORA);
+/**
+ * `Labor.fechaReferencia` es `fechaProgramada` (sin hora) mientras la labor está programada y `fechaEjecucion` (con
+ * hora) desde que se realiza (RQ-LAB-15 de operaciones). Se acepta cualquiera de las dos formas, sin convertirla.
+ */
+export const FechaOFechaHora = escalarDeTexto(
+  'FechaOFechaHora',
+  'Fecha sin hora (AAAA-MM-DD) o fecha y hora ISO 8601 UTC, según el dato del servicio',
+  new RegExp(`(^\\d{4}-\\d{2}-\\d{2}$)|(${FORMATO_FECHA_HORA.source})`),
 );
