@@ -214,6 +214,12 @@ Como administrador o gerente, quiero ver el detalle de cada paso de una Saga, pa
 - **RQ-SAG-11**: Por paso se guarda estado, intentos, fecha del primer y último envío, fecha de respuesta, resumen de la respuesta (`tipo`, `codigo`, `motivo`) y error (RNF-22).
 - **RQ-SAG-12**: `GET /sagas/{id}` devuelve la Saga completa (roles `administrador`, `gerencia`, `lectura_operaciones`), o `404 SAGA_NO_ENCONTRADA`.
 - **RQ-SAG-13**: Los logs de cada mensaje enviado o recibido incluyen `idCorrelacion`, `idMensaje`, `tipo` y resultado. La auditoría usa el actor `servicio-operaciones` y las acciones `INICIAR_SAGA`, `AVANZAR_SAGA` y `ACTUALIZAR_LABOR_SAGA`.
+- **RQ-SAG-14** (2026-11-08): la tarea de recuperación y su programación se protegen de un bloqueo persistente:
+  - `sagas:reanudar` tiene un **presupuesto de 8 s para iniciar trabajo**, medido con un reloj monotónico antes de tomar cada Saga; las restantes quedan para la siguiente ejecución disponible. No es un límite de duración del comando: la consulta inicial o la última Saga iniciada pueden prolongarlo.
+  - El bloqueo de solapamiento (`withoutOverlapping`) caduca a los 2 min en `sagas:reanudar` y a los 5 min en `labores:revalidar-campanias` e `incidencias:republicar-eventos`, en lugar de los 1.440 min por defecto de Laravel. Un bloqueo huérfano (proceso terminado con SIGKILL o corte abrupto; con SIGTERM, SIGINT y SIGQUIT Laravel lo libera) deja la tarea sin correr como máximo ese tiempo.
+  - Esa caducidad **no garantiza exclusión**: si una ejecución la supera, la siguiente puede solaparse. Es un riesgo controlado: las escrituras de la Saga son condicionales sobre `version` (RQ-SAG-07) y los participantes son idempotentes por `idSaga`. Siguen siendo posibles trabajo duplicado, mensajes repetidos y más carga.
+  - Cada tarea omitida por el scheduler (`ScheduledTaskSkipped`) se registra como aviso con su nombre y su motivo: `SOLAPAMIENTO` si su bloqueo existe y `OTRA_CONDICION` en otro caso (otros filtros o scheduler en pausa). Se avisa como máximo una vez por tarea y motivo cada 5 minutos.
+  - Origen: en la verificación del frontend FE-004 (2026-11-07), la recuperación no avanzó los reintentos vencidos una vez. El riesgo del bloqueo de 24 h quedó confirmado en el código; la causa de ese incidente no se pudo determinar por falta de registros de ese momento.
 
 ### Entidades clave
 

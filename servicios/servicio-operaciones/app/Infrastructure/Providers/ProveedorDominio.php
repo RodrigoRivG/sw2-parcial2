@@ -31,12 +31,15 @@ use App\Infrastructure\Persistence\DynamoDb\RepositorioSagaDynamo;
 use App\Infrastructure\Persistence\DynamoDb\UnidadTrabajoDynamo;
 use App\Infrastructure\Security\ProveedorClavesJwksRemoto;
 use App\Infrastructure\Storage\AlmacenamientoArchivosS3;
+use App\InterfaceAdapters\Console\AvisoTareaOmitida;
 use App\InterfaceAdapters\Http\Controllers\SaludControlador;
 use App\InterfaceAdapters\Http\Security\ProveedorClavesJwt;
 use App\InterfaceAdapters\Messaging\ConsumidorRespuestasSaga;
 use App\InterfaceAdapters\Messaging\FuenteMensajes;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\S3\S3Client;
+use Illuminate\Console\Events\ScheduledTaskSkipped;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -135,6 +138,7 @@ final class ProveedorDominio extends ServiceProvider
         if (! $this->app->runningInConsole() || $this->esComandoPropio()) {
             ValidadorEntorno::validar();
         }
+        Event::listen(ScheduledTaskSkipped::class, AvisoTareaOmitida::class);
     }
 
     private function esComandoPropio(): bool

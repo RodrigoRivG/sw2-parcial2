@@ -45,7 +45,7 @@ beforeEach(function () {
     $this->sagas->sagas[$saga->idSaga] = $saga;
     $this->idSaga = $saga->idSaga;
 
-    $avance = new AvanceSaga($this->sagas, $this->labores, new UnidadTrabajoDirecta, $this->auditoria,
+    $this->avance = $avance = new AvanceSaga($this->sagas, $this->labores, new UnidadTrabajoDirecta, $this->auditoria,
         new EnvioComandos($this->publicador, new NullLogger), $this->reloj, new NullLogger);
     $this->procesar = new ProcesarRespuestaSaga($avance, $this->config, new NullLogger);
     $this->reanudar = new ReanudarSagasEstancadas($this->sagas, $avance, $this->config, $this->reloj, new NullLogger);
@@ -119,4 +119,16 @@ it('la recuperación reenvía la Saga vencida y salta las que no vencieron', fun
         ->and($this->publicador->enviados[0]['tipo'])->toBe('DescontarInsumos')
         ->and($this->publicador->enviados[0]['datos']['items'])->toBe([['idInsumo' => 'i1', 'cantidad' => '2.000']])
         ->and($this->sagas->sagas[$this->idSaga]->paso(PasoSaga::DESCONTAR_INSUMOS)->intentos)->toBe(2);
+});
+
+it('la recuperación no toma más Sagas una vez agotado su presupuesto de inicio', function () {
+    $this->reloj->avanzar('+31 seconds');
+    $tiempos = [0.0, ReanudarSagasEstancadas::PRESUPUESTO_SEGUNDOS + 0.5];
+    $reanudar = new ReanudarSagasEstancadas($this->sagas, $this->avance, $this->config, $this->reloj, new NullLogger,
+        function () use (&$tiempos): float {
+            return array_shift($tiempos) ?? 99.0;
+        });
+
+    expect($reanudar->ejecutar())->toBe(0)
+        ->and($this->publicador->enviados)->toBe([]);
 });
