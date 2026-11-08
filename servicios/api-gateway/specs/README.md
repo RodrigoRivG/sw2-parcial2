@@ -24,3 +24,7 @@ Un archivo por funcionalidad, cada uno con tres partes: **Spec** (qué hace), **
 | `/api/graphql` (ruta exacta) | `graphql-server` |
 
 Del propio gateway, sin token: `/salud`, `/salud/liveness` y `/salud/readiness`.
+
+## Historial de decisiones
+
+- (2026-11-08) Descarga del JWKS con cliente propio (2 s de conexión, 5 s de respuesta y plazo total de 8 s, configurables) y `AutenticacionNoDisponible` con prioridad sobre las causas de conexión. Así se cierra la limitación conocida de `spec-enrutamiento.md`; la cubren tres pruebas nuevas (JWKS lento, conexión rechazada y nombre no resuelto).

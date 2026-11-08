@@ -62,11 +62,13 @@ public class ManejadorErroresGateway implements ErrorWebExceptionHandler {
                 return new Traduccion(HttpStatus.valueOf(estado), CodigoError.DATOS_INVALIDOS);
             }
         }
-        if (causadoPorConexion(error)) {
-            return new Traduccion(HttpStatus.SERVICE_UNAVAILABLE, CodigoError.SERVICIO_NO_DISPONIBLE);
-        }
+        // Antes que las causas de conexión: si lo que no se alcanzó es Keycloak (JWKS), el problema es la
+        // autenticación, no el servicio destino, y el cliente no debe confundirlo con un microservicio caído.
         if (error instanceof AuthenticationServiceException) {
             return new Traduccion(HttpStatus.SERVICE_UNAVAILABLE, CodigoError.AUTENTICACION_NO_DISPONIBLE);
+        }
+        if (causadoPorConexion(error)) {
+            return new Traduccion(HttpStatus.SERVICE_UNAVAILABLE, CodigoError.SERVICIO_NO_DISPONIBLE);
         }
         return new Traduccion(HttpStatus.INTERNAL_SERVER_ERROR, CodigoError.ERROR_INTERNO);
     }

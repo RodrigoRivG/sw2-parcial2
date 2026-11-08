@@ -71,6 +71,12 @@ spring:
             servicio: graphql-server
 
 gateway:
+  # Descarga de las claves de Keycloak (JWKS): cliente propio, separado del de enrutamiento.
+  # Si se agota, la solicitud responde 503 AUTENTICACION_NO_DISPONIBLE (spec-enrutamiento.md, casos borde).
+  jwks:
+    tiempo-conexion: ${GATEWAY_JWKS_TIEMPO_CONEXION:2s}
+    tiempo-respuesta: ${GATEWAY_JWKS_TIEMPO_RESPUESTA:5s}
+    plazo-total: ${GATEWAY_JWKS_PLAZO_TOTAL:8s}
   cors:
     # Lista separada por comas; vacía = ningún origen permitido (nunca "*")
     origenes-permitidos: ${CORS_ORIGENES_PERMITIDOS:}
