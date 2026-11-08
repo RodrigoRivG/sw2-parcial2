@@ -10,10 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/venv/bin:$PATH \
     HF_HOME=/cache/huggingface
 
-# Librerías del sistema para OpenCV (headless) y WeasyPrint (PDF)
+# Librerías del sistema para OpenCV (headless) y WeasyPrint (PDF), las mismas que la imagen de producción
+# (servicios/servicio-ia/Dockerfile). libharfbuzz-subset0 hace que WeasyPrint recorte las fuentes con HarfBuzz;
+# sin ella usa fontTools, y el primer PDF de cada proceso bloqueaba la API unos 8 s (2026-11-08).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       libglib2.0-0 libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b fonts-dejavu-core \
+       libglib2.0-0 libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuario con UID 1000 (el mismo que tu usuario de Ubuntu) y entorno virtual
