@@ -4,10 +4,10 @@
 |---|---|
 | Alcance | Todo el sistema, Módulo 8 (no pertenece a un microservicio) |
 | Archivo | `specs/spec-n8n.md` |
-| Estado | Fase 1 implementada (2026-11-07), salvo T08 (bloqueada por la app Flutter) · Fase 2 pendiente (opcional) |
+| Estado | Fase 1 implementada y verificada en teléfono (2026-11-09) · Fase 2 pendiente (opcional) |
 | Referencias | `servicio-operaciones/specs/spec-labores.md` (listado de labores, RQ-LAB-14 a RQ-LAB-17), `servicio-operaciones/specs/spec-incidencias.md` (evento `IncidenciaRegistrada`, RQ-INC-07), `specs/spec-keycloak-realm.md` (cuenta de servicio `n8n`, RQ-KC-04) |
 | Trazabilidad | Fase 1: CU-21, CU-22 · RF-30, RF-31 · RNF-03, RNF-19. Fase 2 (opcional): CU-20, CU-25 · RF-29, RF-34 |
-| Depende de | `servicio-operaciones`, `api-gateway`, RabbitMQ y el realm `agro` (implementados). Para ver los avisos en un teléfono, la app Flutter (sin spec todavía). |
+| Depende de | `servicio-operaciones`, `api-gateway`, RabbitMQ y el realm `agro` (implementados). App Flutter implementada en `C:\sw2-parcial2-app\app-movil`, con spec en `specs/spec-app-movil.md` de ese repositorio. |
 
 Contenido:
 
@@ -254,6 +254,8 @@ Sin script (D-N8N-06). Con los perfiles `backend` y `n8n`:
 
 Verificado el 2026-11-07: los dos flujos terminaron con éxito y FCM devolvió el ID del mensaje.
 
+Verificación en teléfono del 2026-11-09, confirmada por el usuario durante la prueba manual: una incidencia registrada desde la web produjo el aviso en la app en segundo plano; también se comprobó el aviso con la app en primer plano. La ejecución manual del recordatorio produjo la notificación y, al tocarla, abrió **Labores**. Backend local accesible desde el teléfono por USB mediante `adb reverse` en los puertos 8080 y 8180; FCM mediante internet. Con esta confirmación se cumplen CE-N8N-04 y T08. No se adjuntaron capturas de los avisos ni IDs de estas ejecuciones.
+
 ## 2.9 Documentación
 
 - `README.md`: perfil `n8n`, Firebase (T01) y verificación (2.8).
@@ -286,7 +288,7 @@ Verificado el 2026-11-07: los dos flujos terminaron con éxito y FCM devolvió e
 - [x] **T05** — Flujo `recordatorio-labores` con su ID fijo. *Hecho cuando:* tras recrear el volumen, el flujo aparece importado y activo.
 - [x] **T06** — Verificar CE-N8N-01 y CE-N8N-02 con los perfiles `backend` y `n8n` (2.8).
 - [x] **T07** — Actualizar `README.md` y `spec-labores.md` 1.7 (2.9). Comprobar CE-N8N-03.
-- [ ] **T08** — Prueba en un teléfono (CE-N8N-04). *Bloqueada* hasta que exista la app Flutter.
+- [x] **T08** — Prueba en un teléfono (CE-N8N-04). Confirmada por el usuario el 2026-11-09: incidencia en primer y segundo plano, recordatorio y apertura de **Labores** al tocarlo (2.8).
 
 **Fase 2 (opcional, si hay tiempo)**
 
