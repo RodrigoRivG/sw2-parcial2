@@ -423,6 +423,7 @@ services:
       KEYCLOAK_CLAVE_USUARIOS_PRUEBA: ${KEYCLOAK_CLAVE_USUARIOS_PRUEBA:-}
     volumes:
       - ./docker/keycloak/realms:/opt/keycloak/data/import:ro
+      - ./docker/keycloak/temas:/opt/keycloak/themes:ro
     depends_on:
       postgres:
         condition: service_healthy

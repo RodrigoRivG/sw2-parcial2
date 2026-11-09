@@ -1,4 +1,8 @@
 {
+  "defaultLocale": "es",
+  "supportedLocales": ["es"],
+  "internationalizationEnabled": true,
+  "loginTheme": "agro",
   "realm": "agro",
   "displayName": "Sistema de campañas agrícolas",
   "enabled": true,
