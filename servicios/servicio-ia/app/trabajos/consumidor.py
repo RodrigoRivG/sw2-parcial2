@@ -114,7 +114,7 @@ class ConsumidorTrabajos:
             documento = await self._con_reintentos(lambda: self._repositorio.obtener(id_trabajo))
         except ErrorInfraestructura:
             _logger.error(
-                "Firestore no disponible; el mensaje va a la DLQ", extra={"idTrabajo": id_trabajo}
+                "MongoDB no disponible; el mensaje va a la DLQ", extra={"idTrabajo": id_trabajo}
             )
             await descartar()
             return
@@ -151,7 +151,7 @@ class ConsumidorTrabajos:
             )
         except ErrorInfraestructura:
             _logger.error(
-                "Firestore no disponible; el mensaje va a la DLQ", extra={"idTrabajo": id_trabajo}
+                "MongoDB no disponible; el mensaje va a la DLQ", extra={"idTrabajo": id_trabajo}
             )
             await descartar()
             return
@@ -159,7 +159,7 @@ class ConsumidorTrabajos:
             await confirmar()  # otro consumidor lo tomó
             return
 
-        await confirmar()  # desde aquí el estado vive en Firestore
+        await confirmar()  # desde aquí el estado vive en MongoDB
         en_proceso = trabajo.model_copy(
             update={
                 "estado": EstadoTrabajo.PROCESANDO,
@@ -200,7 +200,7 @@ class ConsumidorTrabajos:
 
     @staticmethod
     def _validar_resultado(crudo: dict[str, Any]) -> dict[str, Any]:
-        """El resultado debe ser JSON puro y de hasta 100 KB (límite de documento de Firestore)."""
+        """El resultado debe ser JSON puro y de hasta 100 KB (límite de documento de MongoDB)."""
         try:
             serializado = json.dumps(crudo, ensure_ascii=False)
         except (TypeError, ValueError):

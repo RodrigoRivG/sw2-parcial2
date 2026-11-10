@@ -15,7 +15,7 @@ from app.comun.errores import DetalleError, ErrorAplicacion
 from app.comun.seguridad import UsuarioAutenticado
 from app.integracion.datos_agricolas import CampaniaPrediccion, DatosAgricolas
 from app.integracion.errores import ErrorInfraestructura, ErrorServicioRemoto, TipoErrorRemoto
-from app.integracion.repositorio_resultados import RepositorioResultadosFirestore
+from app.integracion.repositorio_resultados import RepositorioResultadosMongo
 from app.modelos.cargador import CargadorModelos, ModeloCargado
 from app.modelos.esquemas import ReferenciaVersion
 from app.prediccion.esquemas import (
@@ -75,7 +75,7 @@ class ServicioPrediccion:
         self,
         datos: DatosAgricolas,
         cargador: CargadorModelos,
-        resultados: RepositorioResultadosFirestore,
+        resultados: RepositorioResultadosMongo,
         reloj: Callable[[], datetime] = _ahora,
     ) -> None:
         self._datos = datos

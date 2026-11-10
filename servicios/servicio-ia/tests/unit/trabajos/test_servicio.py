@@ -91,7 +91,7 @@ async def test_publicacion_fallida_deja_el_trabajo_fallido_y_responde_503(
     assert documento["fechaExpiracion"] == AHORA + timedelta(days=30)
 
 
-async def test_firestore_caido_al_crear_responde_503(
+async def test_mongodb_caido_al_crear_responde_503(
     repositorio: RepositorioTrabajosMemoria,
 ) -> None:
     repositorio.fallas["guardar_nuevo"] = 1
@@ -126,7 +126,7 @@ async def test_obtener_para_ajeno_inexistente_o_invalido_es_404(
     assert error.value.codigo == "TRABAJO_NO_ENCONTRADO"
 
 
-async def test_obtener_con_firestore_caido_responde_503(
+async def test_obtener_con_mongodb_caido_responde_503(
     repositorio: RepositorioTrabajosMemoria,
 ) -> None:
     repositorio.fallas["obtener"] = 1

@@ -1,21 +1,16 @@
-"""Almacén de archivos en Cloud Storage (usa el emulador si existe STORAGE_EMULATOR_HOST).
-
-El cliente de Cloud Storage es síncrono: cada operación corre en un hilo. Las llamadas van sin
-los reintentos internos de la librería (`retry=None`), que con un servicio caído esperan hasta
-120 s; los reintentos los decide quien llama.
-"""
+"""Archivos privados en S3; las rutas lógicas se aíslan bajo un prefijo."""
 
 import asyncio
 from typing import Protocol
 
-from google.api_core import exceptions as excepciones_google
-from google.cloud import storage  # type: ignore[attr-defined]
-from requests import exceptions as excepciones_http
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
 
 from app.integracion.errores import ErrorInfraestructura
 
 TIEMPO_LIMITE = 60.0
-_ERRORES = (excepciones_google.GoogleAPIError, excepciones_http.RequestException, OSError)
+_ERRORES = (BotoCoreError, ClientError, TimeoutError, OSError)
 
 
 class AlmacenArchivos(Protocol):
@@ -30,40 +25,53 @@ class AlmacenArchivos(Protocol):
         ...
 
 
-class AlmacenGcs:
-    def __init__(self, proyecto: str, nombre_bucket: str) -> None:
-        self._bucket = storage.Client(project=proyecto).bucket(nombre_bucket)
+class AlmacenS3:
+    def __init__(self, bucket: str, prefijo: str = "ia/", endpoint: str | None = None) -> None:
+        self._bucket = bucket
+        self._prefijo = prefijo.strip("/") + "/" if prefijo.strip("/") else ""
+        self._cliente = boto3.client(
+            "s3",
+            endpoint_url=endpoint or None,
+            config=Config(
+                retries={"total_max_attempts": 1},
+                connect_timeout=5,
+                read_timeout=60,
+                s3={"addressing_style": "path" if endpoint else "auto"},
+            ),
+        )
 
     async def subir(self, ruta: str, datos: bytes, tipo_contenido: str) -> None:
-        blob = self._bucket.blob(ruta)
         try:
             await asyncio.to_thread(
-                blob.upload_from_string,
-                datos,
-                content_type=tipo_contenido,
-                timeout=TIEMPO_LIMITE,
-                retry=None,
+                self._cliente.put_object,
+                Bucket=self._bucket,
+                Key=self._prefijo + ruta,
+                Body=datos,
+                ContentType=tipo_contenido,
             )
         except _ERRORES as error:
-            raise ErrorInfraestructura("gcs", type(error).__name__) from None
+            raise ErrorInfraestructura("s3", type(error).__name__) from None
 
-    async def descargar(self, ruta: str) -> bytes | None:
-        blob = self._bucket.blob(ruta)
-        try:
-            datos: bytes = await asyncio.to_thread(
-                blob.download_as_bytes, timeout=TIEMPO_LIMITE, retry=None
-            )
-        except excepciones_google.NotFound:
-            return None
-        except _ERRORES as error:
-            raise ErrorInfraestructura("gcs", type(error).__name__) from None
+    def _descargar(self, ruta: str) -> bytes:
+        respuesta = self._cliente.get_object(Bucket=self._bucket, Key=self._prefijo + ruta)
+        with respuesta["Body"] as contenido:
+            datos: bytes = contenido.read()
         return datos
 
-    async def borrar(self, ruta: str) -> None:
-        blob = self._bucket.blob(ruta)
+    async def descargar(self, ruta: str) -> bytes | None:
         try:
-            await asyncio.to_thread(blob.delete, timeout=TIEMPO_LIMITE, retry=None)
-        except excepciones_google.NotFound:
-            return
+            return await asyncio.to_thread(self._descargar, ruta)
+        except ClientError as error:
+            if error.response["Error"]["Code"] in ("NoSuchKey", "404"):
+                return None
+            raise ErrorInfraestructura("s3", type(error).__name__) from None
         except _ERRORES as error:
-            raise ErrorInfraestructura("gcs", type(error).__name__) from None
+            raise ErrorInfraestructura("s3", type(error).__name__) from None
+
+    async def borrar(self, ruta: str) -> None:
+        try:
+            await asyncio.to_thread(
+                self._cliente.delete_object, Bucket=self._bucket, Key=self._prefijo + ruta
+            )
+        except _ERRORES as error:
+            raise ErrorInfraestructura("s3", type(error).__name__) from None

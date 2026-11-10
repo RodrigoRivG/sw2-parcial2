@@ -25,7 +25,7 @@ class ErrorServicioRemoto(Exception):
 
 
 class ErrorInfraestructura(Exception):
-    """Falla de Firestore, Cloud Storage o RabbitMQ (se reintenta o se informa como 503)."""
+    """Falla de MongoDB, S3 o RabbitMQ (se reintenta o se informa como 503)."""
 
     def __init__(self, componente: str, motivo: str) -> None:
         self.componente = componente

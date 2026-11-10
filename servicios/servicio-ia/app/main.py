@@ -18,15 +18,15 @@ from app.comun.logs import configurar_logs
 from app.comun.salud import RegistroSalud, router_salud
 from app.comun.seguridad import ProveedorClavesJwks
 from app.config import Configuracion, ConfiguracionInvalida, cargar_configuracion
-from app.integracion.almacen_archivos import AlmacenGcs
+from app.integracion.almacen_archivos import AlmacenS3
 from app.integracion.datos_agricolas import DatosAgricolasGateway
-from app.integracion.firestore import comprobar_firestore, crear_cliente_firestore
 from app.integracion.gateway import ClienteGateway
 from app.integracion.modelo_lenguaje import ModeloOllama
+from app.integracion.mongodb import comprobar_mongo, crear_cliente_mongo
 from app.integracion.rabbitmq import ConexionRabbitMq
-from app.integracion.repositorio_resultados import RepositorioResultadosFirestore
-from app.integracion.repositorio_trabajos import RepositorioTrabajosFirestore
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.repositorio_resultados import RepositorioResultadosMongo
+from app.integracion.repositorio_trabajos import RepositorioTrabajosMongo
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.integracion.token_servicio import TokenCuentaServicio
 from app.integracion.transcriptor import TranscriptorWhisper
 from app.mcp_server.http import RUTA as RUTA_MCP
@@ -92,13 +92,14 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
             )
 
             # Trabajos asíncronos (spec-trabajos.md)
-            firestore = crear_cliente_firestore(config.google_cloud_project)
-            repositorio = RepositorioTrabajosFirestore(firestore)
+            cliente_mongo = crear_cliente_mongo(config.mongodb_uri.get_secret_value())
+            base_mongo = cliente_mongo[config.mongodb_base]
+            repositorio = RepositorioTrabajosMongo(base_mongo)
             conexion = ConexionRabbitMq(
                 config.rabbitmq_url.get_secret_value(), config.trabajos_cola
             )
             conexion.iniciar()
-            app.state.cliente_firestore = firestore
+            app.state.base_mongo = base_mongo
             app.state.conexion_rabbitmq = conexion
             app.state.servicio_trabajos = ServicioTrabajos(
                 repositorio, conexion, registro_tipos, config.trabajos_retencion_dias
@@ -112,9 +113,9 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
                 revision.iniciar()
 
             # Modelos y predicción (spec-prediccion.md)
-            almacen = AlmacenGcs(config.google_cloud_project, config.gcs_bucket)
+            almacen = AlmacenS3(config.aws_bucket, config.s3_prefijo, config.aws_endpoint)
             cargador = CargadorModelos(
-                RepositorioVersionesFirestore(firestore),
+                RepositorioVersionesMongo(base_mongo),
                 almacen,
                 config.modelos_intervalo_revision_segundos,
             )
@@ -125,18 +126,18 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
             app.state.almacen_archivos = almacen
             app.state.cargador_modelos = cargador
             app.state.servicio_modelos = ServicioModelos(
-                RepositorioVersionesFirestore(firestore), cargador
+                RepositorioVersionesMongo(base_mongo), cargador
             )
             app.state.servicio_prediccion = ServicioPrediccion(
                 DatosAgricolasGateway(app.state.cliente_gateway),
                 cargador,
-                RepositorioResultadosFirestore(firestore),
+                RepositorioResultadosMongo(base_mongo),
             )
 
             # Visión (spec-vision.md)
             app.state.servicio_vision = ServicioVision(
                 cargador,
-                RepositorioResultadosFirestore(firestore),
+                RepositorioResultadosMongo(base_mongo),
                 almacen,
                 app.state.servicio_trabajos,
             )
@@ -180,7 +181,7 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
                 await consumidor.detener()
                 await revision.detener()
                 await conexion.cerrar()
-                firestore.close()  # type: ignore[no-untyped-call]
+                await cliente_mongo.close()
         _logger.info("Servicio detenido")
 
     app = FastAPI(
@@ -197,7 +198,7 @@ def crear_app(configuracion: Configuracion | None = None) -> FastAPI:
     app.state.registro_tipos = registro_tipos
     app.state.registro_salud = RegistroSalud()
     app.state.registro_salud.registrar(
-        "firestore", lambda: comprobar_firestore(app.state.cliente_firestore), critica=True
+        "mongodb", lambda: comprobar_mongo(app.state.base_mongo), critica=True
     )
     app.state.registro_salud.registrar(
         "rabbitmq", lambda: app.state.conexion_rabbitmq.comprobar(), critica=True

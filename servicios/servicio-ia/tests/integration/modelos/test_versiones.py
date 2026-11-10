@@ -1,4 +1,4 @@
-"""Versiones de modelos con Firestore y Cloud Storage emulados (spec-prediccion.md, Historia 3)."""
+"""Versiones de modelos con MongoDB y S3 emulados (spec-prediccion.md, Historia 3)."""
 
 import asyncio
 import time
@@ -9,12 +9,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from google.cloud import firestore
 
 from app.comun.errores import ErrorAplicacion
 from app.config import Configuracion
-from app.integracion.almacen_archivos import AlmacenGcs
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.ml.entrenar import (
     Entrenado,
     armar_documento,
@@ -22,30 +20,30 @@ from app.ml.entrenar import (
 from app.modelos.cargador import CargadorModelos, EstadoCarga
 from app.modelos.servicio import ServicioModelos
 from tests.conftest import autorizacion, emitir_token
-from tests.integration.conftest import registrar_version
+from tests.integration.conftest import almacen_s3, base_mongo_async, registrar_version
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "referencia_pequena.csv"
 JUSTIFICACION = "Se agregan campañas reales del sistema al entrenamiento."
 
 
 def _servicio(proyecto: str, bucket: str) -> tuple[ServicioModelos, CargadorModelos]:
-    cliente = firestore.AsyncClient(project=proyecto)
-    cargador = CargadorModelos(RepositorioVersionesFirestore(cliente), AlmacenGcs(proyecto, bucket))
+    cliente = base_mongo_async(proyecto)
+    cargador = CargadorModelos(RepositorioVersionesMongo(cliente), almacen_s3(bucket))
     cargador.registrar("rendimiento")
-    return ServicioModelos(RepositorioVersionesFirestore(cliente), cargador), cargador
+    return ServicioModelos(RepositorioVersionesMongo(cliente), cargador), cargador
 
 
 async def test_versiones_incrementales_y_publicacion_con_regla_de_metricas(
-    proyecto_firestore: str, bucket_gcs: str, entrenados: dict[str, Entrenado]
+    base_mongo: str, prefijo_s3: str, entrenados: dict[str, Entrenado]
 ) -> None:
     v1 = await registrar_version(
-        proyecto_firestore, bucket_gcs, "rendimiento", entrenados["rendimiento"], 600
+        base_mongo, prefijo_s3, "rendimiento", entrenados["rendimiento"], 600
     )
     v2 = await registrar_version(
-        proyecto_firestore, bucket_gcs, "rendimiento", entrenados["rendimiento"], 700
+        base_mongo, prefijo_s3, "rendimiento", entrenados["rendimiento"], 700
     )
     assert (v1, v2) == (1, 2)
-    servicio, cargador = _servicio(proyecto_firestore, bucket_gcs)
+    servicio, cargador = _servicio(base_mongo, prefijo_s3)
 
     publicada = await servicio.publicar("rendimiento", 1, None)
     assert publicada.estado.value == "VIGENTE"
@@ -67,12 +65,10 @@ async def test_versiones_incrementales_y_publicacion_con_regla_de_metricas(
 
 
 async def test_no_se_publica_una_vigente_ni_una_inexistente(
-    proyecto_firestore: str, bucket_gcs: str, entrenados: dict[str, Entrenado]
+    base_mongo: str, prefijo_s3: str, entrenados: dict[str, Entrenado]
 ) -> None:
-    await registrar_version(
-        proyecto_firestore, bucket_gcs, "rendimiento", entrenados["rendimiento"]
-    )
-    servicio, _ = _servicio(proyecto_firestore, bucket_gcs)
+    await registrar_version(base_mongo, prefijo_s3, "rendimiento", entrenados["rendimiento"])
+    servicio, _ = _servicio(base_mongo, prefijo_s3)
     await servicio.publicar("rendimiento", 1, None)
 
     with pytest.raises(ErrorAplicacion) as vigente:
@@ -88,13 +84,13 @@ async def test_no_se_publica_una_vigente_ni_una_inexistente(
 
 
 async def test_publicaciones_simultaneas_dejan_una_sola_vigente(
-    proyecto_firestore: str, bucket_gcs: str, entrenados: dict[str, Entrenado]
+    base_mongo: str, prefijo_s3: str, entrenados: dict[str, Entrenado]
 ) -> None:
     for _ in range(3):
         await registrar_version(
-            proyecto_firestore, bucket_gcs, "rendimiento", entrenados["rendimiento"], 600
+            base_mongo, prefijo_s3, "rendimiento", entrenados["rendimiento"], 600
         )
-    servicios = [_servicio(proyecto_firestore, bucket_gcs)[0] for _ in range(3)]
+    servicios = [_servicio(base_mongo, prefijo_s3)[0] for _ in range(3)]
 
     await asyncio.gather(
         *(s.publicar("rendimiento", v, None) for s, v in zip(servicios, (1, 2, 3), strict=True)),
@@ -106,16 +102,16 @@ async def test_publicaciones_simultaneas_dejan_una_sola_vigente(
 
 
 async def test_cargador_sin_version_o_con_artefacto_faltante(
-    proyecto_firestore: str, bucket_gcs: str, entrenados: dict[str, Entrenado]
+    base_mongo: str, prefijo_s3: str, entrenados: dict[str, Entrenado]
 ) -> None:
-    servicio, cargador = _servicio(proyecto_firestore, bucket_gcs)
+    servicio, cargador = _servicio(base_mongo, prefijo_s3)
     await cargador.revisar()
     assert cargador.estado("rendimiento") is EstadoCarga.SIN_PUBLICAR
     with pytest.raises(ErrorAplicacion) as error:
         cargador.obtener("rendimiento")
     assert error.value.codigo == "MODELO_NO_DISPONIBLE"
 
-    repositorio = RepositorioVersionesFirestore(firestore.AsyncClient(project=proyecto_firestore))
+    repositorio = RepositorioVersionesMongo(base_mongo_async(base_mongo))
     documento = armar_documento(
         "rendimiento",
         entrenados["rendimiento"],
@@ -143,13 +139,11 @@ def _esperar_carga(cliente: TestClient, nombre: str) -> None:
 def test_endpoints_de_modelos_con_permisos(
     crear_cliente: Callable[..., TestClient],
     configuracion_infra: Callable[..., Configuracion],
-    proyecto_firestore: str,
-    bucket_gcs: str,
+    base_mongo: str,
+    prefijo_s3: str,
     entrenados: dict[str, Entrenado],
 ) -> None:
-    asyncio.run(
-        registrar_version(proyecto_firestore, bucket_gcs, "patrones", entrenados["patrones"])
-    )
+    asyncio.run(registrar_version(base_mongo, prefijo_s3, "patrones", entrenados["patrones"]))
     cliente = crear_cliente(configuracion=configuracion_infra(trabajos_consumidor_activo=False))
     admin = autorizacion(emitir_token(["administrador"]))
     gerencia = autorizacion(emitir_token(["gerencia"]))

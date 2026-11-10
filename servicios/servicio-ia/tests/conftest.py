@@ -38,15 +38,19 @@ _otra_clave_privada = rsa.generate_private_key(public_exponent=65537, key_size=2
 
 
 # Infraestructura local (Docker Compose) o la que defina el pipeline (README D-12)
-os.environ.setdefault("FIRESTORE_EMULATOR_HOST", "firestore:8080")
-os.environ.setdefault("STORAGE_EMULATOR_HOST", "http://gcs:4443")
+os.environ.setdefault("MONGODB_URI", "mongodb://mongo:27017/?replicaSet=rs0")
+os.environ.setdefault("AWS_ENDPOINT", "http://localstack:4566")
+os.environ.setdefault("AWS_BUCKET", "evidencias")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://sw2:sw2pass@rabbitmq:5672/")
 
 
 def configuracion_de_prueba(**cambios: Any) -> Configuracion:
     """Sin infraestructura real: RabbitMQ inalcanzable y consumidor apagado.
 
-    Los tests que usan Firestore y RabbitMQ pasan `google_cloud_project`, `rabbitmq_url`,
+    Los tests que usan MongoDB y RabbitMQ pasan `mongodb_base`, `rabbitmq_url`,
     `trabajos_cola` y `trabajos_consumidor_activo` propios.
     """
     valores: dict[str, Any] = {
@@ -58,10 +62,11 @@ def configuracion_de_prueba(**cambios: Any) -> Configuracion:
         "keycloak_client_secret": SecretStr("secreto-de-prueba"),
         "api_gateway_url": "http://gateway.prueba",
         "nivel_log": "DEBUG",
-        "google_cloud_project": "pruebas-sin-infraestructura",
+        "mongodb_uri": SecretStr("mongodb://invalido.prueba:27017/?serverSelectionTimeoutMS=100"),
+        "aws_endpoint": "http://invalido.prueba:4566",
         "rabbitmq_url": SecretStr("amqp://invalido.prueba:5672/"),
         "trabajos_consumidor_activo": False,
-        "gcs_bucket": "pruebas-sin-bucket",
+        "aws_bucket": "pruebas-sin-bucket",
         "ollama_base_url": "http://ollama.prueba:11434",
         "ollama_model": "qwen2.5:3b",
         "whisper_activo": False,

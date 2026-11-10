@@ -10,7 +10,7 @@ Uso (dentro del contenedor, desde la raíz del servicio):
         [--salida /cache/imagenes] [--sin-subir]
 
 Escribe `datos/imagenes/manifiesto.csv` y `datos/imagenes/fuentes.json`, y sube el conjunto
-empaquetado a `gs://<bucket>/datasets/imagenes/<sha256>.tar`.
+empaquetado a `s3://<bucket>/ia/datasets/imagenes/<sha256>.tar`.
 """
 
 import argparse
@@ -468,10 +468,10 @@ def escribir_fuentes(
 
 async def subir_conjunto(contenido: bytes) -> str:
     from app.config import cargar_configuracion
-    from app.integracion.almacen_archivos import AlmacenGcs
+    from app.integracion.almacen_archivos import AlmacenS3
 
     config = cargar_configuracion()
-    almacen = AlmacenGcs(config.google_cloud_project, config.gcs_bucket)
+    almacen = AlmacenS3(config.aws_bucket, config.s3_prefijo, config.aws_endpoint)
     huella = hashlib.sha256(contenido).hexdigest()
     ruta = f"datasets/imagenes/{huella}.tar"
     if await almacen.descargar(ruta) is None:
@@ -486,7 +486,7 @@ def main(argumentos: list[str] | None = None) -> int:
     parser.add_argument("--por-clase", type=int, default=50)
     parser.add_argument("--semilla", type=int, default=42)
     parser.add_argument("--salida", type=Path, default=Path("/cache/imagenes"))
-    parser.add_argument("--sin-subir", action="store_true", help="No sube el .tar a Cloud Storage")
+    parser.add_argument("--sin-subir", action="store_true", help="No sube el .tar a S3")
     opciones = parser.parse_args(argumentos)
     logging.basicConfig(level=logging.WARNING)
 

@@ -7,11 +7,11 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from google.cloud import firestore
 
 from app.config import Configuracion
 from app.trabajos.esquemas import ErrorTrabajo, Trabajo
 from app.trabajos.estados import EstadoTrabajo
+from tests.integration.conftest import cliente_mongo
 
 AHORA = datetime(2026, 11, 4, 12, 0, tzinfo=UTC)
 
@@ -24,8 +24,8 @@ def cliente(
 
 
 @pytest.fixture
-def guardar(proyecto_firestore: str) -> Callable[..., str]:
-    coleccion = firestore.Client(project=proyecto_firestore).collection("trabajos")
+def guardar(base_mongo: str) -> Callable[..., str]:
+    coleccion = cliente_mongo()[base_mongo]["trabajos"]
 
     def guardar_trabajo(estado: str, **cambios: Any) -> str:
         trabajo = Trabajo(
@@ -38,7 +38,7 @@ def guardar(proyecto_firestore: str) -> Callable[..., str]:
             fecha_creacion=AHORA,
             **cambios,
         )
-        coleccion.document(trabajo.id).set(trabajo.a_documento())
+        coleccion.insert_one({**trabajo.a_documento(), "_id": trabajo.id})
         return trabajo.id
 
     return guardar_trabajo
@@ -110,13 +110,15 @@ def test_sin_token_401_y_ajeno_404(cliente: TestClient, guardar: Callable[..., s
     assert ajeno.json()["mensaje"] == "El trabajo solicitado no existe."
 
 
-def test_firestore_inalcanzable_responde_503(
+def test_mongodb_inalcanzable_responde_503(
     crear_cliente: Callable[..., TestClient],
     configuracion_infra: Callable[..., Configuracion],
     cabeceras_gerencia: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("FIRESTORE_EMULATOR_HOST", "invalido.prueba:8080")
+    monkeypatch.setenv(
+        "MONGODB_URI", "mongodb://invalido.prueba:27017/?serverSelectionTimeoutMS=100"
+    )
     cliente = crear_cliente(configuracion=configuracion_infra(trabajos_consumidor_activo=False))
 
     respuesta = cliente.get(f"/api/ia/v1/trabajos/{uuid.uuid4()}", headers=cabeceras_gerencia)

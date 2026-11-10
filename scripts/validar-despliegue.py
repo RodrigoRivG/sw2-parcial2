@@ -68,7 +68,7 @@ def main():
     else:
         for k in ['API_GATEWAY_URL', 'GESTION_URL', 'INVENTARIO_URL', 'OPERACIONES_URL', 'IA_URL', 'GRAPHQL_URL']:
             https(k)
-        for k in ['SPRING_DATASOURCE_URL', 'SPRING_DATASOURCE_USERNAME', 'SPRING_DATASOURCE_PASSWORD', 'MONGODB_URI', 'RABBITMQ_URL', 'GOOGLE_CLOUD_PROJECT', 'GCS_BUCKET', 'IA_CLIENT_SECRET', 'GRAPHQL_CLIENT_SECRET', 'IMAGEN_PREFIJO', 'IMAGEN_ETIQUETA']:
+        for k in ['SPRING_DATASOURCE_URL', 'SPRING_DATASOURCE_USERNAME', 'SPRING_DATASOURCE_PASSWORD', 'MONGODB_URI', 'RABBITMQ_URL', 'IA_CLIENT_SECRET', 'GRAPHQL_CLIENT_SECRET', 'IMAGEN_PREFIJO', 'IMAGEN_ETIQUETA']:
             exigir(k)
         if v.get('NUBE') != args.destino: errores.append('NUBE no coincide con el destino')
         if args.destino == 'azure' and v.get('CONSUMIDORES_ACTIVOS', 'true') != 'true':
@@ -76,7 +76,7 @@ def main():
         if not v.get('RABBITMQ_URL', '').startswith('amqps://'): errores.append('RABBITMQ_URL requiere amqps://')
         if not v.get('MONGODB_URI', '').startswith('mongodb+srv://'): errores.append('MONGODB_URI requiere la URI SRV de Atlas')
         if 'sslmode=require' not in v.get('SPRING_DATASOURCE_URL', ''): errores.append('PostgreSQL requiere sslmode=require')
-        archivos = [] if args.destino == 'gcp' else [('GCP_IA_CREDENCIALES_ARCHIVO', './secretos/gcp-ia.json')]
+        archivos = []
         if args.destino == 'gcp':
             for k in ['GCP_REGION', 'GCP_SERVICE_ACCOUNT_EMAIL', 'KEYCLOAK_IMAGEN', 'N8N_IMAGEN']: exigir(k)
             if '.pkg.dev/' not in v.get('IMAGEN_PREFIJO', ''): errores.append('IMAGEN_PREFIJO de GCP debe apuntar a Artifact Registry')

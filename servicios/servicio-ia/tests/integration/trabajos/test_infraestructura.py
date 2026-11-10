@@ -8,14 +8,17 @@ from typing import Any
 import aio_pika
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from google.cloud import firestore
 from pydantic import SecretStr
 
 from app.config import Configuracion
 from app.trabajos.esquemas import Trabajo
 from app.trabajos.registro import DefinicionTipo
 from tests.conftest import RABBITMQ_URL
-from tests.integration.conftest import agregar_ruta_crear_trabajo, esperar_rabbitmq
+from tests.integration.conftest import (
+    agregar_ruta_crear_trabajo,
+    cliente_mongo,
+    esperar_rabbitmq,
+)
 
 
 async def _sin_efecto(_: Trabajo) -> dict[str, Any]:
@@ -30,7 +33,7 @@ def _ajustar(app: FastAPI) -> None:
 def test_rabbitmq_caido_al_crear_responde_503_y_deja_el_trabajo_fallido(
     crear_cliente: Callable[..., TestClient],
     configuracion_infra: Callable[..., Configuracion],
-    proyecto_firestore: str,
+    base_mongo: str,
     cabeceras_gerencia: dict[str, str],
 ) -> None:
     configuracion = configuracion_infra(rabbitmq_url=SecretStr("amqp://invalido.prueba:5672/"))
@@ -42,15 +45,12 @@ def test_rabbitmq_caido_al_crear_responde_503_y_deja_el_trabajo_fallido(
 
     assert respuesta.status_code == 503
     assert respuesta.json()["codigo"] == "DEPENDENCIA_NO_DISPONIBLE"
-    (documento,) = [
-        d.to_dict()
-        for d in firestore.Client(project=proyecto_firestore).collection("trabajos").get()
-    ]
+    (documento,) = [d for d in cliente_mongo()[base_mongo]["trabajos"].find({}, {"_id": 0})]
     assert documento["estado"] == "FALLIDO"
     assert documento["error"]["codigo"] == "COLA_NO_DISPONIBLE"
 
 
-def test_readiness_informa_rabbitmq_caido_y_firestore_sano(
+def test_readiness_informa_rabbitmq_caido_y_mongodb_sano(
     crear_cliente: Callable[..., TestClient], configuracion_infra: Callable[..., Configuracion]
 ) -> None:
     configuracion = configuracion_infra(rabbitmq_url=SecretStr("amqp://invalido.prueba:5672/"))
@@ -58,7 +58,7 @@ def test_readiness_informa_rabbitmq_caido_y_firestore_sano(
     respuesta = crear_cliente(configuracion=configuracion).get("/salud/readiness")
 
     assert respuesta.status_code == 503
-    assert respuesta.json()["componentes"] == {"firestore": "UP", "rabbitmq": "DOWN"}
+    assert respuesta.json()["componentes"] == {"mongodb": "UP", "rabbitmq": "DOWN"}
 
 
 def test_readiness_con_todo_sano(
@@ -70,7 +70,7 @@ def test_readiness_con_todo_sano(
     respuesta = cliente.get("/salud/readiness")
 
     assert respuesta.status_code == 200
-    assert respuesta.json()["componentes"] == {"firestore": "UP", "rabbitmq": "UP"}
+    assert respuesta.json()["componentes"] == {"mongodb": "UP", "rabbitmq": "UP"}
 
 
 async def _publicar_y_leer_dlq(cola: str, cuerpo: bytes) -> bytes | None:

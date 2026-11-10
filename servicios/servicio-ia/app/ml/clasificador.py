@@ -325,9 +325,9 @@ def armar_documento(
 
 async def principal(carpeta: Path, config: Configuracion) -> int:
     from app.config import cargar_configuracion
-    from app.integracion.almacen_archivos import AlmacenGcs
-    from app.integracion.firestore import crear_cliente_firestore
-    from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+    from app.integracion.almacen_archivos import AlmacenS3
+    from app.integracion.mongodb import crear_cliente_mongo
+    from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 
     manifiesto = leer_manifiesto(CARPETA_DATOS / "manifiesto.csv")
     fuentes = json.loads((CARPETA_DATOS / "fuentes.json").read_text(encoding="utf-8"))
@@ -346,7 +346,9 @@ async def principal(carpeta: Path, config: Configuracion) -> int:
     archivos, exportaciones = artefactos(modelo, recorte_central(particiones["prueba"].imagenes))
 
     config_servicio = cargar_configuracion()
-    almacen = AlmacenGcs(config_servicio.google_cloud_project, config_servicio.gcs_bucket)
+    almacen = AlmacenS3(
+        config_servicio.aws_bucket, config_servicio.s3_prefijo, config_servicio.aws_endpoint
+    )
     ruta = f"modelos/clasificador/{uuid.uuid4()}"
     conjunto = {"ruta": fuentes["conjunto"]["archivo"], "sha256": fuentes["conjunto"]["sha256"]}
     documento = armar_documento(
@@ -360,8 +362,10 @@ async def principal(carpeta: Path, config: Configuracion) -> int:
         tipo = "application/json" if nombre.endswith(".json") else "application/octet-stream"
         await almacen.subir(f"{ruta}/{nombre}", datos, tipo)
         print(f"  {nombre}: {len(io.BytesIO(datos).getbuffer()) // 1024} KB", flush=True)
-    repositorio = RepositorioVersionesFirestore(
-        crear_cliente_firestore(config_servicio.google_cloud_project)
+    repositorio = RepositorioVersionesMongo(
+        crear_cliente_mongo(config_servicio.mongodb_uri.get_secret_value())[
+            config_servicio.mongodb_base
+        ]
     )
     vigente = await repositorio.vigente("clasificador")
     version = await repositorio.registrar_candidata(documento)

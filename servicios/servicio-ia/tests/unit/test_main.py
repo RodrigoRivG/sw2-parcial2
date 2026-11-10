@@ -16,9 +16,9 @@ def test_sin_configuracion_el_proceso_termina_con_el_nombre_de_las_variables(
         "KEYCLOAK_CLIENT_ID",
         "KEYCLOAK_CLIENT_SECRET",
         "API_GATEWAY_URL",
-        "GOOGLE_CLOUD_PROJECT",
+        "MONGODB_URI",
         "RABBITMQ_URL",
-        "GCS_BUCKET",
+        "AWS_BUCKET",
     ):
         monkeypatch.delenv(nombre, raising=False)
 

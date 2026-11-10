@@ -1,4 +1,4 @@
-"""Historia 1 y Historia 3 de punta a punta con Firestore y RabbitMQ (CE-TRA-02 a CE-TRA-04)."""
+"""Historia 1 y Historia 3 de punta a punta con MongoDB y RabbitMQ (CE-TRA-02 a CE-TRA-04)."""
 
 import asyncio
 import logging

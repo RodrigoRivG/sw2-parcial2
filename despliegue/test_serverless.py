@@ -15,7 +15,7 @@ spec.loader.exec_module(g)
 
 class Manifiestos(unittest.TestCase):
     def setUp(self):
-        self.v = {'IMAGEN_PREFIJO': 'registro.ficticio/sw2', 'IMAGEN_ETIQUETA': 'prueba', 'API_GATEWAY_URL': 'https://gateway.ficticio', 'KEYCLOAK_ISSUER': 'https://auth.ficticio/realms/agro', 'GCP_SERVICE_ACCOUNT_EMAIL': 'app@ficticio.iam.gserviceaccount.com', 'N8N_PUBLIC_URL': 'https://n8n.ficticio', 'AZURE_IDENTITY_ID': '/identidad/ficticia', 'AZURE_KEYVAULT_URL': 'https://ficticio.vault.azure.net', 'AWS_ACCOUNT_ID': '123456789012', 'AWS_ACCESS_KEY_ID': 'CLAVE_FICTICIA', 'AWS_SECRET_ACCESS_KEY': 'SECRETO_FICTICIO', 'IA_CLIENT_SECRET': 'SECRETO_IA_FICTICIO', 'GCP_IA_CREDENCIALES_ARCHIVO': '/no-existe-ficticio.json'}
+        self.v = {'IMAGEN_PREFIJO': 'registro.ficticio/sw2', 'IMAGEN_ETIQUETA': 'prueba', 'API_GATEWAY_URL': 'https://gateway.ficticio', 'KEYCLOAK_ISSUER': 'https://auth.ficticio/realms/agro', 'GCP_SERVICE_ACCOUNT_EMAIL': 'app@ficticio.iam.gserviceaccount.com', 'N8N_PUBLIC_URL': 'https://n8n.ficticio', 'AZURE_IDENTITY_ID': '/identidad/ficticia', 'AZURE_KEYVAULT_URL': 'https://ficticio.vault.azure.net', 'AWS_ACCOUNT_ID': '123456789012', 'AWS_ACCESS_KEY_ID': 'CLAVE_FICTICIA', 'AWS_SECRET_ACCESS_KEY': 'SECRETO_FICTICIO', 'IA_CLIENT_SECRET': 'SECRETO_IA_FICTICIO'}
 
     def test_azure_autonomo_y_gateway_de_su_nube(self):
         for nube in ['aws', 'azure', 'gcp']:
@@ -43,6 +43,11 @@ class Manifiestos(unittest.TestCase):
         self.assertEqual(s['n8n']['env']['DB_TYPE'], 'postgresdb')
         self.assertIsInstance(s['keycloak']['env']['IA_CLIENT_SECRET'], Secreto)
         self.assertNotIn('GOOGLE_CREDENTIALS_JSON', s['servicio-ia']['env'])
+        self.assertEqual(s['servicio-ia']['env']['MONGODB_BASE'], 'ia_db')
+        self.assertEqual(s['servicio-ia']['env']['S3_PREFIJO'], 'ia/')
+        self.assertIn('MONGODB_URI', s['servicio-ia']['env'])
+        self.assertIn('AWS_ACCESS_KEY_ID', s['servicio-ia']['env'])
+        self.assertNotIn('AWS_ENDPOINT', s['servicio-ia']['env'])
         n8n = g.cloud_run('n8n', s['n8n'], self.v)
         self.assertEqual(n8n['spec']['template']['spec']['volumes'][0]['secret']['secretName'], 'sw2-firebase-json')
 
@@ -70,7 +75,8 @@ class Manifiestos(unittest.TestCase):
         c = m['SourceConfiguration']['ImageRepository']['ImageConfiguration']
         self.assertNotIn('PORT', c['RuntimeEnvironmentVariables'])
         self.assertEqual(c['Port'], '8080')
-        self.assertIn('GOOGLE_CREDENTIALS_JSON', c['RuntimeEnvironmentSecrets'])
+        self.assertIn('MONGODB_URI', c['RuntimeEnvironmentSecrets'])
+        self.assertNotIn('GOOGLE_CREDENTIALS_JSON', c['RuntimeEnvironmentSecrets'])
         self.assertNotIn('SECRETO_IA_FICTICIO', json.dumps(m))
         self.assertEqual(m['InstanceConfiguration']['Memory'], '2048')
 

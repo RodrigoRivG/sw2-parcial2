@@ -1,4 +1,4 @@
-"""RepositorioTrabajosFirestore contra el emulador (spec-trabajos.md 2.5)."""
+"""RepositorioTrabajosMongo contra el emulador (spec-trabajos.md 2.5)."""
 
 import asyncio
 import uuid
@@ -6,10 +6,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from google.cloud import firestore
 
 from app.integracion.errores import ErrorInfraestructura
-from app.integracion.repositorio_trabajos import RepositorioTrabajosFirestore
+from app.integracion.repositorio_trabajos import RepositorioTrabajosMongo
+from tests.integration.conftest import base_mongo_async
 
 AHORA = datetime(2026, 11, 4, 12, 0, tzinfo=UTC)
 
@@ -35,11 +35,11 @@ def _documento(estado: str = "EN_COLA", **cambios: Any) -> dict[str, Any]:
 
 
 @pytest.fixture
-def repositorio(proyecto_firestore: str) -> RepositorioTrabajosFirestore:
-    return RepositorioTrabajosFirestore(firestore.AsyncClient(project=proyecto_firestore))
+def repositorio(base_mongo: str) -> RepositorioTrabajosMongo:
+    return RepositorioTrabajosMongo(base_mongo_async(base_mongo))
 
 
-async def test_guardar_y_obtener(repositorio: RepositorioTrabajosFirestore) -> None:
+async def test_guardar_y_obtener(repositorio: RepositorioTrabajosMongo) -> None:
     documento = _documento()
 
     await repositorio.guardar_nuevo(documento)
@@ -50,7 +50,7 @@ async def test_guardar_y_obtener(repositorio: RepositorioTrabajosFirestore) -> N
 
 
 async def test_guardar_dos_veces_el_mismo_id_falla(
-    repositorio: RepositorioTrabajosFirestore,
+    repositorio: RepositorioTrabajosMongo,
 ) -> None:
     documento = _documento()
     await repositorio.guardar_nuevo(documento)
@@ -59,7 +59,7 @@ async def test_guardar_dos_veces_el_mismo_id_falla(
         await repositorio.guardar_nuevo(documento)
 
 
-async def test_cambiar_estado_es_condicional(repositorio: RepositorioTrabajosFirestore) -> None:
+async def test_cambiar_estado_es_condicional(repositorio: RepositorioTrabajosMongo) -> None:
     documento = _documento()
     await repositorio.guardar_nuevo(documento)
 
@@ -75,15 +75,10 @@ async def test_cambiar_estado_es_condicional(repositorio: RepositorioTrabajosFir
     assert leido["fechaInicio"] == AHORA
 
 
-async def test_cambio_concurrente_lo_gana_uno_solo(proyecto_firestore: str) -> None:
+async def test_cambio_concurrente_lo_gana_uno_solo(base_mongo: str) -> None:
     documento = _documento()
-    await RepositorioTrabajosFirestore(
-        firestore.AsyncClient(project=proyecto_firestore)
-    ).guardar_nuevo(documento)
-    repositorios = [
-        RepositorioTrabajosFirestore(firestore.AsyncClient(project=proyecto_firestore))
-        for _ in range(5)
-    ]
+    await RepositorioTrabajosMongo(base_mongo_async(base_mongo)).guardar_nuevo(documento)
+    repositorios = [RepositorioTrabajosMongo(base_mongo_async(base_mongo)) for _ in range(5)]
 
     resultados = await asyncio.gather(
         *(r.cambiar_estado(documento["id"], "EN_COLA", "PROCESANDO", {}) for r in repositorios),
@@ -98,7 +93,7 @@ async def test_cambio_concurrente_lo_gana_uno_solo(proyecto_firestore: str) -> N
     )
 
 
-async def test_listar_vencidos(repositorio: RepositorioTrabajosFirestore) -> None:
+async def test_listar_vencidos(repositorio: RepositorioTrabajosMongo) -> None:
     procesando_vencido = _documento("PROCESANDO", fechaLimite=AHORA - timedelta(seconds=1))
     procesando_vigente = _documento("PROCESANDO", fechaLimite=AHORA + timedelta(minutes=1))
     en_cola_vieja = _documento("EN_COLA", fechaCreacion=AHORA - timedelta(minutes=11))

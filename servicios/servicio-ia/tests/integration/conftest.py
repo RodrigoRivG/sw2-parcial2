@@ -1,6 +1,6 @@
 """Infraestructura real para los tests de integración (spec-trabajos.md 2.13).
 
-Cada test usa un proyecto de Firestore, un bucket y colas propios, que se borran al terminar,
+Cada test usa un proyecto de MongoDB, un bucket y colas propios, que se borran al terminar,
 para no chocar con el servicio que esté corriendo en Docker Compose.
 """
 
@@ -14,19 +14,17 @@ from pathlib import Path
 from typing import Any
 
 import aio_pika
-import httpx
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
-from google.cloud import firestore, storage  # type: ignore[attr-defined]
 from pydantic import SecretStr
 
 from app.comun.errores import respuestas_error
 from app.comun.esquemas import ModeloEntrada
 from app.comun.seguridad import UsuarioAutenticado, router_protegido, usuario_actual
 from app.config import Configuracion
-from app.integracion.almacen_archivos import AlmacenGcs
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.almacen_archivos import AlmacenS3
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.ml.entrenar import (
     Entrenado,
     a_bytes_joblib,
@@ -38,17 +36,35 @@ from app.ml.entrenar import (
 from app.trabajos.servicio import ServicioTrabajos, respuesta_creado, servicio_trabajos
 from tests.conftest import RABBITMQ_URL, autorizacion, configuracion_de_prueba, emitir_token
 
-EMULADOR_FIRESTORE = os.environ["FIRESTORE_EMULATOR_HOST"]
+
+def cliente_mongo() -> Any:
+    from pymongo import MongoClient
+
+    return MongoClient(os.environ["MONGODB_URI"], tz_aware=True, timeoutMS=5000)
+
+
+def base_mongo_async(nombre: str) -> Any:
+    from app.integracion.mongodb import crear_cliente_mongo
+
+    return crear_cliente_mongo(os.environ["MONGODB_URI"])[nombre]
+
+
+def cliente_s3() -> Any:
+    import boto3
+
+    return boto3.client("s3", endpoint_url=os.environ["AWS_ENDPOINT"])
+
+
+def almacen_s3(prefijo: str) -> AlmacenS3:
+    return AlmacenS3(os.environ["AWS_BUCKET"], prefijo, os.environ["AWS_ENDPOINT"])
 
 
 @pytest.fixture
-def proyecto_firestore() -> Iterator[str]:
-    proyecto = f"pruebas-{uuid.uuid4().hex[:12]}"
-    yield proyecto
-    httpx.delete(
-        f"http://{EMULADOR_FIRESTORE}/emulator/v1/projects/{proyecto}/databases/(default)/documents",
-        timeout=10,
-    )
+def base_mongo() -> Iterator[str]:
+    nombre = f"pruebas-{uuid.uuid4().hex[:12]}"
+    yield nombre
+    with cliente_mongo() as cliente:
+        cliente.drop_database(nombre)
 
 
 async def _borrar_colas(nombres: list[str]) -> None:
@@ -67,29 +83,32 @@ def cola_trabajos() -> Iterator[str]:
 
 
 @pytest.fixture
-def bucket_gcs(proyecto_firestore: str) -> Iterator[str]:
-    """Bucket propio en el emulador de Cloud Storage, que se vacía y borra al terminar."""
-    nombre = f"pruebas-{uuid.uuid4().hex[:12]}"
-    cliente = storage.Client(project=proyecto_firestore)
-    cliente.create_bucket(nombre)
-    yield nombre
-    bucket = cliente.bucket(nombre)
-    for blob in cliente.list_blobs(nombre):
-        blob.delete()
-    bucket.delete()
+def prefijo_s3() -> Iterator[str]:
+    prefijo = f"pruebas-{uuid.uuid4().hex[:12]}/"
+    cliente = cliente_s3()
+    bucket = os.environ["AWS_BUCKET"]
+    # Solo LocalStack: no se crean ni vacían buckets reales en los tests.
+    yield prefijo
+    for pagina in cliente.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefijo):
+        for objeto in pagina.get("Contents", []):
+            cliente.delete_object(Bucket=bucket, Key=objeto["Key"])
+    cliente.close()
 
 
 @pytest.fixture
 def configuracion_infra(
-    proyecto_firestore: str, cola_trabajos: str, bucket_gcs: str
+    base_mongo: str, cola_trabajos: str, prefijo_s3: str
 ) -> Callable[..., Configuracion]:
     def crear(**cambios: Any) -> Configuracion:
         valores: dict[str, Any] = {
-            "google_cloud_project": proyecto_firestore,
+            "mongodb_uri": SecretStr(os.environ["MONGODB_URI"]),
+            "mongodb_base": base_mongo,
+            "aws_endpoint": os.environ["AWS_ENDPOINT"],
+            "s3_prefijo": prefijo_s3,
             "rabbitmq_url": SecretStr(RABBITMQ_URL),
             "trabajos_cola": cola_trabajos,
             "trabajos_consumidor_activo": True,
-            "gcs_bucket": bucket_gcs,
+            "aws_bucket": os.environ["AWS_BUCKET"],
         }
         valores.update(cambios)
         return configuracion_de_prueba(**valores)
@@ -166,7 +185,7 @@ async def registrar_version(
 ) -> int:
     """Sube los artefactos y registra una CANDIDATA, como `python -m app.ml.entrenar`."""
     filas = leer_referencia(FIXTURE_REFERENCIA)
-    almacen = AlmacenGcs(proyecto, bucket)
+    almacen = almacen_s3(bucket)
     ruta = f"modelos/{nombre}/{time.time_ns()}"
     documento = armar_documento(nombre, entrenado, filas, ruta, "0" * 64, 7, datetime.now(UTC))
     if valor_metrica is not None:
@@ -174,5 +193,5 @@ async def registrar_version(
     await almacen.subir(
         f"{ruta}/modelo.joblib", a_bytes_joblib(entrenado.artefacto), "application/octet-stream"
     )
-    repositorio = RepositorioVersionesFirestore(firestore.AsyncClient(project=proyecto))
+    repositorio = RepositorioVersionesMongo(base_mongo_async(proyecto))
     return await repositorio.registrar_candidata(documento)

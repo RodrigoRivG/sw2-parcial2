@@ -15,9 +15,9 @@ propia URL y base de autenticación; compartir el servidor PostgreSQL no exige
 compartir la misma base de Keycloak.
 
 Los recursos externos siguen siendo compartidos donde corresponda: PostgreSQL,
-MongoDB, DynamoDB, S3, RabbitMQ y los servicios Google que actualmente usa IA.
-No se reemplazó ningún adaptador ni base de datos. Firestore/GCS siguen siendo
-necesarios para el código actual hasta que se decida e implemente un reemplazo.
+MongoDB Atlas, DynamoDB, S3 y RabbitMQ. IA usa `ia_db` en Atlas y el prefijo
+`ia/` del bucket S3 existente, con su acceso separado de Inventario y Operaciones.
+Firebase permanece para notificaciones; IA no requiere recursos de GCP.
 
 Ollama/Qwen permanecen en la máquina del usuario. Whisper se ejecuta con el
 servicio IA en la nube. El entrenamiento de rendimiento, patrones y clasificación

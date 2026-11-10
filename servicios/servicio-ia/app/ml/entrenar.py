@@ -329,14 +329,14 @@ async def registrar(
 ) -> tuple[int, dict[str, Any] | None]:
     """Sube los artefactos y registra la CANDIDATA. Devuelve su versión y la vigente."""
     from app.config import cargar_configuracion
-    from app.integracion.almacen_archivos import AlmacenGcs
-    from app.integracion.firestore import crear_cliente_firestore
-    from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+    from app.integracion.almacen_archivos import AlmacenS3
+    from app.integracion.mongodb import crear_cliente_mongo
+    from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 
     config = cargar_configuracion()
-    almacen = AlmacenGcs(config.google_cloud_project, config.gcs_bucket)
-    repositorio = RepositorioVersionesFirestore(
-        crear_cliente_firestore(config.google_cloud_project)
+    almacen = AlmacenS3(config.aws_bucket, config.s3_prefijo, config.aws_endpoint)
+    repositorio = RepositorioVersionesMongo(
+        crear_cliente_mongo(config.mongodb_uri.get_secret_value())[config.mongodb_base]
     )
 
     ruta = f"modelos/{nombre}/{uuid.uuid4()}"

@@ -1,4 +1,4 @@
-"""Endpoints de reportes con Firestore, Cloud Storage y RabbitMQ de los emuladores
+"""Endpoints de reportes con MongoDB, S3 y RabbitMQ de los emuladores
 (spec-reportes.md 2.10 y 2.13; historias 1 a 4; CE-REP-02)."""
 
 import asyncio
@@ -44,7 +44,7 @@ PLAN = {
 def _usar(
     cliente: TestClient, modelo: ModeloGuion, transcriptor: TranscriptorFijo | None = None
 ) -> None:
-    """Ollama, Whisper y los servicios son dobles; Firestore, GCS y RabbitMQ son reales."""
+    """Ollama, Whisper y los servicios son dobles; MongoDB, S3 y RabbitMQ son reales."""
     estado = cliente.app.state  # type: ignore[attr-defined]
     http = httpx.AsyncClient(transport=httpx.MockTransport(_servicios()))
     gateway = ClienteGateway(http, "http://gateway.prueba", TokenFijo(), 1.0)

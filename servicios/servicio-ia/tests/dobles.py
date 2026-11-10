@@ -8,7 +8,7 @@ from app.integracion.errores import ErrorInfraestructura
 
 
 class RepositorioTrabajosMemoria:
-    """Mismo contrato que `RepositorioTrabajosFirestore`, en memoria.
+    """Mismo contrato que `RepositorioTrabajosMongo`, en memoria.
 
     `fallas[operacion] = n` hace que las próximas `n` llamadas a esa operación fallen.
     """
@@ -22,7 +22,7 @@ class RepositorioTrabajosMemoria:
         self.llamadas.append(operacion)
         if self.fallas.get(operacion, 0) > 0:
             self.fallas[operacion] -= 1
-            raise ErrorInfraestructura("firestore", "falla simulada")
+            raise ErrorInfraestructura("mongodb", "falla simulada")
 
     async def guardar_nuevo(self, documento: dict[str, Any]) -> None:
         self._quizas_fallar("guardar_nuevo")

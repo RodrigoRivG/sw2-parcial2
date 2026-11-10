@@ -32,7 +32,8 @@ class Configuracion(BaseSettings):
     nivel_log: str = "INFO"
 
     # spec-trabajos.md 2.2
-    google_cloud_project: TextoObligatorio
+    mongodb_uri: SecretStr
+    mongodb_base: TextoObligatorio = "ia_db"
     rabbitmq_url: SecretStr
     trabajos_cola: TextoObligatorio = "servicio-ia.trabajos"
     trabajos_concurrencia: int = Field(default=2, ge=1, le=20)
@@ -40,7 +41,9 @@ class Configuracion(BaseSettings):
     trabajos_retencion_dias: int = Field(default=30, ge=1)
 
     # spec-prediccion.md 2.2
-    gcs_bucket: TextoObligatorio
+    aws_bucket: TextoObligatorio
+    aws_endpoint: str | None = None
+    s3_prefijo: str = "ia/"
     modelos_intervalo_revision_segundos: float = Field(default=60.0, gt=0)
 
     # spec-vision.md 2.2
@@ -61,7 +64,7 @@ class Configuracion(BaseSettings):
     reportes_retencion_dias: int = Field(default=7, ge=1)
     reportes_tamanio_maximo_audio_mb: float = Field(default=10.0, gt=0)
 
-    @field_validator("keycloak_client_secret", "rabbitmq_url")
+    @field_validator("keycloak_client_secret", "rabbitmq_url", "mongodb_uri")
     @classmethod
     def _secreto_no_vacio(cls, valor: SecretStr) -> SecretStr:
         if not valor.get_secret_value().strip():

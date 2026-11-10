@@ -8,7 +8,7 @@
 #    gestion       servicio-gestion      Spring Boot  + PostgreSQL
 #    inventario    servicio-inventario   NestJS       + MongoDB
 #    operaciones   servicio-operaciones  Laravel      + DynamoDB + S3 (LocalStack)
-#    ia            servicio-ia           FastAPI      + Firestore y Cloud Storage (emuladores)
+#    ia            servicio-ia           FastAPI      + MongoDB y S3 (LocalStack)
 #    gateway       api-gateway           Spring Cloud Gateway
 #    graphql       graphql-server        Apollo Server
 #    auth          keycloak
@@ -110,7 +110,7 @@ services:
 
   # S3 local para servicio-operaciones (requiere token gratuito de LocalStack, plan Hobby)
   localstack:
-    profiles: ["operaciones", "saga", "backend", "todo"]
+    profiles: ["ia", "operaciones", "saga", "backend", "todo"]
     image: localstack/localstack:latest
     ports:
       - "4566:4566"
@@ -131,42 +131,6 @@ services:
       start_period: 20s
       retries: 10
     mem_limit: 768m
-
-  # Firestore local para servicio-ia (los datos viven en memoria)
-  firestore:
-    profiles: ["ia", "todo"]
-    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
-    command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080", "--project=${GCP_PROJECT_ID}"]
-    ports:
-      - "8085:8080"
-    environment:
-      JAVA_TOOL_OPTIONS: "-Xmx384m"
-    mem_limit: 512m
-
-  # Cloud Storage local para servicio-ia
-  gcs:
-    profiles: ["ia", "todo"]
-    image: fsouza/fake-gcs-server:latest
-    command: ["-scheme", "http", "-port", "4443", "-backend", "filesystem", "-filesystem-root", "/storage", "-external-url", "http://gcs:4443"]
-    ports:
-      - "4443:4443"
-    volumes:
-      - gcs-data:/storage
-    mem_limit: 128m
-
-  # Crea el bucket de servicio-ia una sola vez y termina
-  gcs-init:
-    profiles: ["ia", "todo"]
-    image: curlimages/curl:latest
-    depends_on:
-      - gcs
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        sleep 3
-        curl -s -X POST "http://gcs:4443/storage/v1/b?project=${GCP_PROJECT_ID}" \
-          -H "Content-Type: application/json" -d '{"name": "${GCS_BUCKET}"}' > /dev/null || true
-    restart: "no"
 
   # ------------------------------------------------------------------
   #  MICROSERVICIOS
@@ -335,10 +299,14 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL}
       WHISPER_MODEL: small
       WHISPER_DEVICE: cpu
-      GOOGLE_CLOUD_PROJECT: ${GCP_PROJECT_ID}
-      FIRESTORE_EMULATOR_HOST: firestore:8080
-      STORAGE_EMULATOR_HOST: http://gcs:4443
-      GCS_BUCKET: ${GCS_BUCKET}
+      MONGODB_URI: mongodb://mongo:27017/?replicaSet=rs0
+      MONGODB_BASE: ia_db
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_BUCKET: ${S3_BUCKET}
+      S3_PREFIJO: ia/
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       # Consultas a los microservicios, a través del gateway con cuenta de servicio de solo lectura
       API_GATEWAY_URL: http://api-gateway:8080
@@ -346,10 +314,10 @@ services:
       KEYCLOAK_CLIENT_ID: servicio-ia
       KEYCLOAK_CLIENT_SECRET: ${IA_CLIENT_SECRET:-}
     depends_on:
-      firestore:
-        condition: service_started
-      gcs:
-        condition: service_started
+      mongo:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     mem_limit: 3g
@@ -485,7 +453,6 @@ volumes:
   dynamodb-data:
   rabbitmq-data:
   localstack-data:
-  gcs-data:
   n8n-data:
   maven-cache:
   ia-venv:

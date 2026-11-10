@@ -12,7 +12,7 @@ on:
 
 jobs:
   construir:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: servicios/servicio-ia
@@ -30,36 +30,42 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          SERVICES: s3
+        options: >-
+          --health-cmd "python3 -c \"import urllib.request,json,sys; s=json.load(urllib.request.urlopen('http://localhost:4566/_localstack/health'))['services'].get('s3'); sys.exit(0 if s in ('available','running') else 1)\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-start-period 20s
+          --health-retries 12
     env:
-      FIRESTORE_EMULATOR_HOST: localhost:8080
-      STORAGE_EMULATOR_HOST: http://localhost:4443
-      GOOGLE_CLOUD_PROJECT: sw2-ci
+      MONGODB_URI: mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
+      AWS_ENDPOINT: http://localhost:4566
+      AWS_BUCKET: ia-pruebas
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
       RABBITMQ_URL: amqp://sw2:sw2pass@localhost:5672/
     steps:
       - uses: actions/checkout@v4
-      # Cloud Storage emulado con la misma imagen y opciones que Docker Compose (spec-prediccion.md)
-      - name: Levantar el emulador de Cloud Storage
+      - name: Levantar MongoDB como replica set
         run: |
-          docker run -d --name gcs -p 4443:4443 fsouza/fake-gcs-server:latest \
-            -scheme http -port 4443 -external-url http://localhost:4443
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:4443/storage/v1/b >/dev/null && exit 0
-            sleep 1
-          done
-          docker logs gcs
-          exit 1
-      # Los contenedores de servicio no aceptan `command`; el emulador se levanta a mano
-      - name: Levantar el emulador de Firestore
-        run: |
-          docker run -d --name firestore -p 8080:8080 \
-            gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators \
-            gcloud emulators firestore start --host-port=0.0.0.0:8080 --project=sw2-ci
+          docker run -d --name mongo -p 27017:27017 mongo:8.0 --replSet rs0 --bind_ip_all
           for i in $(seq 1 60); do
-            curl -sf http://localhost:8080/ >/dev/null && exit 0
+            if docker exec mongo mongosh --quiet --eval 'try { rs.status() } catch (e) { rs.initiate({_id:"rs0", members:[{_id:0,host:"localhost:27017"}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)'; then
+              exit 0
+            fi
             sleep 2
           done
-          docker logs firestore
+          docker logs mongo
           exit 1
+      - name: Crear bucket local de pruebas
+        run: docker exec "${{ job.services.localstack.id }}" awslocal s3 mb s3://ia-pruebas
       # WeasyPrint (PDF de los reportes) y la fuente que usan sus tests (spec-reportes.md 2.11)
       - name: Instalar librerías del sistema
         run: |

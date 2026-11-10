@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from app.config import Configuracion
 from app.integracion.datos_agricolas import CampaniaPrediccion, Historicos
 from app.integracion.errores import ErrorServicioRemoto, TipoErrorRemoto
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.modelos.cargador import CargadorModelos, EstadoCarga
 from tests.conftest import autorizacion, emitir_token
 from tests.integration.conftest import registrar_version
@@ -73,22 +73,18 @@ def datos() -> DatosGestionFalsos:
 def cliente(
     crear_cliente: Callable[..., TestClient],
     configuracion_infra: Callable[..., Configuracion],
-    proyecto_firestore: str,
-    bucket_gcs: str,
+    base_mongo: str,
+    prefijo_s3: str,
     entrenados: dict[str, Any],
     datos: DatosGestionFalsos,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[TestClient]:
     async def publicar_ambos() -> None:
-        from google.cloud import firestore
+        from tests.integration.conftest import base_mongo_async
 
-        repositorio = RepositorioVersionesFirestore(
-            firestore.AsyncClient(project=proyecto_firestore)
-        )
+        repositorio = RepositorioVersionesMongo(base_mongo_async(base_mongo))
         for nombre in ("rendimiento", "patrones"):
-            version = await registrar_version(
-                proyecto_firestore, bucket_gcs, nombre, entrenados[nombre]
-            )
+            version = await registrar_version(base_mongo, prefijo_s3, nombre, entrenados[nombre])
             await repositorio.publicar(nombre, version, lambda c, v: {"justificacion": None})
 
     asyncio.run(publicar_ambos())

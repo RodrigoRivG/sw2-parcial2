@@ -1,4 +1,4 @@
-# Imagen de servicio-ia para Google Cloud Run (spec-base.md 2.11).
+# Imagen portable de servicio-ia.
 FROM python:3.12-slim
 
 # OpenCV (headless) para leer video (spec-vision.md 2.9) y WeasyPrint para los PDF, con una
@@ -33,10 +33,9 @@ RUN python -c "from faster_whisper import WhisperModel; \
 WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8', download_root='/modelos/whisper')" \
     && chown -R servicio /modelos
 
-COPY iniciar.py ./iniciar.py
+COPY --chown=servicio:servicio datos ./datos
 USER servicio
 
 # Cloud Run define PORT (8080 por defecto)
 EXPOSE 8080
-ENTRYPOINT ["python", "/app/iniciar.py"]
 CMD ["sh", "-c", "exec uvicorn --factory app.main:crear_app --host 0.0.0.0 --port ${PORT:-8080} --no-access-log"]

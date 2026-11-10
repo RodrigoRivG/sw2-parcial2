@@ -42,7 +42,7 @@ def test_readiness_sin_comprobaciones(crear_cliente: Callable[..., TestClient]) 
 def test_critica_caida_responde_503(crear_cliente: Callable[..., TestClient]) -> None:
     def ajustar(app: FastAPI) -> None:
         app.state.registro_salud = RegistroSalud()
-        app.state.registro_salud.registrar("firestore", _sana, critica=True)
+        app.state.registro_salud.registrar("mongodb", _sana, critica=True)
         app.state.registro_salud.registrar("rabbitmq", _caida, critica=True)
 
     respuesta = crear_cliente(ajustar).get("/salud/readiness")
@@ -50,7 +50,7 @@ def test_critica_caida_responde_503(crear_cliente: Callable[..., TestClient]) ->
     assert respuesta.status_code == 503
     assert respuesta.json() == {
         "estado": "DOWN",
-        "componentes": {"firestore": "UP", "rabbitmq": "DOWN"},
+        "componentes": {"mongodb": "UP", "rabbitmq": "DOWN"},
         "informativos": {},
     }
 
@@ -60,7 +60,7 @@ def test_informativa_caida_o_lenta_no_cambia_el_estado(
 ) -> None:
     def ajustar(app: FastAPI) -> None:
         app.state.registro_salud = RegistroSalud()
-        app.state.registro_salud.registrar("firestore", _sana, critica=True)
+        app.state.registro_salud.registrar("mongodb", _sana, critica=True)
         app.state.registro_salud.registrar("ollama", _lenta, critica=False)
 
     respuesta = crear_cliente(ajustar).get("/salud")

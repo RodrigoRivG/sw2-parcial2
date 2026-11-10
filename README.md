@@ -74,7 +74,7 @@ Solo hace falta para los perfiles que incluyen `servicio-operaciones`.
 | `gestion` | servicio-gestion | ~0,8 GB |
 | `inventario` | servicio-inventario | ~0,3 GB |
 | `operaciones` | servicio-operaciones + LocalStack (S3) | ~0,8 GB |
-| `ia` | servicio-ia + emuladores de Firestore y Cloud Storage | 0,8–3,5 GB |
+| `ia` | servicio-ia + MongoDB y S3 (LocalStack) | 0,8–3,5 GB |
 | `gateway` | api-gateway | ~0,7 GB |
 | `graphql` | graphql-server | ~0,2 GB |
 | `auth` | Keycloak | ~0,7 GB |
@@ -114,13 +114,13 @@ Todo lo que un servicio necesita le llega por **variables de entorno** (RNF-03).
 | servicio-gestion | `mvn spring-boot:run` (recompila al guardar; requiere `spring-boot-devtools`) | `SERVER_PORT`, `SPRING_DATASOURCE_*`, `SPRING_RABBITMQ_*` |
 | servicio-inventario | `npm run start:dev` (recompila al guardar; aplica las migraciones de `migrations/` al arrancar) | `PORT`, `MONGODB_URI`, `RABBITMQ_URL` |
 | servicio-operaciones | `php artisan serve` (crea las tablas de DynamoDB al arrancar); `servicio-operaciones-programador` corre `php artisan schedule:work` | `DYNAMODB_ENDPOINT`, `AWS_*`, `AWS_ENDPOINT`, `AWS_ENDPOINT_PUBLICO`, `AWS_BUCKET`, `RABBITMQ_*`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
-| servicio-ia | `pip install -e .` + `uvicorn app.main:app --reload` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `WHISPER_*`, `GOOGLE_CLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `STORAGE_EMULATOR_HOST`, `GCS_BUCKET`, `RABBITMQ_URL`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
+| servicio-ia | `pip install -e .` + `uvicorn app.main:app --reload` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `WHISPER_*`, `MONGODB_URI`, `MONGODB_BASE`, `AWS_BUCKET`, `AWS_ENDPOINT`, `S3_PREFIJO`, `RABBITMQ_URL`, `API_GATEWAY_URL`, `KEYCLOAK_CLIENT_ID/SECRET` |
 | api-gateway | `mvn spring-boot:run` | `SERVER_PORT`, `GESTION_URL`, `INVENTARIO_URL`, `OPERACIONES_URL`, `IA_URL`, `GRAPHQL_URL`, `CORS_ORIGENES_PERMITIDOS`, `GATEWAY_TIEMPO_LIMITE` (10 s), `GATEWAY_TIEMPO_LIMITE_SINCRONIZACION` (120000 ms) |
 | graphql-server | `npm run dev` (recarga al guardar) | `PORT`, `API_GATEWAY_URL`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_CLIENT_ID/SECRET`, `GRAPHQL_TIEMPO_LIMITE_LLAMADA_MS` (4000), `GRAPHQL_PLAZO_CONSULTA_MS` (4500), `GRAPHQL_MAXIMO_LLAMADAS` (200) |
 
 Los servicios se comunican entre sí **solo a través del API Gateway** (`API_GATEWAY_URL`), como exigen las constituciones. Solo el gateway conoce las URL internas.
 
-Los SDK de Google (Firestore y Cloud Storage) detectan los emuladores automáticamente con `FIRESTORE_EMULATOR_HOST` y `STORAGE_EMULATOR_HOST`; el código es el mismo que en la nube.
+IA usa MongoDB (base `ia_db`) y S3 (prefijo `ia/`). En local, `AWS_ENDPOINT` apunta a LocalStack; en la nube se omite. El mismo clúster y bucket sirven a otros servicios con bases y prefijos separados.
 
 ---
 
@@ -162,8 +162,6 @@ Versiones de las imágenes: Java 21 + Maven 3.9, Node 24 LTS, PHP 8.4 + Composer
 | MongoDB | `mongodb://localhost:27017/?directConnection=true` | `mongodb://mongo:27017/?replicaSet=rs0` |
 | DynamoDB Local | http://localhost:8002 | `http://dynamodb:8000` |
 | LocalStack (S3) | http://localhost:4566 | `http://localstack:4566` |
-| Firestore (emulador) | `localhost:8085` | `firestore:8080` |
-| Cloud Storage (emulador) | http://localhost:4443 | `http://gcs:4443` |
 | Admin de DynamoDB | http://localhost:8003 | — |
 
 Dentro de un contenedor, `localhost` es el propio contenedor: usa siempre la columna derecha.
@@ -185,9 +183,7 @@ está en [`despliegue/README.md`](despliegue/README.md).
 | MongoDB | `mongo:8.0`, replica set sin autenticación | MongoDB Atlas (con autenticación) |
 | DynamoDB | DynamoDB Local | Amazon DynamoDB |
 | S3 | LocalStack (los objetos no persisten entre reinicios: las fotos de incidencias anteriores responden `404 NoSuchKey`) | Amazon S3 |
-| Firestore | Emulador (datos en memoria: un reinicio borra las versiones de los modelos de IA) | Firestore |
-| Cloud Storage | fake-gcs-server | Google Cloud Storage |
-| RabbitMQ | AMQP sin TLS | Amazon MQ con AMQPS |
+| RabbitMQ | AMQP sin TLS | CloudAMQP con AMQPS |
 | Ollama | Nativo en Windows (usa tu GPU) | Permanece en la máquina del usuario; exposición segura pendiente para la última etapa |
 
 El código es el mismo: solo cambian las variables de entorno.
@@ -293,8 +289,8 @@ docker compose --profile todo down -v         # apagar y BORRAR todos los datos
 - **Una base de `init.sql` no existe:** ese archivo solo se ejecuta al crear el volumen de Postgres. Recréalo con `docker compose down -v` (borra los datos).
 - **LocalStack no arranca:** revisa que `LOCALSTACK_AUTH_TOKEN` esté en el `.env` con `docker compose logs localstack`.
 - **Descargas que se cortan (`EOF`):** vuelve a ejecutar el comando; lo descargado se conserva.
-- **IA responde `503 MODELO_NO_DISPONIBLE` o `GET /api/ia/v1/modelos` devuelve `[]`:** el emulador de Firestore se reinició (al apagar el equipo, con `wsl --shutdown` o al recrear el contenedor) y perdió las versiones. Hay que entrenarlas y publicarlas de nuevo según `servicios/servicio-ia/docs/modelos.md` ("Cómo reentrenar y publicar"):
+- **IA responde `503 MODELO_NO_DISPONIBLE` o `GET /api/ia/v1/modelos` devuelve `[]`:** no hay versiones publicadas en `ia_db` o faltan sus archivos en S3. El cambio de almacenamiento no migra los modelos anteriores. Hay que entrenarlos y publicarlos según `servicios/servicio-ia/docs/modelos.md` ("Cómo reentrenar y publicar"):
   - `rendimiento` y `patrones`: `docker compose exec servicio-ia python -m app.ml.entrenar <modelo> --incluir-historicos`, con el backend levantado. Tarda segundos.
-  - `clasificador`: fuera del contenedor, con el resto del backend detenido salvo `firestore` y `gcs`, porque necesita unos 3 GB. Tarda unos 15 minutos.
+  - `clasificador`: fuera del contenedor, con el resto del backend detenido salvo `mongo`, `localstack` y `rabbitmq`, porque necesita unos 3 GB. Tarda unos 15 minutos.
   - Después se publican desde `/admin/modelos` o con `POST /api/ia/v1/modelos/{nombre}/versiones/{n}/publicacion`.
 - **La primera consulta tras levantar el backend es lenta:** los servicios tardan en responder su primer uso (por ejemplo, GraphQL puede agotar su plazo de 4,5 s y devolver datos parciales). Antes de una demostración, hacer una consulta de calentamiento.

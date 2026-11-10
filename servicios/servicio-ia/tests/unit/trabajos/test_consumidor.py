@@ -260,7 +260,7 @@ async def test_tipo_no_registrado_queda_fallido(
     assert repositorio.documentos[id_trabajo]["error"]["codigo"] == "ERROR_INTERNO"
 
 
-async def test_falla_pasajera_de_firestore_se_reintenta(
+async def test_falla_pasajera_de_mongodb_se_reintenta(
     repositorio: RepositorioTrabajosMemoria, esperas: Esperas
 ) -> None:
     id_trabajo = _trabajo(repositorio)
@@ -273,7 +273,7 @@ async def test_falla_pasajera_de_firestore_se_reintenta(
     assert repositorio.documentos[id_trabajo]["estado"] == "COMPLETADO"
 
 
-async def test_falla_persistente_de_firestore_va_a_la_dlq_tras_tres_reintentos(
+async def test_falla_persistente_de_mongodb_va_a_la_dlq_tras_tres_reintentos(
     repositorio: RepositorioTrabajosMemoria, esperas: Esperas
 ) -> None:
     id_trabajo = _trabajo(repositorio)

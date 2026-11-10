@@ -8,7 +8,7 @@ from fastapi import Request
 
 from app.comun.errores import ErrorAplicacion
 from app.integracion.errores import ErrorInfraestructura
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.modelos.cargador import CargadorModelos
 from app.modelos.esquemas import EstadoVersion, MetricaPrincipal, VersionModelo
 from app.modelos.reglas import puede_publicar
@@ -26,7 +26,7 @@ def _ahora() -> datetime:
 class ServicioModelos:
     def __init__(
         self,
-        repositorio: RepositorioVersionesFirestore,
+        repositorio: RepositorioVersionesMongo,
         cargador: CargadorModelos,
         reloj: Callable[[], datetime] = _ahora,
     ) -> None:

@@ -14,13 +14,13 @@ dependencies = [
     "pydantic-settings~=2.16.2",
     "httpx~=0.28.1",
     "pyjwt[crypto]~=2.15.1",
-    "google-cloud-firestore~=2.34.1",
+    "pymongo~=4.17",
     "aio-pika~=10.2.2",
     "scikit-learn~=1.9.1",
     "pandas~=3.1.1",
     "numpy~=2.5.4",
     "joblib~=1.6.0",
-    "google-cloud-storage~=3.17.1",
+    "boto3~=1.42",
     "pillow~=13.0.0",
     "opencv-python-headless~=5.0.0",
     "python-multipart~=0.0.33",
@@ -89,6 +89,8 @@ packages = ["app"]
 [[tool.mypy.overrides]]
 # Librerías sin anotaciones de tipos publicadas
 module = [
+    "boto3.*",
+    "botocore.*",
     "joblib",
     "sklearn.*",
     "tensorflow.*",

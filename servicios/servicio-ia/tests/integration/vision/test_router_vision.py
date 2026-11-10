@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -11,12 +12,10 @@ from typing import Any
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from google.cloud import firestore, storage  # type: ignore[attr-defined]
 from PIL import Image
 
 from app.config import Configuracion
-from app.integracion.almacen_archivos import AlmacenGcs
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.ml.clasificador import (
     Configuracion as ConfigEntrenamiento,
 )
@@ -31,7 +30,14 @@ from app.ml.clasificador import (
 from app.modelos.cargador import CargadorModelos, EstadoCarga
 from app.vision.etiquetas import CATEGORIAS
 from tests.conftest import autorizacion, emitir_token
-from tests.integration.conftest import esperar_estado_final, esperar_rabbitmq
+from tests.integration.conftest import (
+    almacen_s3,
+    base_mongo_async,
+    cliente_mongo,
+    cliente_s3,
+    esperar_estado_final,
+    esperar_rabbitmq,
+)
 from tests.unit.vision.test_video import crear_video
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "imagenes"
@@ -66,11 +72,11 @@ def diminuto() -> tuple[dict[str, bytes], dict[str, Any]]:
 async def _publicar(
     proyecto: str, bucket: str, archivos: dict[str, bytes], documento: dict[str, Any]
 ) -> None:
-    almacen = AlmacenGcs(proyecto, bucket)
+    almacen = almacen_s3(bucket)
     ruta = f"modelos/clasificador/{time.time_ns()}"
     for nombre, datos in archivos.items():
         await almacen.subir(f"{ruta}/{nombre}", datos, "application/octet-stream")
-    repositorio = RepositorioVersionesFirestore(firestore.AsyncClient(project=proyecto))
+    repositorio = RepositorioVersionesMongo(base_mongo_async(proyecto))
     version = await repositorio.registrar_candidata({**documento, "rutaArtefactos": ruta})
     await repositorio.publicar("clasificador", version, lambda c, v: {"justificacion": None})
 
@@ -79,11 +85,11 @@ async def _publicar(
 def cliente(
     crear_cliente: Callable[..., TestClient],
     configuracion_infra: Callable[..., Configuracion],
-    proyecto_firestore: str,
-    bucket_gcs: str,
+    base_mongo: str,
+    prefijo_s3: str,
     diminuto: tuple[dict[str, bytes], dict[str, Any]],
 ) -> TestClient:
-    asyncio.run(_publicar(proyecto_firestore, bucket_gcs, *diminuto))
+    asyncio.run(_publicar(base_mongo, prefijo_s3, *diminuto))
     cliente = crear_cliente(configuracion=configuracion_infra(vision_tamanio_maximo_video_mb=5.0))
     cargador: CargadorModelos = cliente.app.state.cargador_modelos  # type: ignore[attr-defined]
     cliente.portal.call(cargador.revisar)  # type: ignore[union-attr]
@@ -102,7 +108,7 @@ def _jpeg(ancho: int = 640, alto: int = 480, ruido: bool = False) -> bytes:
     return salida.getvalue()
 
 
-def test_clasificar_foto(cliente: TestClient, proyecto_firestore: str) -> None:
+def test_clasificar_foto(cliente: TestClient, base_mongo: str) -> None:
     respuesta = cliente.post(
         "/api/ia/v1/clasificaciones",
         files={"imagen": ("hoja.jpg", _jpeg(), "image/jpeg")},
@@ -121,10 +127,7 @@ def test_clasificar_foto(cliente: TestClient, proyecto_firestore: str) -> None:
     }
     assert len(cuerpo["confianza"]) == 6  # "0.xxxx"
     assert cuerpo["orientativo"] is True
-    (guardado,) = [
-        d.to_dict()
-        for d in firestore.Client(project=proyecto_firestore).collection("clasificaciones").get()
-    ]
+    (guardado,) = [d for d in cliente_mongo()[base_mongo]["clasificaciones"].find({}, {"_id": 0})]
     assert guardado["idSolicitante"] == "tec"
     assert len(guardado["sha256Imagen"]) == 64
     assert "imagen" not in guardado
@@ -228,7 +231,7 @@ def test_descarga_para_dispositivos(cliente: TestClient) -> None:
 
 
 def test_video_de_punta_a_punta(
-    cliente: TestClient, bucket_gcs: str, proyecto_firestore: str, tmp_path: Path
+    cliente: TestClient, prefijo_s3: str, base_mongo: str, tmp_path: Path
 ) -> None:
     esperar_rabbitmq(cliente)
     video = crear_video(tmp_path / "v.mp4", 4).read_bytes()
@@ -247,7 +250,9 @@ def test_video_de_punta_a_punta(
     assert len(resultado["fotogramas"]) == 4
     assert resultado["clasificacion"]["origen"] == "SERVIDOR"
     temporales = list(
-        storage.Client(project=proyecto_firestore).list_blobs(bucket_gcs, prefix="temporales/")
+        cliente_s3()
+        .list_objects_v2(Bucket=os.environ["AWS_BUCKET"], Prefix=prefijo_s3 + "temporales/")
+        .get("Contents", [])
     )
     assert temporales == []
 

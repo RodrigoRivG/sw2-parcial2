@@ -47,7 +47,7 @@ cat .env.despliegue.compartidos despliegue/secretos/azure-infra.env > despliegue
 ```
 
 Completar en ese archivo lo externo: MongoDB Atlas, RabbitMQ, AWS (DynamoDB/S3),
-GCP (Firestore/GCS), Firebase, `CORS_ORIGENES_PERMITIDOS` (URL HTTPS del frontend)
+Firebase, `CORS_ORIGENES_PERMITIDOS` (URL HTTPS del frontend)
 y `OLLAMA_BASE_URL` (túnel hacia la máquina con Qwen). Las URL de Gateway,
 servicios, Keycloak y n8n se deducen de `AZURE_ENVIRONMENT_DOMAIN`.
 Atlas debe permitir el acceso desde `0.0.0.0/0`, porque Container Apps no tiene una IP de salida fija.
@@ -60,7 +60,6 @@ Crear el Environment en GitHub y restringirlo a las ramas autorizadas.
   `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`,
   `AZURE_REGISTRY_NAME`, `AZURE_REGISTRY_LOGIN_SERVER`).
 - Secrets: `AZURE_DEPLOY_ENV` (contenido de `AZURE_DEPLOY_ENV.env`),
-  `GOOGLE_CREDENTIALS_JSON` (cuenta de IA para Firestore/GCS) y
   `FIREBASE_SERVICE_ACCOUNT_JSON` (cuenta FCM de n8n).
 
 No pegar secretos en issues, archivos versionados ni mensajes de chat.
@@ -97,3 +96,37 @@ El mínimo uno de consumidores, Keycloak y n8n consume créditos aun sin tráfic
 
 Referencias: [OIDC desde GitHub](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect),
 [secretos en Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets).
+
+## Acceso de IA a Atlas y S3
+
+IA reutiliza `MONGODB_URI`, pero selecciona `MONGODB_BASE=ia_db`. El usuario de
+Atlas necesita `readWrite` en `ia_db`, además de `inventario_db`.
+El bucket existente se reutiliza con `S3_PREFIJO=ia/`. Las rutas lógicas guardadas
+siguen siendo `modelos/...`, `reportes/...`, `datasets/...` y `temporales/...`.
+No se requieren credenciales Google para IA; la cuenta Firebase sigue siendo de n8n.
+
+Agregar a la política IAM del usuario AWS (reemplazar `BUCKET`):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::BUCKET/ia/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::BUCKET",
+      "Condition": {"StringLike": {"s3:prefix": ["ia/*"]}}
+    }
+  ]
+}
+```
+
+Conservar los permisos de DynamoDB y `incidencias/*`. El permiso `ListBucket`
+es necesario para que S3 devuelva `404` en las lecturas de objetos inexistentes.
+Las pruebas usan bases `pruebas-*` y prefijos aislados en LocalStack, nunca los
+recursos reales. TTL y reglas de ciclo de vida quedan fuera de esta entrega.

@@ -17,7 +17,7 @@ import joblib
 
 from app.comun.errores import ErrorAplicacion
 from app.integracion.almacen_archivos import AlmacenArchivos
-from app.integracion.repositorio_versiones import RepositorioVersionesFirestore
+from app.integracion.repositorio_versiones import RepositorioVersionesMongo
 from app.modelos.esquemas import VersionModelo
 
 Deserializador = Callable[[bytes], Any]
@@ -49,7 +49,7 @@ class _Registro:
 class CargadorModelos:
     def __init__(
         self,
-        repositorio: RepositorioVersionesFirestore,
+        repositorio: RepositorioVersionesMongo,
         almacen: AlmacenArchivos,
         intervalo: float = 60.0,
     ) -> None:

@@ -10,9 +10,9 @@ VARIABLES = {
     "KEYCLOAK_CLIENT_ID": "servicio-ia",
     "KEYCLOAK_CLIENT_SECRET": "secreto-de-prueba",
     "API_GATEWAY_URL": "http://api-gateway:8080/",
-    "GOOGLE_CLOUD_PROJECT": "sw2-local",
+    "MONGODB_URI": "mongodb://mongo:27017/?replicaSet=rs0",
     "RABBITMQ_URL": "amqp://sw2:clave@rabbitmq:5672",
-    "GCS_BUCKET": "ia-artefactos",
+    "AWS_BUCKET": "evidencias",
     "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
     "OLLAMA_MODEL": "qwen2.5:3b",
 }

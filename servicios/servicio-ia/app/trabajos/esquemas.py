@@ -28,7 +28,7 @@ class Trabajo(ModeloBase):
     fecha_expiracion: datetime | None = None
 
     def a_documento(self) -> dict[str, Any]:
-        """Documento de Firestore en camelCase, con fechas como `datetime`."""
+        """Documento de MongoDB en camelCase, con fechas como `datetime`."""
         documento = self.model_dump(by_alias=True, mode="python")
         documento["estado"] = self.estado.value
         return documento

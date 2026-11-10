@@ -19,7 +19,7 @@ from app.comun.errores import ErrorAplicacion
 from app.comun.seguridad import PREFIJO_API, UsuarioAutenticado
 from app.integracion.almacen_archivos import AlmacenArchivos
 from app.integracion.errores import ErrorInfraestructura
-from app.integracion.repositorio_resultados import RepositorioResultadosFirestore
+from app.integracion.repositorio_resultados import RepositorioResultadosMongo
 from app.modelos.cargador import CargadorModelos, ModeloCargado
 from app.modelos.esquemas import ReferenciaVersion
 from app.trabajos.esquemas import Trabajo
@@ -72,7 +72,7 @@ class ServicioVision:
     def __init__(
         self,
         cargador: CargadorModelos,
-        resultados: RepositorioResultadosFirestore,
+        resultados: RepositorioResultadosMongo,
         almacen: AlmacenArchivos,
         trabajos: ServicioTrabajos,
         reloj: Callable[[], datetime] = _ahora,
