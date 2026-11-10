@@ -67,11 +67,12 @@ jobs:
       - name: Crear bucket local de pruebas
         run: docker exec "${{ job.services.localstack.id }}" awslocal s3 mb s3://ia-pruebas
       # WeasyPrint (PDF de los reportes) y la fuente que usan sus tests (spec-reportes.md 2.11)
+      # Jammy no publica libharfbuzz-subset0; WeasyPrint usa fontTools como alternativa.
       - name: Instalar librerías del sistema
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 fonts-dejavu-core
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b fonts-dejavu-core
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
