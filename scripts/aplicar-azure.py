@@ -45,7 +45,7 @@ def main():
             # Distinguir inexistencia de otros errores para no ocultar fallos de acceso.
             if b'not found' not in existe.stderr.lower() and b'could not be found' not in existe.stderr.lower() and b'resourcenotfound' not in existe.stderr.lower():
                 raise SystemExit('No se pudo consultar Container App ' + nombre + '; revisar permisos y grupo.')
-            ejecutar('containerapp', 'create', '--resource-group', args.grupo, '--yaml', str(archivo))
+            ejecutar('containerapp', 'create', '--resource-group', args.grupo, '--name', 'sw2-' + nombre, '--yaml', str(archivo))
         else:
             ejecutar('containerapp', 'update', '--resource-group', args.grupo, '--name', 'sw2-' + nombre, '--yaml', str(archivo))
         print('Aplicado: ' + nombre, flush=True)

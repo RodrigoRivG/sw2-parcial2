@@ -38,12 +38,18 @@ class PipelineAzure(unittest.TestCase):
                     archivo = Path(args[args.index('--file') + 1])
                     self.assertEqual(archivo.read_text(), 'secreto-ficticio-no-publicar')
                     self.assertEqual(archivo.stat().st_mode & 0o777, 0o600)
+                if args[:3] == ['az', 'containerapp', 'show'] and args[args.index('--name') + 1] == 'sw2-keycloak':
+                    return subprocess.CompletedProcess(args, 1, stderr=b'ResourceNotFound')
                 return subprocess.CompletedProcess(args, 0, stderr=b'')
 
             with patch.object(a, 'RAIZ', raiz), patch.object(a.subprocess, 'run', side_effect=ejecutar), patch.object(sys, 'argv', ['aplicar', '--grupo', 'grupo-prueba']):
                 a.main()
         actualizaciones = [c[c.index('--name') + 1] for c in llamadas if c[:3] == ['az', 'containerapp', 'update']]
-        self.assertEqual(actualizaciones, ['sw2-' + n for n in nombres])
+        self.assertEqual(actualizaciones, ['sw2-' + n for n in nombres[1:]])
+        creaciones = [c for c in llamadas if c[:3] == ['az', 'containerapp', 'create']]
+        self.assertEqual(len(creaciones), 1)
+        self.assertEqual(creaciones[0][creaciones[0].index('--name') + 1], 'sw2-keycloak')
+        self.assertIn('--yaml', creaciones[0])
 
     def test_catalogo_incompleto_no_ejecuta_azure(self):
         with tempfile.TemporaryDirectory() as carpeta:
