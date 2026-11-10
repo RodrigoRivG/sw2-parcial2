@@ -83,6 +83,11 @@ def main():
         elif args.destino == 'azure':
             for k in ['AZURE_LOCATION', 'AZURE_ENVIRONMENT_ID', 'AZURE_IDENTITY_ID', 'AZURE_KEYVAULT_URL', 'KEYCLOAK_IMAGEN', 'N8N_IMAGEN']: exigir(k)
             if '.azurecr.io' not in v.get('IMAGEN_PREFIJO', ''): errores.append('IMAGEN_PREFIJO de Azure debe apuntar a ACR')
+            if '/providers/microsoft.app/managedenvironments/' not in v.get('AZURE_ENVIRONMENT_ID', '').lower():
+                errores.append('AZURE_ENVIRONMENT_ID debe ser el ID completo de un managedEnvironment existente')
+            if '/providers/microsoft.managedidentity/userassignedidentities/' not in v.get('AZURE_IDENTITY_ID', '').lower():
+                errores.append('AZURE_IDENTITY_ID debe ser el ID completo de la identidad administrada')
+            exigir('AZURE_ENVIRONMENT_DOMAIN')
         else:
             for k in ['AWS_ACCOUNT_ID', 'AWS_APP_RUNNER_ECR_ROLE_ARN', 'AWS_APP_RUNNER_INSTANCE_ROLE_ARN', 'AWS_APP_RUNNER_AUTOSCALING_ARN']: exigir(k)
             if '.dkr.ecr.' not in v.get('IMAGEN_PREFIJO', ''): errores.append('IMAGEN_PREFIJO de AWS debe apuntar a ECR')

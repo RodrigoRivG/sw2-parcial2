@@ -58,7 +58,7 @@ def container_app(nombre, s, v):
         config['secrets'].append({'name': secreto, 'keyVaultUrl': v.get('AZURE_KEYVAULT_URL', '').rstrip('/') + '/secrets/' + secreto, 'identity': identidad})
         c['volumeMounts'] = [{'volumeName': 'firebase', 'mountPath': '/run/secrets'}]
         template['volumes'] = [{'name': 'firebase', 'storageType': 'Secret', 'secrets': [{'secretRef': secreto, 'path': 'firebase.json'}]}]
-    return {'name': 'sw2-' + nombre, 'type': 'Microsoft.App/containerApps', 'location': v.get('AZURE_LOCATION', 'eastus'), 'identity': {'type': 'UserAssigned', 'userAssignedIdentities': {identidad: {}}}, 'properties': {'managedEnvironmentId': v.get('AZURE_ENVIRONMENT_ID', 'ENTORNO_PENDIENTE'), 'configuration': config, 'template': template}}
+    return {'name': 'sw2-' + nombre, 'type': 'Microsoft.App/containerApps', 'location': v.get('AZURE_LOCATION', 'eastus'), 'identity': {'type': 'UserAssigned', 'userAssignedIdentities': {identidad: {}}}, 'properties': {'environmentId': v.get('AZURE_ENVIRONMENT_ID', 'ENTORNO_PENDIENTE'), 'configuration': config, 'template': template}}
 
 
 def app_runner(nombre, s, v):

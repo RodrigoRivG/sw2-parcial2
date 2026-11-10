@@ -15,7 +15,7 @@ spec.loader.exec_module(g)
 
 class Manifiestos(unittest.TestCase):
     def setUp(self):
-        self.v = {'IMAGEN_PREFIJO': 'registro.ficticio/sw2', 'IMAGEN_ETIQUETA': 'prueba', 'API_GATEWAY_URL': 'https://gateway.ficticio', 'KEYCLOAK_ISSUER': 'https://auth.ficticio/realms/agro', 'GCP_SERVICE_ACCOUNT_EMAIL': 'app@ficticio.iam.gserviceaccount.com', 'N8N_PUBLIC_URL': 'https://n8n.ficticio', 'AZURE_IDENTITY_ID': '/identidad/ficticia', 'AZURE_KEYVAULT_URL': 'https://ficticio.vault.azure.net', 'AWS_ACCOUNT_ID': '123456789012', 'AWS_ACCESS_KEY_ID': 'CLAVE_FICTICIA', 'AWS_SECRET_ACCESS_KEY': 'SECRETO_FICTICIO', 'IA_CLIENT_SECRET': 'SECRETO_IA_FICTICIO'}
+        self.v = {'IMAGEN_PREFIJO': 'registro.ficticio/sw2', 'IMAGEN_ETIQUETA': 'prueba', 'API_GATEWAY_URL': 'https://gateway.ficticio', 'KEYCLOAK_ISSUER': 'https://auth.ficticio/realms/agro', 'GCP_SERVICE_ACCOUNT_EMAIL': 'app@ficticio.iam.gserviceaccount.com', 'N8N_PUBLIC_URL': 'https://n8n.ficticio', 'AZURE_ENVIRONMENT_ID': '/subscriptions/ficticia/resourceGroups/prueba/providers/Microsoft.App/managedEnvironments/entorno', 'AZURE_IDENTITY_ID': '/identidad/ficticia', 'AZURE_KEYVAULT_URL': 'https://ficticio.vault.azure.net', 'AWS_ACCOUNT_ID': '123456789012', 'AWS_ACCESS_KEY_ID': 'CLAVE_FICTICIA', 'AWS_SECRET_ACCESS_KEY': 'SECRETO_FICTICIO', 'IA_CLIENT_SECRET': 'SECRETO_IA_FICTICIO'}
 
     def test_azure_autonomo_y_gateway_de_su_nube(self):
         for nube in ['aws', 'azure', 'gcp']:
@@ -62,6 +62,10 @@ class Manifiestos(unittest.TestCase):
         m = g.container_app('servicio-ia', s['servicio-ia'], self.v)
         self.assertNotIn('SECRETO_IA_FICTICIO', json.dumps(m))
         self.assertTrue(m['properties']['configuration']['secrets'])
+        for nombre in s:
+            manifiesto = g.container_app(nombre, s[nombre], self.v)
+            self.assertEqual(manifiesto['properties']['environmentId'], self.v['AZURE_ENVIRONMENT_ID'])
+            self.assertNotIn('managedEnvironmentId', manifiesto['properties'])
         for nombre in ['keycloak', 'n8n']:
             m = g.container_app(nombre, s[nombre], self.v)
             self.assertIn('tcpSocket', m['properties']['template']['containers'][0]['probes'][1])

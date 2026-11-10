@@ -85,6 +85,10 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Comprobar el entorno real antes de construir imágenes
+        run: |
+          az extension add --name containerapp --upgrade --yes --only-show-errors
+          python scripts/aplicar-azure.py --grupo "$AZURE_RESOURCE_GROUP" --solo-comprobar
       # ACR Tasks (az acr build) no está disponible en suscripciones con créditos gratuitos:
       # se construye en el runner y se publica en ACR. Se limpia tras cada imagen por espacio.
       - name: Construir en el runner y publicar en ACR desde este mismo commit

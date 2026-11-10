@@ -100,7 +100,7 @@ existe az identity federated-credential show --name github-azure --identity-name
 
 paso "Container Apps Environment $ENTORNO (sin Log Analytics para no pagar ingesta)"
 existe az containerapp env show -n "$ENTORNO" -g "$GRUPO" \
-  || az containerapp env create -n "$ENTORNO" -g "$GRUPO" -l "$REGION" --logs-destination none -o none
+  || az containerapp env create -n "$ENTORNO" -g "$GRUPO" -l "$REGION" --environment-mode WorkloadProfiles --logs-destination none -o none
 ENTORNO_ID=$(az containerapp env show -n "$ENTORNO" -g "$GRUPO" --query id -o tsv)
 DOMINIO=$(az containerapp env show -n "$ENTORNO" -g "$GRUPO" --query properties.defaultDomain -o tsv)
 
