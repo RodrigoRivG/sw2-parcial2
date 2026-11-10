@@ -105,6 +105,13 @@ jobs:
           publicar n8n docker/n8n
           cp docker/keycloak/Dockerfile.despliegue despliegue/generado/keycloak/Dockerfile
           publicar keycloak despliegue/generado/keycloak
+      # La construcción puede superar la vigencia de la aserción OIDC inicial.
+      - name: Renovar sesión Azure antes de aplicar el despliegue
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Cargar secretos y aplicar las aplicaciones
         run: |
           az extension add --name containerapp --upgrade --yes --only-show-errors
