@@ -1,0 +1,5 @@
+# Contexto: despliegue/generado/keycloak, creado por preparar-despliegue.py.
+FROM quay.io/keycloak/keycloak:26.4
+COPY --chown=keycloak:keycloak realm-agro.json /opt/keycloak/data/import/realm-agro.json
+COPY --chown=keycloak:keycloak temas /opt/keycloak/themes
+CMD ["start", "--import-realm"]

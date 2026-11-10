@@ -1,0 +1,150 @@
+name: Despliegue Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: Validar, desplegar, o apagar/encender las réplicas mínimas para ahorrar créditos
+        type: choice
+        options: [validar, desplegar, apagar, encender]
+        default: validar
+  pull_request:
+    paths:
+      - 'despliegue/**'
+      - 'scripts/*despliegue.py'
+      - 'scripts/generar-serverless.py'
+      - 'scripts/aplicar-azure.py'
+      - 'scripts/infra-azure.sh'
+      - '.github/workflows/desplegar-azure.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: despliegue-azure
+  cancel-in-progress: false
+
+jobs:
+  validar:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Comprobar configuración sin credenciales ni Docker
+        run: |
+          python -m unittest discover -s despliegue -p 'test_*.py' -v
+          python -m py_compile despliegue/configuracion.py scripts/generar-serverless.py scripts/preparar-despliegue.py scripts/validar-despliegue.py scripts/aplicar-azure.py
+          bash -n scripts/infra-azure.sh
+
+  desplegar:
+    if: github.event_name == 'workflow_dispatch' && inputs.accion == 'desplegar'
+    needs: validar
+    runs-on: ubuntu-22.04
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_REGISTRY_NAME: ${{ vars.AZURE_REGISTRY_NAME }}
+      AZURE_REGISTRY_LOGIN_SERVER: ${{ vars.AZURE_REGISTRY_LOGIN_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preparar archivos privados en el runner
+        env:
+          AZURE_DEPLOY_ENV: ${{ secrets.AZURE_DEPLOY_ENV }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          os.umask(0o077)
+          for k in ['AZURE_DEPLOY_ENV', 'GOOGLE_CREDENTIALS_JSON', 'FIREBASE_SERVICE_ACCOUNT_JSON', 'AZURE_RESOURCE_GROUP', 'AZURE_REGISTRY_NAME', 'AZURE_REGISTRY_LOGIN_SERVER']:
+              if not os.environ.get(k):
+                  raise SystemExit('Falta configurar ' + k + ' en el Environment azure')
+          Path('.env.despliegue.compartidos').write_text(os.environ['AZURE_DEPLOY_ENV'])
+          registro = os.environ['AZURE_REGISTRY_LOGIN_SERVER'] + '/sw2'
+          tag = os.environ['GITHUB_SHA']
+          Path('.env.despliegue.azure').write_text(
+              f'NUBE=azure\nCONSUMIDORES_ACTIVOS=true\nTRABAJOS_CONSUMIDOR_ACTIVO=true\nN8N_NUBE=azure\nIMAGEN_PREFIJO={registro}\nIMAGEN_ETIQUETA={tag}\n'
+              f'KEYCLOAK_IMAGEN={registro}/keycloak:{tag}\nN8N_IMAGEN={registro}/n8n:{tag}\n'
+          )
+          carpeta = Path('despliegue/secretos')
+          carpeta.mkdir(parents=True, exist_ok=True)
+          (carpeta / 'gcp-ia.json').write_text(os.environ['GOOGLE_CREDENTIALS_JSON'])
+          (carpeta / 'firebase-cuenta-servicio.json').write_text(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
+          PY
+          python scripts/preparar-despliegue.py --nube azure
+          python scripts/generar-serverless.py azure
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      # ACR Tasks (az acr build) no está disponible en suscripciones con créditos gratuitos:
+      # se construye en el runner y se publica en ACR. Se limpia tras cada imagen por espacio.
+      - name: Construir en el runner y publicar en ACR desde este mismo commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "$AZURE_REGISTRY_NAME"
+          publicar() {
+            local imagen="$AZURE_REGISTRY_LOGIN_SERVER/sw2/$1:$GITHUB_SHA"
+            docker build -t "$imagen" "$2"
+            docker push "$imagen"
+            docker image rm "$imagen" >/dev/null
+            docker builder prune -af >/dev/null
+          }
+          for servicio in servicio-gestion servicio-inventario servicio-operaciones servicio-ia api-gateway graphql-server; do
+            publicar "$servicio" "servicios/$servicio"
+          done
+          publicar n8n docker/n8n
+          cp docker/keycloak/Dockerfile.despliegue despliegue/generado/keycloak/Dockerfile
+          publicar keycloak despliegue/generado/keycloak
+      - name: Cargar secretos y aplicar las aplicaciones
+        run: |
+          az extension add --name containerapp --upgrade --yes --only-show-errors
+          python scripts/aplicar-azure.py --grupo "$AZURE_RESOURCE_GROUP"
+      - name: Borrar archivos privados del runner
+        if: always()
+        shell: bash
+        run: |
+          rm -f .env.despliegue.compartidos .env.despliegue.azure
+          rm -rf despliegue/secretos despliegue/generado
+
+  # apagar: todas las apps a 0 réplicas mínimas (las que tienen ingress despiertan con tráfico;
+  # programador y consumidores quedan detenidos). encender: vuelve a 1 en los procesos continuos.
+  escalar:
+    if: github.event_name == 'workflow_dispatch' && (inputs.accion == 'apagar' || inputs.accion == 'encender')
+    runs-on: ubuntu-22.04
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Ajustar réplicas mínimas
+        shell: bash
+        env:
+          ACCION: ${{ inputs.accion }}
+          GRUPO: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          set -euo pipefail
+          az extension add --name containerapp --upgrade --yes --only-show-errors
+          continuas=' sw2-keycloak sw2-n8n sw2-servicio-gestion sw2-servicio-inventario sw2-servicio-ia sw2-operaciones-programador sw2-operaciones-consumidor '
+          for app in $(az containerapp list -g "$GRUPO" --query '[].name' -o tsv); do
+            minimo=0
+            if [ "$ACCION" = encender ] && [[ "$continuas" == *" $app "* ]]; then minimo=1; fi
+            az containerapp update -g "$GRUPO" -n "$app" --min-replicas "$minimo" --only-show-errors -o none
+            echo "$app: minReplicas=$minimo"
+          done
