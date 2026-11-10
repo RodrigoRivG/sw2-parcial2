@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Crea o completa la infraestructura base de Azure para el backend. Idempotente:
-# volver a ejecutarlo no duplica recursos ni cambia la clave de PostgreSQL.
+# volver a ejecutarlo no duplica recursos. PostgreSQL existente se configura
+# exclusivamente en .env.despliegue.compartidos; este script no lo modifica.
 #
 # Uso (Azure Cloud Shell o con Azure CLI instalado):
 #   az login
@@ -31,7 +32,6 @@ TENANT=$(az account show --query tenantId -o tsv)
 SUFIJO=$(printf '%s' "$SUSCRIPCION$GRUPO" | sha1sum | cut -c1-6)
 ACR="sw2acr$SUFIJO"
 VAULT="sw2kv$SUFIJO"
-PG="sw2-pg-$SUFIJO"
 echo "Suscripción: $(az account show --query name -o tsv) | región: $REGION | repo: $REPO"
 
 paso 'Regiones permitidas (Azure for Students suele restringirlas)'
@@ -45,7 +45,7 @@ fi
 echo 'Región aceptada.'
 
 paso 'Proveedores y extensión de Container Apps'
-for p in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.KeyVault Microsoft.DBforPostgreSQL Microsoft.ManagedIdentity; do
+for p in Microsoft.App Microsoft.OperationalInsights Microsoft.ContainerRegistry Microsoft.KeyVault Microsoft.ManagedIdentity; do
   az provider register --namespace "$p" --wait -o none
 done
 az extension add --name containerapp --upgrade --yes --only-show-errors -o none
@@ -104,29 +104,6 @@ existe az containerapp env show -n "$ENTORNO" -g "$GRUPO" \
 ENTORNO_ID=$(az containerapp env show -n "$ENTORNO" -g "$GRUPO" --query id -o tsv)
 DOMINIO=$(az containerapp env show -n "$ENTORNO" -g "$GRUPO" --query properties.defaultDomain -o tsv)
 
-paso "PostgreSQL Flexible $PG (B1ms, 32 GB: dentro de los servicios gratuitos)"
-PG_USUARIO=sw2admin
-PG_CLAVE=''
-[ -f "$SALIDA" ] && PG_CLAVE=$(grep -E '^SPRING_DATASOURCE_PASSWORD=' "$SALIDA" | cut -d= -f2- || true)
-nueva_clave() { printf 'Sw2%s' "$(openssl rand -hex 20)"; }  # mayúscula, minúsculas y dígitos; sin escapes en URL
-if ! existe az postgres flexible-server show -n "$PG" -g "$GRUPO"; then
-  PG_CLAVE=$(nueva_clave)
-  # 0.0.0.0 = permitir servicios de Azure; las Container Apps no tienen IP de salida fija.
-  az postgres flexible-server create -n "$PG" -g "$GRUPO" -l "$REGION" \
-    --tier Burstable --sku-name Standard_B1ms --storage-size 32 --storage-auto-grow Disabled \
-    --version 16 --high-availability Disabled --backup-retention 7 \
-    --admin-user "$PG_USUARIO" --admin-password "$PG_CLAVE" --public-access 0.0.0.0 --yes -o none
-elif [ -z "$PG_CLAVE" ]; then
-  echo 'El servidor existe pero no hay clave local guardada: se restablece.'
-  PG_CLAVE=$(nueva_clave)
-  az postgres flexible-server update -n "$PG" -g "$GRUPO" --admin-password "$PG_CLAVE" -o none
-fi
-for base in gestion_db keycloak_azure n8n_db; do
-  existe az postgres flexible-server db show -s "$PG" -g "$GRUPO" -d "$base" \
-    || az postgres flexible-server db create -s "$PG" -g "$GRUPO" -d "$base" -o none
-done
-PG_HOST=$(az postgres flexible-server show -n "$PG" -g "$GRUPO" --query fullyQualifiedDomainName -o tsv)
-
 paso 'Archivos de salida'
 mkdir -p "$(dirname "$SALIDA")"
 umask 077
@@ -139,17 +116,6 @@ AZURE_ENVIRONMENT_ID=$ENTORNO_ID
 AZURE_ENVIRONMENT_DOMAIN=$DOMINIO
 AZURE_IDENTITY_ID=$APPS_ID
 AZURE_KEYVAULT_URL=${VAULT_URL%/}
-SPRING_DATASOURCE_URL=jdbc:postgresql://$PG_HOST:5432/gestion_db?sslmode=require
-SPRING_DATASOURCE_USERNAME=$PG_USUARIO
-SPRING_DATASOURCE_PASSWORD=$PG_CLAVE
-KC_DB_URL=jdbc:postgresql://$PG_HOST:5432/keycloak_azure?sslmode=require
-KC_DB_USERNAME=$PG_USUARIO
-KC_DB_PASSWORD=$PG_CLAVE
-N8N_DB_HOST=$PG_HOST
-N8N_DB_PORT=5432
-N8N_DB_NAME=n8n_db
-N8N_DB_USER=$PG_USUARIO
-N8N_DB_PASSWORD=$PG_CLAVE
 EOF
 cat >"$SALIDA_GITHUB" <<EOF
 Variables del GitHub Environment "azure" (no son secretos):

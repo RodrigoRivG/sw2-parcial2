@@ -27,8 +27,11 @@ no está habilitado en suscripciones con créditos gratuitos como Azure for Stud
 - Identidad `sw2-apps` (AcrPull y lectura del vault) usada por los contenedores.
 - Identidad `sw2-github` con credencial federada para
   `repo:<repo>:environment:azure`; no requiere app registration en Entra ID.
-- PostgreSQL Flexible B1ms de 32 GB (servicios gratuitos de la cuenta) con
-  `gestion_db`, `keycloak_azure` y `n8n_db`, accesible desde servicios de Azure.
+
+El PostgreSQL existente se reutiliza. El script no crea servidores o bases, no
+restablece contraseñas ni cambia sus reglas de red. Las conexiones verificadas de
+`gestion_db`, `keycloak_azure` y `n8n_db` se conservan en
+`.env.despliegue.compartidos`.
 
 ```bash
 az login                       # o usar Azure Cloud Shell con el repo clonado
