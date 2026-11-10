@@ -172,7 +172,7 @@ Códigos del `error` de un trabajo `CONSULTA_AGENTE` `FALLIDO`: `MODELO_LENGUAJE
 
 ## 1.7 Supuestos
 
-- Ollama corre nativo en Windows y el contenedor lo alcanza en `http://host.docker.internal:11434` (ya en `docker-compose.yml`); en la nube, en Compute Engine. El modelo es `OLLAMA_MODEL` (`qwen2.5:3b`), que admite llamadas a herramientas.
+- Ollama corre nativo en Windows y el contenedor local lo alcanza en `http://host.docker.internal:11434` (ya en `docker-compose.yml`). Para el despliegue, permanece en la máquina del usuario; su exposición segura a las tres nubes se resolverá en la última etapa y se configurará con `OLLAMA_BASE_URL`. No se despliega Ollama en Compute Engine. El modelo es `OLLAMA_MODEL` (`qwen2.5:3b`), que admite llamadas a herramientas.
 - La cuenta de servicio `servicio-ia` ya tiene los tres roles de lectura y las tres audiencias en el realm.
 - `lectura_inventario` no permite leer movimientos (`servicio-inventario/specs/spec-movimientos.md`, AC-01). El consumo de insumos se obtiene de las labores (sus `insumos`).
 

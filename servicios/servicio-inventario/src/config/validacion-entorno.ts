@@ -5,6 +5,8 @@ export interface Configuracion {
   mongodbUri: string;
   /** `amqp://` en local y tests; `amqps://` en la nube (RNF-01). */
   rabbitmqUrl: string;
+  /** Solo desactivar en copias HTTP; otra instancia debe consumir los comandos. */
+  rabbitmqConsumidorActivo?: boolean;
   keycloakIssuer: string;
   keycloakJwksUri: string;
   keycloakAudience: string;
@@ -29,10 +31,15 @@ export function leerConfiguracion(entorno: NodeJS.ProcessEnv = process.env): Con
   if (!Number.isInteger(puerto) || puerto <= 0) {
     throw new Error('PORT debe ser un número de puerto válido.');
   }
+  const consumidor = entorno.RABBITMQ_CONSUMIDOR_ACTIVO ?? 'true';
+  if (consumidor !== 'true' && consumidor !== 'false') {
+    throw new Error('RABBITMQ_CONSUMIDOR_ACTIVO debe ser true o false.');
+  }
   return {
     puerto,
     mongodbUri: entorno.MONGODB_URI as string,
     rabbitmqUrl: entorno.RABBITMQ_URL as string,
+    rabbitmqConsumidorActivo: consumidor === 'true',
     keycloakIssuer: entorno.KEYCLOAK_ISSUER as string,
     keycloakJwksUri: entorno.KEYCLOAK_JWKS_URI as string,
     keycloakAudience: entorno.KEYCLOAK_AUDIENCE as string,

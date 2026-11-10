@@ -134,7 +134,7 @@ Los destinatarios se fijan por variable de entorno. Esta fase cierra la T07 pend
 - El proyecto de Firebase y su cuenta de servicio los crea el usuario en la consola de Firebase (T01). Sin ellos los flujos se ejecutan, pero fallan al enviar.
 - La app Flutter implementa la suscripción al tema `tecnicos` (contrato del Contexto).
 - El evento `IncidenciaRegistrada` lleva en `datos` `{ idIncidencia, tipo, descripcion, idParcela, idCampania, fechaObservacion, registradaPor: { id, nombre }, clasificacion }` dentro del sobre común (`spec-incidencias.md`, historia 3).
-- En la nube, n8n corre en GCP con las mismas variables de entorno y se conecta a RabbitMQ (Amazon MQ) por AMQPS. El proyecto de Firebase es de GCP.
+- Primer despliegue: una sola instancia de n8n en Azure Container Apps, sin depender de otro backend. Consume RabbitMQ por AMQPS y consulta el Gateway del propio Azure. Mantiene una réplica activa y usa PostgreSQL externo (`n8n_db`); las credenciales Firebase se montan desde Key Vault. La configuración se genera con `scripts/generar-serverless.py azure`; ver `despliegue/azure/README.md`. Los recursos externos y el Compose local no se sustituyen. Las copias futuras deben definir sus suscripciones y coordinación antes de activarse simultáneamente.
 
 ## 1.5 Aclaraciones
 
@@ -274,6 +274,7 @@ Verificación en teléfono del 2026-11-09, confirmada por el usuario durante la 
 | D-N8N-07 | Correos en una fase 2 opcional | El push es la exigencia; los correos son el resto del Módulo 8, si queda tiempo. |
 | D-N8N-08 | El recordatorio consulta operaciones en un solo nodo Code | Evita la credencial OAuth2 de Keycloak y la paginación por configuración del HTTP Request; el token se pide en cada ejecución. |
 | D-N8N-09 | El trigger confirma el mensaje al recibirlo | Un evento con n8n apagado espera en la cola durable, y un fallo de FCM no provoca reentregas sin fin. |
+| D-N8N-10 | Una instancia inicialmente en Azure, con su propio Gateway | Azure debe funcionar sin otro backend; las futuras copias requieren definir coordinación de eventos y recordatorios sobre recursos compartidos. |
 
 ---
 

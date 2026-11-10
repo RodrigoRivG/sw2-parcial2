@@ -174,6 +174,11 @@ Para MongoDB Compass desde Windows usa `directConnection=true`. Sin eso, Compass
 
 ## 6. Diferencias entre local y la nube
 
+La construcción y las comprobaciones previas al despliegue están documentadas en
+[`docs/verificacion-imagenes-produccion.md`](docs/verificacion-imagenes-produccion.md).
+La configuración para las tres copias del backend y los servicios compartidos
+está en [`despliegue/README.md`](despliegue/README.md).
+
 | Componente | Local (Docker) | Nube |
 |---|---|---|
 | PostgreSQL | `postgres:17` | Azure Database for PostgreSQL |
@@ -183,7 +188,7 @@ Para MongoDB Compass desde Windows usa `directConnection=true`. Sin eso, Compass
 | Firestore | Emulador (datos en memoria: un reinicio borra las versiones de los modelos de IA) | Firestore |
 | Cloud Storage | fake-gcs-server | Google Cloud Storage |
 | RabbitMQ | AMQP sin TLS | Amazon MQ con AMQPS |
-| Ollama | Nativo en Windows (usa tu GPU) | Compute Engine |
+| Ollama | Nativo en Windows (usa tu GPU) | Permanece en la máquina del usuario; exposición segura pendiente para la última etapa |
 
 El código es el mismo: solo cambian las variables de entorno.
 

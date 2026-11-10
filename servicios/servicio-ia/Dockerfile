@@ -33,8 +33,10 @@ RUN python -c "from faster_whisper import WhisperModel; \
 WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8', download_root='/modelos/whisper')" \
     && chown -R servicio /modelos
 
+COPY iniciar.py ./iniciar.py
 USER servicio
 
 # Cloud Run define PORT (8080 por defecto)
 EXPOSE 8080
+ENTRYPOINT ["python", "/app/iniciar.py"]
 CMD ["sh", "-c", "exec uvicorn --factory app.main:crear_app --host 0.0.0.0 --port ${PORT:-8080} --no-access-log"]

@@ -5,6 +5,7 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
+  Optional,
 } from '@nestjs/common';
 import { AmqpConnectionManager, ChannelWrapper } from 'amqp-connection-manager';
 import { ConfirmChannel, ConsumeMessage } from 'amqplib';
@@ -16,6 +17,7 @@ import {
 } from '../../../application/use-cases/respuestas-saga';
 import { RestaurarInsumosCasoUso } from '../../../application/use-cases/restaurar-insumos.caso-uso';
 import { Reloj } from '../../../application/ports/reloj.puerto';
+import { CONFIGURACION, Configuracion } from '../../../config/validacion-entorno';
 import { contextoCorrelacion } from '../../contexto-correlacion';
 import { CONEXION_RABBITMQ } from '../../outbound/messaging/conexion-rabbitmq';
 import { ORIGEN, SobreMensaje } from '../../outbound/messaging/publicador-eventos.rabbitmq';
@@ -48,6 +50,7 @@ export class ComandosSagaConsumidor implements OnApplicationBootstrap, OnModuleD
     private readonly evaluacionStockBajo: EvaluacionStockBajo,
     @Inject(RelojSistema) private readonly reloj: Reloj,
     @Inject(ESPERAS_REINTENTO_SAGA) private readonly esperas: number[],
+    @Optional() @Inject(CONFIGURACION) private readonly configuracion?: Configuracion,
   ) {
     this.canal = conexion.createChannel({
       confirm: true,
@@ -57,6 +60,10 @@ export class ComandosSagaConsumidor implements OnApplicationBootstrap, OnModuleD
   }
 
   onApplicationBootstrap(): void {
+    if (this.configuracion?.rabbitmqConsumidorActivo === false) {
+      this.logger.log('Consumidor Saga desactivado en esta copia HTTP');
+      return;
+    }
     // No se espera: si RabbitMQ está caído, el servicio arranca igual y el consumidor se registra al conectar.
     this.canal
       .consume(COLA_COMANDOS, (mensaje) => this.recibir(mensaje), { noAck: false })
@@ -130,7 +137,9 @@ export class ComandosSagaConsumidor implements OnApplicationBootstrap, OnModuleD
           this.canal.nack(mensaje, false, false);
           return;
         }
-        this.logger.warn(`${descripcion} falló (${detalle}); reintento ${intento + 1} de ${this.esperas.length}`);
+        this.logger.warn(
+          `${descripcion} falló (${detalle}); reintento ${intento + 1} de ${this.esperas.length}`,
+        );
         await new Promise((resolver) => setTimeout(resolver, this.esperas[intento]));
       }
     }
