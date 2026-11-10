@@ -32,6 +32,9 @@ const rabbit = {
   password: env.RABBITMQ_PASSWORD,
   vhost: env.RABBITMQ_VHOST || '/',
   ssl,
+  // Con ssl, n8n usa por defecto "passwordless" (SASL EXTERNAL con certificado de cliente);
+  // Amazon MQ autentica con usuario y contraseña sobre AMQPS.
+  passwordless: false,
 };
 
 async function declararExchange() {
